@@ -5,6 +5,7 @@ import com.jubitus.millpathbuilder.gen.bridge.BridgeAwarePathResult;
 import com.jubitus.millpathbuilder.gen.bridge.BridgeFeasibility;
 import com.jubitus.millpathbuilder.gen.bridge.BridgeSpan;
 import com.jubitus.millpathbuilder.gen.bridge.SupercoverLine;
+import com.jubitus.millpathbuilder.gen.util.MPBPos2D;
 import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -109,6 +110,18 @@ public final class AStarPathfinder {
         private long ax, az, bx, bz;
         private long segDx, segDz;
         private long segLenSq;
+
+        private static final int[][] NEIGHBOR_DIRS = new int[][]{
+                { 1, 0}, {-1, 0}, {0, 1}, {0, -1},
+                { 1, 1}, { 1,-1}, {-1, 1}, {-1,-1}
+        };
+
+        private static final int[][] BRIDGE_DIRS = new int[][]{
+                { 1, 0}, {-1, 0}, {0, 1}, {0, -1},
+                { 1, 1}, { 1,-1}, {-1, 1}, {-1,-1},
+                { 2, 1}, { 2,-1}, {-2, 1}, {-2,-1},
+                { 1, 2}, { 1,-2}, {-1, 2}, {-1,-2}
+        };
 
         Session(WorldServer world, BlockPos start, BlockPos goal, TerrainSampler sampler) {
             this.world = world;
@@ -265,9 +278,12 @@ public final class AStarPathfinder {
         }
 
         private void expandNormalMoves(Node cur, long ck, TerrainSampler.Sample cs) {
-            for (int[] d : neighbors(step)) {
-                int nx = cur.x + d[0];
-                int nz = cur.z + d[1];
+            for (int[] dir : NEIGHBOR_DIRS) {
+                int dx = dir[0] * step;
+                int dz = dir[1] * step;
+
+                int nx = cur.x + dx;
+                int nz = cur.z + dz;
                 long nk = key(nx, nz);
 
                 if (!baseNodeChecks(nx, nz, nk)) continue;
@@ -296,7 +312,7 @@ public final class AStarPathfinder {
                     continue;
                 }
 
-                double base = Math.sqrt((double) d[0] * (double) d[0] + (double) d[1] * (double) d[1]);
+                double base = Math.sqrt((double) dx * (double) dx + (double) dz * (double) dz);
                 double slopeCost = (double) dy * MPBConfig.PATHFINDING.slopePenalty;
 
                 if (MPBConfig.PATHFINDING.allowEarthworks && dy > maxDy) {
@@ -369,7 +385,7 @@ public final class AStarPathfinder {
 
             int accepted = 0;
 
-            int[][] dirs = bridgeDirections();
+            int[][] dirs = BRIDGE_DIRS;
             long parentK = cameFrom.get(ck);
 
             int inDx = 0;
@@ -377,8 +393,8 @@ public final class AStarPathfinder {
             boolean hasIncoming = false;
 
             if (parentK != Long.MIN_VALUE) {
-                int px = (int) (parentK >> 32);
-                int pz = (int) (long) parentK;
+                int px = MPBPos2D.xFromKey(parentK);
+                int pz = MPBPos2D.zFromKey(parentK);
                 inDx = Integer.signum(x - px);
                 inDz = Integer.signum(z - pz);
                 hasIncoming = (inDx != 0 || inDz != 0);
@@ -665,37 +681,19 @@ public final class AStarPathfinder {
     }
 
     private static int snap(int v, int step) {
-        return Math.floorDiv(v, step) * step;
+        return MPBPos2D.snapDown(v, step);
     }
 
     private static double heuristic(int x, int z, int gx, int gz) {
-        return Math.sqrt(distSq(x, z, gx, gz));
+        return Math.sqrt(MPBPos2D.distSq(x, z, gx, gz));
     }
 
     private static double distSq(int x1, int z1, int x2, int z2) {
-        long dx = (long) x1 - (long) x2;
-        long dz = (long) z1 - (long) z2;
-        return (double) dx * (double) dx + (double) dz * (double) dz;
+        return MPBPos2D.distSq(x1, z1, x2, z2);
     }
 
     private static long key(int x, int z) {
-        return (((long) x) << 32) ^ (z & 0xffffffffL);
-    }
-
-    private static List<int[]> neighbors(int step) {
-        return Arrays.asList(
-                new int[]{ step, 0}, new int[]{-step, 0}, new int[]{0, step}, new int[]{0, -step},
-                new int[]{ step, step}, new int[]{ step, -step}, new int[]{-step, step}, new int[]{-step, -step}
-        );
-    }
-
-    private static int[][] bridgeDirections() {
-        return new int[][]{
-                { 1, 0}, {-1, 0}, {0, 1}, {0, -1},
-                { 1, 1}, { 1,-1}, {-1, 1}, {-1,-1},
-                { 2, 1}, { 2,-1}, {-2, 1}, {-2,-1},
-                { 1, 2}, { 1,-2}, {-1, 2}, {-1,-2}
-        };
+        return MPBPos2D.xzKey(x, z);
     }
 
     private static double normalizedDot(int ax, int az, int bx, int bz) {

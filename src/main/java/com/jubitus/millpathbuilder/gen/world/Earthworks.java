@@ -38,9 +38,6 @@ public final class Earthworks {
         }
     }
 
-    public static void applyCell(WorldServer world, TerrainSampler sampler, int x, int z, int centerY, int dist, Settings s, boolean dryRun) {
-        gradeCell(world, sampler, x, z, centerY, dist, s, dryRun);
-    }
 
     public static int gradeCell(WorldServer world, TerrainSampler sampler, int x, int z, int centerY, int dist, Settings s, boolean dryRun) {
         int targetY = centerY;

@@ -83,29 +83,6 @@ public class MPBRoadIndexData extends WorldSavedData {
         }
     }
 
-    public void unmarkRoad(int x, int z) {
-        long ck = chunkKey(x >> 4, z >> 4);
-        long[] m = masksByChunk.get(ck);
-        if (m == null) return;
-
-        int idx = bitIndex(x, z);
-        int w = idx >>> 6;
-        int b = idx & 63;
-
-        long before = m[w];
-        long after = before & ~(1L << b);
-        if (after == before) return;
-
-        m[w] = after;
-
-        boolean any = false;
-        for (int i = 0; i < WORDS; i++) {
-            if (m[i] != 0L) { any = true; break; }
-        }
-        if (!any) masksByChunk.remove(ck);
-
-        markDirty();
-    }
 
     @Nullable
     public BlockPos findNearestRoad(int x, int z, int maxRadius) {

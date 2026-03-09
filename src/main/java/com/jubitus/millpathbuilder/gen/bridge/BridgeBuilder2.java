@@ -78,25 +78,22 @@ public final class BridgeBuilder2 {
         int supportSpacing = Math.max(2, MPBConfig.BRIDGES.supportSpacing);
         int maxSupportDepth = Math.max(8, MPBConfig.BRIDGES.maxSupportDepth);
 
-        int[] deckHalfY = buildDeckHalfProfile(span, sampler);
+        int[] deckHalfY = BridgeGeometry.buildDeckHalfProfile(span, sampler);
         LongOpenHashSet deckXZ = new LongOpenHashSet(Math.max(128, span.centerline.size() * 8));
 
-        // We place deck cells using local segment direction to keep geometry stable.
         for (int i = 0; i < span.centerline.size(); i++) {
             BlockPos c = span.centerline.get(i);
 
-            Dir2 dir = localDir(span.centerline, i);
-            Dir2 perp = dir.perp();
+            BridgeGeometry.Dir2 dir = BridgeGeometry.localDir(span.centerline, i);
+            BridgeGeometry.Dir2 perp = dir.perp();
 
-            SlabPlacement sp = slabPlacementForSurfaceHalfY(deckHalfY[i]);
+            BridgeGeometry.SlabPlacement sp = BridgeGeometry.slabPlacementForSurfaceHalfY(deckHalfY[i]);
             IBlockState deckSlab = sp.top ? slabTop() : slabBottom();
 
-            // Place main stripe
             if (!placeStripe(world, c.getX(), c.getZ(), perp, half, sp, deckSlab, dryRun, sampler, deckXZ)) {
                 return false;
             }
-            // If diagonal step, fill missing corner cells WITHOUT widening:
-            // We fill only the cells that lie between previous and current stripe for each offset.
+
             if (i > 0) {
                 BlockPos p = span.centerline.get(i - 1);
                 int stepX = c.getX() - p.getX();
@@ -113,7 +110,6 @@ public final class BridgeBuilder2 {
                 BlockPos s1 = supportPosAdjacentToDeckEdge(c.getX(), c.getZ(), perp, half, true, sp.blockY);
                 BlockPos s2 = supportPosAdjacentToDeckEdge(c.getX(), c.getZ(), perp, half, false, sp.blockY);
 
-// Ensure supports never intersect any deck cell (including corner fills / neighbor stripes)
                 s1 = pushSupportOutsideDeck(deckXZ, s1, perp, true);
                 s2 = pushSupportOutsideDeck(deckXZ, s2, perp, false);
 
@@ -125,8 +121,16 @@ public final class BridgeBuilder2 {
         return true;
     }
 
-    private static boolean placeStripe(WorldServer world, int cx, int cz, Dir2 perp, int half, SlabPlacement sp,
-                                       IBlockState slab, boolean dryRun, TerrainSampler sampler, LongOpenHashSet deckXZ) {
+    private static boolean placeStripe(WorldServer world,
+                                       int cx,
+                                       int cz,
+                                       BridgeGeometry.Dir2 perp,
+                                       int half,
+                                       BridgeGeometry.SlabPlacement sp,
+                                       IBlockState slab,
+                                       boolean dryRun,
+                                       TerrainSampler sampler,
+                                       LongOpenHashSet deckXZ) {
         for (int o = -half; o <= half; o++) {
             int x = cx + perp.dx * o;
             int z = cz + perp.dz * o;
@@ -137,8 +141,18 @@ public final class BridgeBuilder2 {
         return true;
     }
 
-    private static boolean fillDiagonalGap(WorldServer world, int px, int pz, int cx, int cz, Dir2 perp, int half, SlabPlacement sp,
-                                           IBlockState slab, boolean dryRun, TerrainSampler sampler, LongOpenHashSet deckXZ) {
+    private static boolean fillDiagonalGap(WorldServer world,
+                                           int px,
+                                           int pz,
+                                           int cx,
+                                           int cz,
+                                           BridgeGeometry.Dir2 perp,
+                                           int half,
+                                           BridgeGeometry.SlabPlacement sp,
+                                           IBlockState slab,
+                                           boolean dryRun,
+                                           TerrainSampler sampler,
+                                           LongOpenHashSet deckXZ) {
         int stepX = Integer.signum(cx - px);
         int stepZ = Integer.signum(cz - pz);
 
@@ -169,48 +183,6 @@ public final class BridgeBuilder2 {
         return true;
     }
 
-    // -------------------------
-    // Local direction
-    // -------------------------
-
-    private static Dir2 localDir(java.util.List<BlockPos> line, int idx) {
-        if (line.size() <= 1) return new Dir2(1, 0);
-
-        BlockPos prev = line.get(Math.max(0, idx - 1));
-        BlockPos next = line.get(Math.min(line.size() - 1, idx + 1));
-
-        int dx = Integer.signum(next.getX() - prev.getX());
-        int dz = Integer.signum(next.getZ() - prev.getZ());
-
-        if (dx == 0 && dz == 0) {
-            // fallback: use immediate neighbor
-            BlockPos cur = line.get(idx);
-            if (idx > 0) {
-                BlockPos p = line.get(idx - 1);
-                dx = Integer.signum(cur.getX() - p.getX());
-                dz = Integer.signum(cur.getZ() - p.getZ());
-            } else if (idx + 1 < line.size()) {
-                BlockPos n = line.get(idx + 1);
-                dx = Integer.signum(n.getX() - cur.getX());
-                dz = Integer.signum(n.getZ() - cur.getZ());
-            }
-        }
-
-        if (dx == 0 && dz == 0) dx = 1;
-        return new Dir2(dx, dz);
-    }
-
-    private static final class Dir2 {
-        final int dx, dz;
-        Dir2(int dx, int dz) { this.dx = dx; this.dz = dz; }
-        Dir2 perp() { return new Dir2(-dz, dx); }
-    }
-
-    // -------------------------
-    // Deck placement
-    // -------------------------
-
-
     private static boolean isBetween(int x, int z, int x0, int z0, int x1, int z1) {
         int minX = Math.min(x0, x1);
         int maxX = Math.max(x0, x1);
@@ -219,8 +191,14 @@ public final class BridgeBuilder2 {
         return x >= minX && x <= maxX && z >= minZ && z <= maxZ;
     }
 
-    private static boolean placeDeckCell(WorldServer world, int x, int z, SlabPlacement sp, IBlockState slab,
-                                         boolean dryRun, TerrainSampler sampler, LongOpenHashSet deckXZ) {
+    private static boolean placeDeckCell(WorldServer world,
+                                         int x,
+                                         int z,
+                                         BridgeGeometry.SlabPlacement sp,
+                                         IBlockState slab,
+                                         boolean dryRun,
+                                         TerrainSampler sampler,
+                                         LongOpenHashSet deckXZ) {
         long k = xzKey(x, z);
         deckXZ.add(k);
 
@@ -290,7 +268,6 @@ public final class BridgeBuilder2 {
         if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
             if (b.isWood(world, pos) || m == Material.WOOD) {
                 world.setBlockState(pos, Blocks.AIR.getDefaultState(), 2);
-                return;
             }
         }
     }
@@ -307,13 +284,10 @@ public final class BridgeBuilder2 {
             Material m = st.getMaterial();
             if (m == Material.AIR) continue;
 
-            // Never destroy tiles
             if (world.getTileEntity(p) != null) continue;
 
-            // Avoid unintentional water flood: if this block is adjacent to water, only soft-clear.
             boolean nearWater = isAdjacentToWater(world, p);
 
-            // Always clear soft stuff
             if (m == Material.PLANTS || m == Material.VINE || m.isReplaceable() || st.getBlock() == Blocks.SNOW_LAYER) {
                 world.setBlockState(p, Blocks.AIR.getDefaultState(), 2);
                 continue;
@@ -323,7 +297,6 @@ public final class BridgeBuilder2 {
                 continue;
             }
 
-            // Clear tree trunks when they look like trees
             if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
                 if (looksLikeTreeWood(world, p, st)) {
                     world.setBlockState(p, Blocks.AIR.getDefaultState(), 2);
@@ -331,7 +304,6 @@ public final class BridgeBuilder2 {
                 }
             }
 
-            // Solid natural blocks: carve them out for walkability (unless we'd cause water issues)
             if (!nearWater && isNaturalSolidForBridgeCut(st)) {
                 world.setBlockState(p, Blocks.AIR.getDefaultState(), 2);
             }
@@ -349,52 +321,23 @@ public final class BridgeBuilder2 {
     }
 
     private static boolean isNaturalSolidForBridgeCut(IBlockState st) {
-        // Conservative: only carve common natural solids (dirt/stone/sand/gravel/clay etc).
-        // Avoid cutting wood structures etc.
         Material m = st.getMaterial();
         if (!m.isSolid()) return false;
         if (m == Material.WOOD || m == Material.IRON || m == Material.GLASS) return false;
         if (m == Material.LEAVES) return false;
         if (st.getBlock() == Blocks.BEDROCK || st.getBlock() == Blocks.BARRIER) return false;
-        return MPBGround.isRoadReplaceableGround(st) || m == Material.ROCK || m == Material.GROUND || m == Material.GRASS || m == Material.SAND || m == Material.CLAY;
+        return MPBGround.isRoadReplaceableGround(st)
+                || m == Material.ROCK
+                || m == Material.GROUND
+                || m == Material.GRASS
+                || m == Material.SAND
+                || m == Material.CLAY;
     }
 
     private static long xzKey(int x, int z) {
         return (((long) x) << 32) ^ (z & 0xffffffffL);
     }
 
-    private static void clearBridgeColumn(WorldServer world, BlockPos start, int up, TerrainSampler sampler) {
-        BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos(start);
-
-        for (int dy = 0; dy < up; dy++) {
-            p.setPos(start.getX(), start.getY() + dy, start.getZ());
-            IBlockState st = world.getBlockState(p);
-            if (st == null) continue;
-
-            Material m = st.getMaterial();
-            if (m == Material.AIR) continue;
-
-            // Do not destroy tiles/manmade blocks
-            if (world.getTileEntity(p) != null) continue;
-
-            // Soft clear
-            if (m == Material.PLANTS || m == Material.VINE || m.isReplaceable() || st.getBlock() == Blocks.SNOW_LAYER) {
-                world.setBlockState(p, Blocks.AIR.getDefaultState(), 2);
-                continue;
-            }
-            if (st.getBlock().isLeaves(st, world, p) || m == Material.LEAVES) {
-                world.setBlockState(p, Blocks.AIR.getDefaultState(), 2);
-                continue;
-            }
-
-            // Tree trunk clear (only when it looks like a tree)
-            if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
-                if (looksLikeTreeWood(world, p, st)) {
-                    world.setBlockState(p, Blocks.AIR.getDefaultState(), 2);
-                }
-            }
-        }
-    }
 
     private static boolean looksLikeTreeWood(WorldServer world, BlockPos pos, IBlockState st) {
         if (!(st.getBlock().isWood(world, pos) || st.getMaterial() == Material.WOOD)) return false;
@@ -417,113 +360,12 @@ public final class BridgeBuilder2 {
         return false;
     }
 
-    // -------------------------
-    // Height profile (0.5 steps)
-    // -------------------------
-
-    private static int[] buildDeckHalfProfile(BridgeSpan span, TerrainSampler sampler) {
-        int n = span.centerline.size();
-        int[] ideal = new int[n];
-
-        int a = span.startDeckSurfaceHalfY;
-        int b = span.endDeckSurfaceHalfY;
-
-        for (int i = 0; i < n; i++) {
-            double t = (n <= 1) ? 0.0 : ((double) i / (double) (n - 1));
-            ideal[i] = (int) Math.round((1.0 - t) * (double) a + t * (double) b);
-        }
-
-        int len = Math.max(0, n - 1);
-        int crown = 0;
-
-        if (len >= Math.max(2, MPBConfig.BRIDGES.bridgeCrownMinLenBlocks)) {
-            crown = Math.max(0, MPBConfig.BRIDGES.bridgeCrownHalfBlocks);
-
-            if (MPBConfig.BRIDGES.extraWaterBridgeCrown && hasMeaningfulWaterInterior(span, sampler)) {
-                crown += 1;
-            }
-        }
-
-        if (crown > 0 && n >= 3) {
-            for (int i = 1; i < n - 1; i++) {
-                double t = (double) i / (double) (n - 1);
-                double arch = 1.0 - Math.abs(2.0 * t - 1.0);
-                ideal[i] += (int) Math.round((double) crown * arch);
-            }
-        }
-
-        int maxStepHalf = Math.max(0, MPBConfig.BRIDGES.maxDeckDeltaHalfPerBlock);
-        if (maxStepHalf <= 0) {
-            return ideal;
-        }
-
-        int[] out = new int[n];
-        out[0] = ideal[0];
-
-        for (int i = 1; i < n; i++) {
-            int want = ideal[i];
-            int prev = out[i - 1];
-            int d = want - prev;
-            if (d > maxStepHalf) want = prev + maxStepHalf;
-            else if (d < -maxStepHalf) want = prev - maxStepHalf;
-            out[i] = want;
-        }
-
-        for (int i = n - 2; i >= 0; i--) {
-            int want = out[i];
-            int next = out[i + 1];
-            int d = want - next;
-            if (d > maxStepHalf) want = next + maxStepHalf;
-            else if (d < -maxStepHalf) want = next - maxStepHalf;
-            out[i] = want;
-        }
-
-        return out;
-    }
-
-    private static boolean hasMeaningfulWaterInterior(BridgeSpan span, TerrainSampler sampler) {
-        if (span == null || span.centerline == null || span.centerline.size() < 3 || sampler == null) return false;
-
-        int run = 0;
-        int best = 0;
-
-        for (int i = 1; i < span.centerline.size() - 1; i++) {
-            BlockPos p = span.centerline.get(i);
-            TerrainSampler.Sample s = sampler.sample(p.getX(), p.getZ());
-
-            boolean water = s != null && s.isWater && !s.isOcean;
-            if (water) {
-                run++;
-                if (run > best) best = run;
-            } else {
-                run = 0;
-            }
-        }
-
-        return best >= Math.max(2, MPBConfig.BRIDGE_AWARE_PATHFINDING.minWaterRunBlocks);
-    }
-
-    private static final class SlabPlacement {
-        final int blockY;
-        final boolean top;
-        SlabPlacement(int blockY, boolean top) { this.blockY = blockY; this.top = top; }
-    }
-
-    private static SlabPlacement slabPlacementForSurfaceHalfY(int surfaceHalfY) {
-        if ((surfaceHalfY & 1) == 1) {
-            int y = (surfaceHalfY - 1) / 2;
-            return new SlabPlacement(y, false);
-        } else {
-            int y = (surfaceHalfY / 2) - 1;
-            return new SlabPlacement(y, true);
-        }
-    }
-
-    // -------------------------
-    // Supports
-    // -------------------------
-
-    private static BlockPos supportPosAdjacentToDeckEdge(int cx, int cz, Dir2 perp, int half, boolean positiveSide, int y) {
+    private static BlockPos supportPosAdjacentToDeckEdge(int cx,
+                                                         int cz,
+                                                         BridgeGeometry.Dir2 perp,
+                                                         int half,
+                                                         boolean positiveSide,
+                                                         int y) {
         int side = positiveSide ? 1 : -1;
 
         int ex = cx + perp.dx * (side * half);
@@ -532,19 +374,31 @@ public final class BridgeBuilder2 {
         int sx = sign(perp.dx * side);
         int sz = sign(perp.dz * side);
 
-        int cand1x = ex + sx, cand1z = ez;
-        int cand2x = ex,      cand2z = ez + sz;
+        int cand1x = ex + sx;
+        int cand1z = ez;
+        int cand2x = ex;
+        int cand2z = ez + sz;
 
         boolean diagonal = Math.abs(perp.dx) == Math.abs(perp.dz);
 
-        int rx, rz;
+        int rx;
+        int rz;
         if (!diagonal) {
-            if (Math.abs(perp.dx) > Math.abs(perp.dz)) { rx = cand1x; rz = cand1z; }
-            else { rx = cand2x; rz = cand2z; }
+            if (Math.abs(perp.dx) > Math.abs(perp.dz)) {
+                rx = cand1x;
+                rz = cand1z;
+            } else {
+                rx = cand2x;
+                rz = cand2z;
+            }
         } else {
-            // Stable tie-break => symmetry
-            if (positiveSide) { rx = cand2x; rz = cand2z; }
-            else { rx = cand1x; rz = cand1z; }
+            if (positiveSide) {
+                rx = cand2x;
+                rz = cand2z;
+            } else {
+                rx = cand1x;
+                rz = cand1z;
+            }
         }
 
         return new BlockPos(rx, y, rz);
@@ -553,10 +407,16 @@ public final class BridgeBuilder2 {
     private static int sign(int v) {
         return v < 0 ? -1 : (v > 0 ? 1 : 0);
     }
-    private static void placeSupportColumn(WorldServer world, int x, int yDeckBlock, int z, int maxDepth, boolean dryRun, boolean deckIsTopSlab) {
+
+    private static void placeSupportColumn(WorldServer world,
+                                           int x,
+                                           int yDeckBlock,
+                                           int z,
+                                           int maxDepth,
+                                           boolean dryRun,
+                                           boolean deckIsTopSlab) {
         if (dryRun) return;
 
-        // Find ground just below deck (or stop at first solid)
         int y = yDeckBlock - 1;
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos(x, y, z);
 
@@ -570,16 +430,13 @@ public final class BridgeBuilder2 {
             p.setPos(x, y, z);
         }
 
-        // Now build the vertical pillar up through the deck height region and above it.
         int capTopY = yDeckBlock + (deckIsTopSlab ? 2 : 1);
 
         for (int yy = Math.max(2, y + 1); yy <= capTopY; yy++) {
             p.setPos(x, yy, z);
 
-            // Don't overwrite the deck itself if it accidentally intersects (shouldn't happen now),
-            // but still ensure the pillar is continuous otherwise.
             IBlockState st = world.getBlockState(p);
-            if (st != null && (st.getBlock() == Blocks.WOODEN_SLAB)) {
+            if (st != null && st.getBlock() == Blocks.WOODEN_SLAB) {
                 continue;
             }
             world.setBlockState(p, supportState(), 2);
@@ -591,7 +448,8 @@ public final class BridgeBuilder2 {
         Material m = st.getMaterial();
         return m.isSolid() && m != Material.WATER && m != Material.ICE;
     }
-    private static boolean isInDeckStripe(int x, int z, int cx, int cz, Dir2 perp, int half) {
+
+    private static boolean isInDeckStripe(int x, int z, int cx, int cz, BridgeGeometry.Dir2 perp, int half) {
         for (int o = -half; o <= half; o++) {
             int dx = perp.dx * o;
             int dz = perp.dz * o;
@@ -600,53 +458,69 @@ public final class BridgeBuilder2 {
         return false;
     }
 
-    private static BlockPos pushOutsideDeckStripe(BlockPos support, int cx, int cz, Dir2 perp, int half) {
+    private static BlockPos pushOutsideDeckStripe(BlockPos support,
+                                                  int cx,
+                                                  int cz,
+                                                  BridgeGeometry.Dir2 perp,
+                                                  int half) {
         int x = support.getX();
         int z = support.getZ();
 
         if (!isInDeckStripe(x, z, cx, cz, perp, half)) return support;
 
-        // Move one step further outward from deck edge (cardinal preference)
         int sx = sign(perp.dx);
         int sz = sign(perp.dz);
 
-        // If diagonal perp, try both options and pick the one that exits the stripe
         if (Math.abs(perp.dx) == Math.abs(perp.dz)) {
             BlockPos a = new BlockPos(x + sx, support.getY(), z);
             if (!isInDeckStripe(a.getX(), a.getZ(), cx, cz, perp, half)) return a;
+
             BlockPos b = new BlockPos(x, support.getY(), z + sz);
             if (!isInDeckStripe(b.getX(), b.getZ(), cx, cz, perp, half)) return b;
-            // fallback: two steps
+
             return new BlockPos(x + sx, support.getY(), z + sz);
         }
 
-        // Non-diagonal: step along dominant perp axis
-        if (Math.abs(perp.dx) > Math.abs(perp.dz)) return new BlockPos(x + sx, support.getY(), z);
+        if (Math.abs(perp.dx) > Math.abs(perp.dz)) {
+            return new BlockPos(x + sx, support.getY(), z);
+        }
         return new BlockPos(x, support.getY(), z + sz);
     }
-    private static BlockPos pushSupportOutsideDeck(LongOpenHashSet deckXZ, BlockPos pos, Dir2 perp, boolean positiveSide) {
+
+    private static BlockPos pushSupportOutsideDeck(LongOpenHashSet deckXZ,
+                                                   BlockPos pos,
+                                                   BridgeGeometry.Dir2 perp,
+                                                   boolean positiveSide) {
         int x = pos.getX();
         int z = pos.getZ();
 
         int side = positiveSide ? 1 : -1;
 
-        // Outward step direction (cardinal preference)
         int sx = sign(perp.dx * side);
         int sz = sign(perp.dz * side);
 
-        // If perp is diagonal, choose a stable cardinal axis per side
         boolean diagonal = Math.abs(perp.dx) == Math.abs(perp.dz);
-        int stepX = 0, stepZ = 0;
+        int stepX = 0;
+        int stepZ = 0;
+
         if (!diagonal) {
-            if (Math.abs(perp.dx) > Math.abs(perp.dz)) { stepX = sx; stepZ = 0; }
-            else { stepX = 0; stepZ = sz; }
+            if (Math.abs(perp.dx) > Math.abs(perp.dz)) {
+                stepX = sx;
+                stepZ = 0;
+            } else {
+                stepX = 0;
+                stepZ = sz;
+            }
         } else {
-            // same tie-break as earlier => symmetry
-            if (positiveSide) { stepX = 0; stepZ = sz; }
-            else { stepX = sx; stepZ = 0; }
+            if (positiveSide) {
+                stepX = 0;
+                stepZ = sz;
+            } else {
+                stepX = sx;
+                stepZ = 0;
+            }
         }
 
-        // Push at most a few steps to guarantee we exit deck footprint
         for (int t = 0; t < 5; t++) {
             if (!deckXZ.contains(xzKey(x, z))) break;
             x += stepX;
@@ -655,6 +529,4 @@ public final class BridgeBuilder2 {
 
         return new BlockPos(x, pos.getY(), z);
     }
-
-
 }

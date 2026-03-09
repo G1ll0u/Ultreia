@@ -12,6 +12,8 @@ import java.util.Set;
 public class MPBWorldData extends WorldSavedData {
 
     private static final String NAME = "millpathbuilder_data";
+    private static final String TAG_EDGES = "edges";
+
     private final Set<String> builtEdges = new HashSet<>();
 
     public MPBWorldData() {
@@ -37,34 +39,47 @@ public class MPBWorldData extends WorldSavedData {
     }
 
     public boolean isBuilt(String edgeKey) {
-        return builtEdges.contains(edgeKey);
+        return edgeKey != null && builtEdges.contains(edgeKey);
     }
 
     public void markBuilt(String edgeKey) {
-        builtEdges.add(edgeKey);
-        markDirty();
+        if (edgeKey == null || edgeKey.isEmpty()) {
+            return;
+        }
+        if (builtEdges.add(edgeKey)) {
+            markDirty();
+        }
     }
 
     public void clear() {
-        builtEdges.clear();
+        if (!builtEdges.isEmpty()) {
+            builtEdges.clear();
+            markDirty();
+        }
     }
 
     @Override
     public void readFromNBT(NBTTagCompound nbt) {
         builtEdges.clear();
-        NBTTagList list = nbt.getTagList("edges", 8); // string
+
+        NBTTagList list = nbt.getTagList(TAG_EDGES, 8);
         for (int i = 0; i < list.tagCount(); i++) {
-            builtEdges.add(list.getStringTagAt(i));
+            String edge = list.getStringTagAt(i);
+            if (edge != null && !edge.isEmpty()) {
+                builtEdges.add(edge);
+            }
         }
     }
 
     @Override
     public NBTTagCompound writeToNBT(NBTTagCompound nbt) {
         NBTTagList list = new NBTTagList();
-        for (String s : builtEdges) {
-            list.appendTag(new net.minecraft.nbt.NBTTagString(s));
+        for (String edge : builtEdges) {
+            if (edge != null && !edge.isEmpty()) {
+                list.appendTag(new net.minecraft.nbt.NBTTagString(edge));
+            }
         }
-        nbt.setTag("edges", list);
+        nbt.setTag(TAG_EDGES, list);
         return nbt;
     }
 }

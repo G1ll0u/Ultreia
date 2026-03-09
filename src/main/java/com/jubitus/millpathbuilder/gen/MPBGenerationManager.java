@@ -16,11 +16,6 @@ public final class MPBGenerationManager {
 
     private static final ConcurrentHashMap<Integer, MPBGenerationJob> JOBS = new ConcurrentHashMap<>();
 
-    public static boolean isRunning(World world) {
-        if (world == null || world.provider == null) return false;
-        return JOBS.containsKey(world.provider.getDimension());
-    }
-
     public static String status(World world) {
         if (world == null || world.provider == null) return "No world.";
         MPBGenerationJob job = JOBS.get(world.provider.getDimension());

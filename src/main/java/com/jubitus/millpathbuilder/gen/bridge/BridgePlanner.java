@@ -374,9 +374,6 @@ public final class BridgePlanner {
         return span;
     }
 
-    private static int clamp(int v, int lo, int hi) {
-        return v < lo ? lo : (v > hi ? hi : v);
-    }
     private boolean spanTouchesForbiddenVillageOrProtected(BridgeSpan span) {
         if (span == null || span.centerline == null) return true;
 

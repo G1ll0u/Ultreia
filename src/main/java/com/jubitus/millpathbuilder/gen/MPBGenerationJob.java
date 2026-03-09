@@ -227,12 +227,6 @@ public final class MPBGenerationJob {
                     List<BridgeSpan> bridges = pathResult.getBridges();
                     curSession = null;
 
-                    boolean aIsMillRoad = roadIndex != null && roadIndex.isRoadXZ(coarse.get(0).getX(), coarse.get(0).getZ());
-                    boolean bIsMillRoad = false;
-                    if (!coarse.isEmpty()) {
-                        BlockPos last = coarse.get(coarse.size() - 1);
-                        bIsMillRoad = roadIndex != null && roadIndex.isRoadXZ(last.getX(), last.getZ());
-                    }
 
 // If either endpoint is on an existing Mill path, we want to reach it exactly.
                     boolean allowEarlyMerge = true;

@@ -19,11 +19,6 @@ public final class PathGenerationService {
     private PathGenerationService() {}
 
     public static void generate(WorldServer world, ICommandSender sender, boolean force, boolean dryRun) {
-        if (MPBConfig.GENERAL.incrementalGeneration) {
-            MPBGenerationManager.start(world, sender, force, dryRun);
-            return;
-        }
-        // If you really want blocking mode again, keep your old generate() here.
         MPBGenerationManager.start(world, sender, force, dryRun);
     }
 }

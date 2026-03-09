@@ -57,13 +57,13 @@ public class MPBConfig {
         public boolean incrementalGeneration = true;
 
         @Config.Comment("Time budget per server tick for generation (ms).")
-        public int tickBudgetMs = 8;
+        public int tickBudgetMs = 32;
 
         @Config.Comment("Do not paint/clear inside this radius (blocks) around Millenaire village nodes.")
-        public int villageNoPaintRadius = 28;
+        public int villageNoPaintRadius = 2;
 
         @Config.Comment("Do not paint/clear inside this radius (blocks) around Millenaire lone building nodes.")
-        public int loneBuildingNoPaintRadius = 20;
+        public int loneBuildingNoPaintRadius = 2;
 
         @Config.Comment("Print detailed reasons when a route fails.")
         public boolean printFailureBreakdown = true;
@@ -93,13 +93,13 @@ public class MPBConfig {
     public static class Pathfinding {
 
         @Config.Comment("Grid step in blocks. Higher = faster, less detailed. Recommended: 4..8")
-        public int gridStep = 6;
+        public int gridStep = 4;
 
         @Config.Comment("Max iterations for A* expansions per edge.")
         public int maxIterations = 1_200_000;
 
         @Config.Comment("Max vertical delta allowed between neighbor grid nodes.")
-        public int maxYDeltaPerStep = 2;
+        public int maxYDeltaPerStep = 3;
 
         @Config.Comment("Cost multiplier for climbing/descending.")
         public double slopePenalty = 8.0;
@@ -120,7 +120,7 @@ public class MPBConfig {
         public double protectedZonePenalty = 15000.0;
 
         @Config.Comment("Extra margin around the start-goal bounding box (blocks). Prevents infinite wandering.")
-        public int searchMargin = 256;
+        public int searchMargin = 460;
 
         @Config.Comment("Hard cap radius from start (blocks). 0 disables.")
         public int maxSearchRadius = 0;
@@ -180,12 +180,9 @@ public class MPBConfig {
         @Config.Comment("Enable tiny spans (< microBridgeMaxLen) as slabs-only micro-bridges.")
         public boolean microBridges = true;
 
-        @Config.Comment("If true, tiny water bridges are validated and built as simple supportless decks.")
-        public boolean simpleWaterMicroBridgesNoSupports = true;
-
         @Config.Comment("Max length (in blocks) for a micro-bridge (slabs only). < 6 recommended.")
         @Config.RangeInt(min = 2, max = 16)
-        public int microBridgeMaxLen = 5;
+        public int microBridgeMaxLen = 7;
 
         @Config.Comment("Hard cap for any bridge length in blocks (supercover points count).")
         @Config.RangeInt(min = 8, max = 1024)
@@ -193,19 +190,19 @@ public class MPBConfig {
 
         @Config.Comment("Place supports every N blocks (only for full bridges, not micro-bridges).")
         @Config.RangeInt(min = 2, max = 32)
-        public int supportSpacing = 6;
+        public int supportSpacing = 8;
 
         @Config.Comment("Max vertical distance supports may extend down before giving up.")
         @Config.RangeInt(min = 8, max = 128)
-        public int maxSupportDepth = 64;
+        public int maxSupportDepth = 96;
 
         @Config.Comment("Max total deltaY allowed between bridge start and end deck height.")
         @Config.RangeInt(min = 0, max = 16)
-        public int maxBridgeDeltaY = 3;
+        public int maxBridgeDeltaY = 4;
 
         @Config.Comment("Number of consecutive safe blocks required to accept a bridge exit. Prevents over-long bridges.")
         @Config.RangeInt(min = 1, max = 8)
-        public int exitStableBlocks = 2;
+        public int exitStableBlocks = 3;
 
         @Config.Comment("Max blocks allowed after the last obstacle before ending the bridge. Prevents overhang.")
         @Config.RangeInt(min = 0, max = 8)
@@ -225,7 +222,7 @@ public class MPBConfig {
 
         @Config.Comment("Extra lift applied near the middle of bridges, in HALF blocks. 0 = disabled.")
         @Config.RangeInt(min = 0, max = 12)
-        public int bridgeCrownHalfBlocks = 2;
+        public int bridgeCrownHalfBlocks = 4;
 
         @Config.Comment("Only apply crown lift on bridges at least this long.")
         @Config.RangeInt(min = 2, max = 512)
@@ -250,15 +247,15 @@ public class MPBConfig {
 
         @Config.Comment("Bridge if the terrain drops at least this many blocks below entry/exit baseline.")
         @Config.RangeInt(min = 2, max = 48)
-        public int minValleyDepth = 6;
+        public int minValleyDepth = 16;
 
         @Config.Comment("How tolerant we are to path curvature when deciding a straight bridge. Higher = more bridges.")
         @Config.RangeInt(min = 1, max = 16)
-        public int maxLateralDeviation = 5;
+        public int maxLateralDeviation = 4;
 
         @Config.Comment("Cooldown between two valley bridges along the same road (blocks).")
         @Config.RangeInt(min = 0, max = 512)
-        public int cooldownBlocks = 64;
+        public int cooldownBlocks = 8;
 
         public int ridgeRiseBlocks = 2;
     }
@@ -316,32 +313,32 @@ public class MPBConfig {
 
         @Config.Comment("Maximum bridge probe length in blocks for A* bridge moves.")
         @Config.RangeInt(min = 8, max = 512)
-        public int maxProbeLenBlocks = 160;
+        public int maxProbeLenBlocks = 180;
 
         @Config.Comment("Probe step in blocks when searching bridge landing points.")
         @Config.RangeInt(min = 1, max = 32)
-        public int probeLenStepBlocks = 6;
+        public int probeLenStepBlocks = 4;
 
         @Config.Comment("Max accepted bridge candidates per expanded A* node.")
         @Config.RangeInt(min = 1, max = 32)
         public int maxBridgeCandidatesPerNode = 4;
 
         @Config.Comment("Fixed extra cost added to every bridge move.")
-        public double bridgeFixedCost = 22.0;
+        public double bridgeFixedCost = 280.0;
 
         @Config.Comment("Multiplier applied to bridge geometric length cost.")
         public double bridgeLengthCostMultiplier = 1.18;
 
         @Config.Comment("Bonus per block of valley depth. Higher = more valley bridges.")
-        public double bridgeValleyPreferenceBonusPerBlock = 1.5;
+        public double bridgeValleyPreferenceBonusPerBlock = 1.25;
 
         @Config.Comment("Minimum number of normal path blocks between two bridges.")
         @Config.RangeInt(min = 0, max = 512)
-        public int minDistanceBetweenBridgesBlocks = 28;
+        public int minDistanceBetweenBridgesBlocks = 48;
 
         @Config.Comment("Minimum air/gap wanted below bridge deck on interior cells.")
         @Config.RangeInt(min = 1, max = 16)
-        public int minGroundClearanceBelowDeck = 2;
+        public int minGroundClearanceBelowDeck = 4;
 
         @Config.Comment("Minimum consecutive interior cells that really benefit from a bridge.")
         @Config.RangeInt(min = 1, max = 128)
@@ -359,19 +356,19 @@ public class MPBConfig {
 
         @Config.Comment("No bridge start/end within this radius of a village.")
         @Config.RangeInt(min = 0, max = 128)
-        public int endpointVillageRadius = 36;
+        public int endpointVillageRadius = 100;
 
         @Config.Comment("No bridge start/end within this radius of a lone building.")
         @Config.RangeInt(min = 0, max = 128)
-        public int endpointLoneBuildingRadius = 24;
+        public int endpointLoneBuildingRadius = 100;
 
         @Config.Comment("Bridge centerline must not pass within this radius of a village.")
         @Config.RangeInt(min = 0, max = 128)
-        public int crossVillageRadius = 28;
+        public int crossVillageRadius = 100;
 
         @Config.Comment("Bridge centerline must not pass within this radius of a lone building.")
         @Config.RangeInt(min = 0, max = 128)
-        public int crossLoneBuildingRadius = 18;
+        public int crossLoneBuildingRadius = 100;
 
         @Config.Comment("Minimum clearance below bridge deck for water cells. 1 allows normal river bridges when bank and water are at the same Y.")
         @Config.RangeInt(min = 1, max = 16)
@@ -383,7 +380,7 @@ public class MPBConfig {
 
         @Config.Comment("Minimum average terrain clearance required for long bridges.")
         @Config.RangeInt(min = 1, max = 32)
-        public int longBridgeRequiredAverageClearance = 4;
+        public int longBridgeRequiredAverageClearance = 5;
 
         @Config.Comment("Minimum max terrain clearance required somewhere along a long bridge.")
         @Config.RangeInt(min = 1, max = 32)
@@ -405,7 +402,7 @@ public class MPBConfig {
 
         @Config.Comment("Minimum consecutive interior water cells required before a water crossing counts as a real bridge candidate.")
         @Config.RangeInt(min = 1, max = 128)
-        public int minWaterRunBlocks = 3;
+        public int minWaterRunBlocks = 2;
         @Config.Comment("For water bridges, max dry interior cells allowed before the first real water run.")
         @Config.RangeInt(min = 0, max = 64)
         public int maxWaterBridgeLeadInBlocks = 2;

@@ -6,18 +6,12 @@ import com.jubitus.millpathbuilder.gen.TerrainSampler;
 import com.jubitus.millpathbuilder.gen.mill.MPBMillPathPalette;
 import com.jubitus.millpathbuilder.gen.mill.MillVillageIndex;
 import net.minecraft.block.Block;
-import net.minecraft.block.BlockDoublePlant;
-import net.minecraft.block.BlockSlab;
-import net.minecraft.block.BlockWoodSlab;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
 
-import java.util.ArrayList;
 import java.util.List;
 
 
@@ -33,14 +27,14 @@ public final class BridgeFeasibility {
         if (!MPBConfig.BRIDGES.enabled) return null;
         if (!MPBConfig.BRIDGE_AWARE_PATHFINDING.enabled) return null;
         if (start == null || end == null) return null;
-        if (start.getX() == end.getX() && start.getZ() == end.getZ()) return null;
+        if (sameXZ(start, end)) return null;
 
-        TerrainSampler.Sample ss = sampler.sample(start.getX(), start.getZ());
-        TerrainSampler.Sample es = sampler.sample(end.getX(), end.getZ());
-        if (ss == null || es == null) return null;
+        TerrainSampler.Sample startSample = sampler.sample(start.getX(), start.getZ());
+        TerrainSampler.Sample endSample = sampler.sample(end.getX(), end.getZ());
+        if (startSample == null || endSample == null) return null;
 
-        if (!isValidBridgeEndpoint(world, sampler, ss)) return null;
-        if (!isValidBridgeEndpoint(world, sampler, es)) return null;
+        if (!isValidBridgeEndpoint(world, sampler, startSample)) return null;
+        if (!isValidBridgeEndpoint(world, sampler, endSample)) return null;
 
         if (isTooNearSettlement(world, start, true)) return null;
         if (isTooNearSettlement(world, end, true)) return null;
@@ -57,35 +51,35 @@ public final class BridgeFeasibility {
                 Math.max(minLen, MPBConfig.BRIDGES.maxBridgeLenBlocks),
                 Math.max(minLen, MPBConfig.BRIDGE_AWARE_PATHFINDING.maxProbeLenBlocks)
         );
-
         if (len < minLen || len > maxLen) return null;
 
-        int startHalf = ss.surfaceY * 2 + 3;
-        int endHalf = es.surfaceY * 2 + 3;
+        int startHalf = startSample.surfaceY * 2 + 3;
+        int endHalf = endSample.surfaceY * 2 + 3;
 
-        int maxDYHalf = Math.max(0, MPBConfig.BRIDGES.maxBridgeDeltaY) * 2;
-        if (Math.abs(endHalf - startHalf) > maxDYHalf) return null;
+        int maxDeltaHalf = Math.max(0, MPBConfig.BRIDGES.maxBridgeDeltaY) * 2;
+        if (Math.abs(endHalf - startHalf) > maxDeltaHalf) return null;
 
-        int[] deckHalf = buildDeckHalfProfile(startHalf, endHalf, line, sampler);
+        int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(startHalf, endHalf, line, sampler);
 
-        int minGroundGap = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.minGroundClearanceBelowDeck);
-        int minWaterGap = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.minWaterClearanceBelowDeck);
-        int clearAbove = Math.max(2, MPBConfig.BRIDGE_AWARE_PATHFINDING.walkClearanceAboveDeck);
-        int interiorMinGapRun = Math.max(2, MPBConfig.BRIDGE_AWARE_PATHFINDING.minMeaningfulGapRun);
-        int interiorMinWaterRun = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.minWaterRunBlocks);
+        final int minGroundGap = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.minGroundClearanceBelowDeck);
+        final int minWaterGap = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.minWaterClearanceBelowDeck);
+        final int clearAbove = Math.max(2, MPBConfig.BRIDGE_AWARE_PATHFINDING.walkClearanceAboveDeck);
+        final int interiorMinGapRun = Math.max(2, MPBConfig.BRIDGE_AWARE_PATHFINDING.minMeaningfulGapRun);
+        final int interiorMinWaterRun = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.minWaterRunBlocks);
 
-        int meaningfulGroundGap = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.meaningfulGroundClearanceBlocks);
-        int meaningfulWaterGap = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.meaningfulWaterClearanceBlocks);
-        int minMeaningfulPercent = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.minMeaningfulClearancePercent);
-        int endpointGrace = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.endpointGraceCells);
-        int exitMinClearance = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.exitMinClearanceBlocks);
-        int exitMinClearanceCells = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.exitMinClearanceCheckCells);
+        final int meaningfulGroundGap = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.meaningfulGroundClearanceBlocks);
+        final int meaningfulWaterGap = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.meaningfulWaterClearanceBlocks);
+        final int minMeaningfulPercent = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.minMeaningfulClearancePercent);
+        final int endpointGrace = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.endpointGraceCells);
+        final int exitMinClearance = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.exitMinClearanceBlocks);
+        final int exitMinClearanceCells = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.exitMinClearanceCheckCells);
+        final int sideRadius = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.sideClearanceRadius);
 
-        int goodGroundGapRun = 0;
         int bestGroundGapRun = 0;
+        int currentGroundGapRun = 0;
 
-        int goodWaterRun = 0;
         int bestWaterRun = 0;
+        int currentWaterRun = 0;
 
         int firstWaterInterior = -1;
         int lastWaterInterior = -1;
@@ -93,58 +87,60 @@ public final class BridgeFeasibility {
         int meaningfulInteriorCells = 0;
         int countedInteriorCells = 0;
 
-        final int sideRadius = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.sideClearanceRadius);
-
         for (int i = 0; i < line.size(); i++) {
             BlockPos p = line.get(i);
-            TerrainSampler.Sample sp = sampler.sample(p.getX(), p.getZ());
-            if (sp == null) return null;
+            boolean endpoint = (i == 0 || i == line.size() - 1);
+
+            TerrainSampler.Sample sample = sampler.sample(p.getX(), p.getZ());
+            if (sample == null) return null;
 
             if (sampler.isProtectedNoPaint(p.getX(), p.getZ())) return null;
             if (isTooNearSettlement(world, p, false)) return null;
 
-            SlabPlacement slab = slabPlacementForSurfaceHalfY(deckHalf[i]);
-            int deckSurfaceY = surfaceYFromHalf(deckHalf[i]);
+            BridgeGeometry.SlabPlacement slab = BridgeGeometry.slabPlacementForSurfaceHalfY(deckHalf[i]);
+            int deckSurfaceY = BridgeGeometry.surfaceYFromHalf(deckHalf[i]);
             int deckBlockY = slab.blockY;
 
-            boolean endpoint = (i == 0 || i == line.size() - 1);
-
-            if (!endpoint) {
-                if (sp.surfaceY > deckSurfaceY) {
-                    return null;
-                }
+            if (!endpoint && sample.surfaceY > deckSurfaceY) {
+                return null;
             }
 
-            int gap = deckSurfaceY - sp.surfaceY;
+            int gap = deckSurfaceY - sample.surfaceY;
 
-            boolean bridgeGroundGap = (!sp.isWater) && gap >= minGroundGap;
-            boolean bridgeWaterGap = sp.isWater && !sp.isOcean && gap >= minWaterGap;
+            boolean hasGroundBridgeGap = !sample.isWater && gap >= minGroundGap;
+            boolean hasWaterBridgeGap = sample.isWater && !sample.isOcean && gap >= minWaterGap;
 
-            boolean globallyMeaningfulGroundGap = (!sp.isWater) && gap >= meaningfulGroundGap;
-            boolean globallyMeaningfulWaterGap = sp.isWater && !sp.isOcean && gap >= meaningfulWaterGap;
+            boolean hasMeaningfulGroundGap = !sample.isWater && gap >= meaningfulGroundGap;
+            boolean hasMeaningfulWaterGap = sample.isWater && !sample.isOcean && gap >= meaningfulWaterGap;
 
             if (!endpoint) {
-                if (bridgeGroundGap) {
-                    goodGroundGapRun++;
-                    if (goodGroundGapRun > bestGroundGapRun) bestGroundGapRun = goodGroundGapRun;
+                if (hasGroundBridgeGap) {
+                    currentGroundGapRun++;
+                    if (currentGroundGapRun > bestGroundGapRun) {
+                        bestGroundGapRun = currentGroundGapRun;
+                    }
                 } else {
-                    goodGroundGapRun = 0;
+                    currentGroundGapRun = 0;
                 }
 
-                if (bridgeWaterGap) {
-                    if (firstWaterInterior < 0) firstWaterInterior = i;
+                if (hasWaterBridgeGap) {
+                    if (firstWaterInterior < 0) {
+                        firstWaterInterior = i;
+                    }
                     lastWaterInterior = i;
 
-                    goodWaterRun++;
-                    if (goodWaterRun > bestWaterRun) bestWaterRun = goodWaterRun;
+                    currentWaterRun++;
+                    if (currentWaterRun > bestWaterRun) {
+                        bestWaterRun = currentWaterRun;
+                    }
                 } else {
-                    goodWaterRun = 0;
+                    currentWaterRun = 0;
                 }
 
-                boolean ignoredForGlobalRatio = (i <= endpointGrace) || (i >= line.size() - 1 - endpointGrace);
-                if (!ignoredForGlobalRatio) {
+                boolean ignoredForRatio = (i <= endpointGrace) || (i >= line.size() - 1 - endpointGrace);
+                if (!ignoredForRatio) {
                     countedInteriorCells++;
-                    if (globallyMeaningfulGroundGap || globallyMeaningfulWaterGap) {
+                    if (hasMeaningfulGroundGap || hasMeaningfulWaterGap) {
                         meaningfulInteriorCells++;
                     }
                 }
@@ -154,7 +150,7 @@ public final class BridgeFeasibility {
                 return null;
             }
 
-            if (!landingColumnNatural(world, sampler, p.getX(), p.getZ(), deckSurfaceY, endpoint)) {
+            if (!isBridgeColumnAcceptable(world, sampler, p.getX(), p.getZ(), deckSurfaceY, endpoint)) {
                 return null;
             }
 
@@ -163,10 +159,10 @@ public final class BridgeFeasibility {
             }
         }
 
-        boolean validValleyLikeGap = bestGroundGapRun >= interiorMinGapRun;
-        boolean validWaterRun = bestWaterRun >= interiorMinWaterRun;
+        boolean validValleyBridge = bestGroundGapRun >= interiorMinGapRun;
+        boolean validWaterBridge = bestWaterRun >= interiorMinWaterRun;
 
-        if (!validValleyLikeGap && !validWaterRun) return null;
+        if (!validValleyBridge && !validWaterBridge) return null;
 
         if (countedInteriorCells > 0 && minMeaningfulPercent > 0) {
             int pct = (int) Math.floor((100.0 * (double) meaningfulInteriorCells) / (double) countedInteriorCells);
@@ -174,20 +170,20 @@ public final class BridgeFeasibility {
         }
 
         if (exitMinClearance > 0 && exitMinClearanceCells > 0) {
-            int endStart = Math.max(1, line.size() - 1 - exitMinClearanceCells);
-            for (int i = endStart; i < line.size() - 1; i++) {
+            int from = Math.max(1, line.size() - 1 - exitMinClearanceCells);
+
+            for (int i = from; i < line.size() - 1; i++) {
                 BlockPos p = line.get(i);
-                TerrainSampler.Sample sp = sampler.sample(p.getX(), p.getZ());
-                if (sp == null) return null;
+                TerrainSampler.Sample sample = sampler.sample(p.getX(), p.getZ());
+                if (sample == null) return null;
 
-                int deckSurfaceY = surfaceYFromHalf(deckHalf[i]);
-                int gap = deckSurfaceY - sp.surfaceY;
-
+                int deckSurfaceY = BridgeGeometry.surfaceYFromHalf(deckHalf[i]);
+                int gap = deckSurfaceY - sample.surfaceY;
                 if (gap < exitMinClearance) return null;
             }
         }
 
-        if (validWaterRun) {
+        if (validWaterBridge) {
             int maxLeadIn = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.maxWaterBridgeLeadInBlocks);
             int maxLeadOut = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.maxWaterBridgeLeadOutBlocks);
 
@@ -211,15 +207,17 @@ public final class BridgeFeasibility {
 
             for (int i = 1; i < line.size() - 1; i++) {
                 BlockPos p = line.get(i);
-                TerrainSampler.Sample sp = sampler.sample(p.getX(), p.getZ());
-                if (sp == null) return null;
+                TerrainSampler.Sample sample = sampler.sample(p.getX(), p.getZ());
+                if (sample == null) return null;
 
-                int deckSurfaceY = surfaceYFromHalf(deckHalf[i]);
-                int gap2 = Math.max(0, deckSurfaceY - sp.surfaceY);
+                int deckSurfaceY = BridgeGeometry.surfaceYFromHalf(deckHalf[i]);
+                int gap = Math.max(0, deckSurfaceY - sample.surfaceY);
 
-                sumGap += gap2;
+                sumGap += gap;
                 countGap++;
-                if (gap2 > maxGapSeen) maxGapSeen = gap2;
+                if (gap > maxGapSeen) {
+                    maxGapSeen = gap;
+                }
             }
 
             int avgGap = countGap <= 0 ? 0 : (int) Math.round((double) sumGap / (double) countGap);
@@ -241,24 +239,32 @@ public final class BridgeFeasibility {
         return new BridgeSpan(start, end, line, startHalf, endHalf, micro);
     }
 
-    private static boolean isValidBridgeEndpoint(WorldServer world, TerrainSampler sampler, TerrainSampler.Sample s) {
-        if (s.isWater || s.isOcean) return false;
-        if (sampler.forbidden(s, TerrainSampler.Mode.PATHFINDING)) return false;
-        if (sampler.isProtectedNoPaint(s.x, s.z)) return false;
+    private static boolean isValidBridgeEndpoint(WorldServer world,
+                                                 TerrainSampler sampler,
+                                                 TerrainSampler.Sample sample) {
+        if (sample.isWater || sample.isOcean) return false;
+        if (sampler.forbidden(sample, TerrainSampler.Mode.PATHFINDING)) return false;
+        if (sampler.isProtectedNoPaint(sample.x, sample.z)) return false;
 
-        BlockPos top = new BlockPos(s.x, s.surfaceY, s.z);
+        BlockPos top = new BlockPos(sample.x, sample.surfaceY, sample.z);
         IBlockState ground = world.getBlockState(top);
-        if (!MPBGround.isRoadReplaceableGround(ground) && !MPBMillPathPalette.isMillPath(ground.getBlock())) return false;
+        if (!isNaturalOrRoad(ground)) return false;
 
         IBlockState up1 = world.getBlockState(top.up());
         IBlockState up2 = world.getBlockState(top.up(2));
+
         if (!isBridgeClearable(world, top.up(), up1, true)) return false;
         if (!isBridgeClearable(world, top.up(2), up2, true)) return false;
 
         return true;
     }
 
-    private static boolean walkVolumePassable(WorldServer world, int x, int z, int yFrom, int yTo, boolean allowEndpointSolidAtDeck) {
+    private static boolean walkVolumePassable(WorldServer world,
+                                              int x,
+                                              int z,
+                                              int yFrom,
+                                              int yTo,
+                                              boolean allowDeckSlabAtEndpoint) {
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
 
         for (int y = yFrom; y <= yTo; y++) {
@@ -269,8 +275,7 @@ public final class BridgeFeasibility {
             if (st.getMaterial() == Material.AIR) continue;
             if (world.getTileEntity(p) != null) return false;
 
-            if (isBridgeClearable(world, p, st, allowEndpointSolidAtDeck)) continue;
-
+            if (isBridgeClearable(world, p, st, allowDeckSlabAtEndpoint)) continue;
             return false;
         }
 
@@ -288,24 +293,24 @@ public final class BridgeFeasibility {
         if (sideRadius <= 0) return true;
         if (idx < 0 || idx >= line.size()) return false;
 
-        BlockPos c = line.get(idx);
-        Dir2 dir = localDir(line, idx);
-        Dir2 perp = dir.perp();
+        BlockPos center = line.get(idx);
+        BridgeGeometry.Dir2 dir = BridgeGeometry.localDir(line, idx);
+        BridgeGeometry.Dir2 perp = dir.perp();
 
-        SlabPlacement slab = slabPlacementForSurfaceHalfY(deckHalfY);
-        int deckSurfaceY = surfaceYFromHalf(deckHalfY);
+        BridgeGeometry.SlabPlacement slab = BridgeGeometry.slabPlacementForSurfaceHalfY(deckHalfY);
+        int deckSurfaceY = BridgeGeometry.surfaceYFromHalf(deckHalfY);
         int deckBlockY = slab.blockY;
 
         for (int off = 1; off <= sideRadius; off++) {
-            for (int s = -1; s <= 1; s += 2) {
-                int x = c.getX() + perp.dx * off * s;
-                int z = c.getZ() + perp.dz * off * s;
+            for (int side = -1; side <= 1; side += 2) {
+                int x = center.getX() + perp.dx * off * side;
+                int z = center.getZ() + perp.dz * off * side;
 
-                TerrainSampler.Sample side = sampler.sample(x, z);
-                if (side == null) return false;
+                TerrainSampler.Sample sample = sampler.sample(x, z);
+                if (sample == null) return false;
                 if (sampler.isProtectedNoPaint(x, z)) return false;
 
-                if (!endpoint && side.surfaceY > deckSurfaceY) {
+                if (!endpoint && sample.surfaceY > deckSurfaceY) {
                     return false;
                 }
 
@@ -318,21 +323,31 @@ public final class BridgeFeasibility {
         return true;
     }
 
-    private static boolean landingColumnNatural(WorldServer world, TerrainSampler sampler, int x, int z, int deckSurfaceY, boolean endpoint) {
-        TerrainSampler.Sample s = sampler.sample(x, z);
-        if (s == null) return false;
+    private static boolean isBridgeColumnAcceptable(WorldServer world,
+                                                    TerrainSampler sampler,
+                                                    int x,
+                                                    int z,
+                                                    int deckSurfaceY,
+                                                    boolean endpoint) {
+        TerrainSampler.Sample sample = sampler.sample(x, z);
+        if (sample == null) return false;
+        if (sampler.isProtectedNoPaint(x, z)) return false;
 
         if (endpoint) {
-            if (s.isWater || s.isOcean) return false;
-            BlockPos top = new BlockPos(x, s.surfaceY, z);
+            if (sample.isWater || sample.isOcean) return false;
+
+            BlockPos top = new BlockPos(x, sample.surfaceY, z);
             IBlockState ground = world.getBlockState(top);
-            return MPBGround.isRoadReplaceableGround(ground) || MPBMillPathPalette.isMillPath(ground.getBlock());
+            return isNaturalOrRoad(ground);
         }
 
-        return true;
+        return sample.surfaceY <= deckSurfaceY;
     }
 
-    private static boolean isBridgeClearable(WorldServer world, BlockPos pos, IBlockState st, boolean allowTopSlab) {
+    private static boolean isBridgeClearable(WorldServer world,
+                                             BlockPos pos,
+                                             IBlockState st,
+                                             boolean allowTopSlab) {
         Material m = st.getMaterial();
         Block b = st.getBlock();
 
@@ -351,126 +366,19 @@ public final class BridgeFeasibility {
         return false;
     }
 
-    private static boolean isTooNearSettlement(WorldServer world, BlockPos p, boolean endpoint) {
-        int villageR = endpoint
+    private static boolean isTooNearSettlement(WorldServer world, BlockPos pos, boolean endpoint) {
+        int villageRadius = endpoint
                 ? Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.endpointVillageRadius)
                 : Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.crossVillageRadius);
 
-        int loneR = endpoint
+        int loneRadius = endpoint
                 ? Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.endpointLoneBuildingRadius)
                 : Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.crossLoneBuildingRadius);
 
-        if (villageR > 0 && MillVillageIndex.isNearVillage(world, p, villageR)) return true;
-        if (loneR > 0 && MillVillageIndex.isNearAnySettlement(world, p, loneR)) return true;
+        if (villageRadius > 0 && MillVillageIndex.isNearVillage(world, pos, villageRadius)) return true;
+        if (loneRadius > 0 && MillVillageIndex.isNearAnySettlement(world, pos, loneRadius)) return true;
 
         return false;
-    }
-
-    private static int[] buildDeckHalfProfile(int startHalf, int endHalf, List<BlockPos> line, TerrainSampler sampler) {
-        int n = line.size();
-        int[] ideal = new int[n];
-
-        for (int i = 0; i < n; i++) {
-            double t = (n <= 1) ? 0.0 : ((double) i / (double) (n - 1));
-            ideal[i] = (int) Math.round((1.0 - t) * (double) startHalf + t * (double) endHalf);
-        }
-
-        int len = Math.max(0, n - 1);
-        int crown = 0;
-
-        if (len >= Math.max(2, MPBConfig.BRIDGES.bridgeCrownMinLenBlocks)) {
-            crown = Math.max(0, MPBConfig.BRIDGES.bridgeCrownHalfBlocks);
-
-            if (MPBConfig.BRIDGES.extraWaterBridgeCrown && hasMeaningfulWaterInterior(line, sampler)) {
-                crown += 1;
-            }
-        }
-
-        if (crown > 0 && n >= 3) {
-            for (int i = 1; i < n - 1; i++) {
-                double t = (double) i / (double) (n - 1);
-                double arch = 1.0 - Math.abs(2.0 * t - 1.0);
-                ideal[i] += (int) Math.round((double) crown * arch);
-            }
-        }
-
-        int maxStepHalf = Math.max(0, MPBConfig.BRIDGES.maxDeckDeltaHalfPerBlock);
-        if (maxStepHalf <= 0) {
-            return ideal;
-        }
-
-        int[] out = new int[n];
-        out[0] = ideal[0];
-
-        for (int i = 1; i < n; i++) {
-            int want = ideal[i];
-            int prev = out[i - 1];
-            int d = want - prev;
-            if (d > maxStepHalf) want = prev + maxStepHalf;
-            else if (d < -maxStepHalf) want = prev - maxStepHalf;
-            out[i] = want;
-        }
-
-        for (int i = n - 2; i >= 0; i--) {
-            int want = out[i];
-            int next = out[i + 1];
-            int d = want - next;
-            if (d > maxStepHalf) want = next + maxStepHalf;
-            else if (d < -maxStepHalf) want = next - maxStepHalf;
-            out[i] = want;
-        }
-
-        return out;
-    }
-
-    private static boolean hasMeaningfulWaterInterior(List<BlockPos> line, TerrainSampler sampler) {
-        if (line == null || line.size() < 3 || sampler == null) return false;
-
-        int run = 0;
-        int best = 0;
-
-        for (int i = 1; i < line.size() - 1; i++) {
-            BlockPos p = line.get(i);
-            TerrainSampler.Sample s = sampler.sample(p.getX(), p.getZ());
-
-            boolean water = s != null && s.isWater && !s.isOcean;
-            if (water) {
-                run++;
-                if (run > best) best = run;
-            } else {
-                run = 0;
-            }
-        }
-
-        return best >= Math.max(2, MPBConfig.BRIDGE_AWARE_PATHFINDING.minWaterRunBlocks);
-    }
-
-    private static boolean hasMeaningfulWaterInterior(List<BlockPos> line) {
-        return false;
-    }
-
-    private static int surfaceYFromHalf(int surfaceHalfY) {
-        return (surfaceHalfY - 1) / 2;
-    }
-
-    private static final class SlabPlacement {
-        final int blockY;
-        final boolean top;
-
-        SlabPlacement(int blockY, boolean top) {
-            this.blockY = blockY;
-            this.top = top;
-        }
-    }
-
-    private static SlabPlacement slabPlacementForSurfaceHalfY(int surfaceHalfY) {
-        if ((surfaceHalfY & 1) == 1) {
-            int y = (surfaceHalfY - 1) / 2;
-            return new SlabPlacement(y, false);
-        } else {
-            int y = (surfaceHalfY / 2) - 1;
-            return new SlabPlacement(y, true);
-        }
     }
 
     private static boolean exitDirectionStaysForward(BlockPos start,
@@ -479,25 +387,22 @@ public final class BridgeFeasibility {
                                                      TerrainSampler sampler) {
         if (lookAhead <= 0) return true;
 
-        int bdx = Integer.signum(end.getX() - start.getX());
-        int bdz = Integer.signum(end.getZ() - start.getZ());
+        int dx = Integer.signum(end.getX() - start.getX());
+        int dz = Integer.signum(end.getZ() - start.getZ());
 
-        if (bdx == 0 && bdz == 0) return false;
+        if (dx == 0 && dz == 0) return false;
 
         int x = end.getX();
         int z = end.getZ();
 
         for (int i = 1; i <= lookAhead; i++) {
-            int nx = x + bdx;
-            int nz = z + bdz;
+            x += dx;
+            z += dz;
 
-            TerrainSampler.Sample s = sampler.sample(nx, nz);
-            if (s == null) return false;
-            if (s.isWater || s.isOcean) return false;
-            if (sampler.forbidden(s, TerrainSampler.Mode.PATHFINDING)) return false;
-
-            x = nx;
-            z = nz;
+            TerrainSampler.Sample sample = sampler.sample(x, z);
+            if (sample == null) return false;
+            if (sample.isWater || sample.isOcean) return false;
+            if (sampler.forbidden(sample, TerrainSampler.Mode.PATHFINDING)) return false;
         }
 
         return true;
@@ -515,6 +420,8 @@ public final class BridgeFeasibility {
 
         if (dx == 0 && dz == 0) return false;
 
+        int maxDy = Math.max(1, MPBConfig.PATHFINDING.maxYDeltaPerStep);
+
         TerrainSampler.Sample prev = sampler.sample(end.getX(), end.getZ());
         if (prev == null) return false;
 
@@ -525,70 +432,30 @@ public final class BridgeFeasibility {
             x += dx;
             z += dz;
 
-            TerrainSampler.Sample s = sampler.sample(x, z);
-            if (s == null) return false;
-            if (s.isWater || s.isOcean) return false;
-            if (sampler.forbidden(s, TerrainSampler.Mode.PATHFINDING)) return false;
+            TerrainSampler.Sample sample = sampler.sample(x, z);
+            if (sample == null) return false;
+            if (sample.isWater || sample.isOcean) return false;
+            if (sampler.forbidden(sample, TerrainSampler.Mode.PATHFINDING)) return false;
             if (sampler.isProtectedNoPaint(x, z)) return false;
 
-            int dy = Math.abs(s.surfaceY - prev.surfaceY);
-            int maxDy = Math.max(1, MPBConfig.PATHFINDING.maxYDeltaPerStep);
-
+            int dy = Math.abs(sample.surfaceY - prev.surfaceY);
             if (dy > maxDy) return false;
 
-            BlockPos top = new BlockPos(x, s.surfaceY, z);
-            if (!isNaturalOrRoad(world, top)) return false;
+            BlockPos top = new BlockPos(x, sample.surfaceY, z);
+            if (!isNaturalOrRoad(world.getBlockState(top))) return false;
 
-            prev = s;
+            prev = sample;
         }
 
         return true;
     }
 
-    private static boolean isNaturalOrRoad(WorldServer world, BlockPos top) {
-        IBlockState st = world.getBlockState(top);
-        if (st == null) return false;
-        return MPBGround.isRoadReplaceableGround(st) || MPBMillPathPalette.isMillPath(st.getBlock());
+    private static boolean isNaturalOrRoad(IBlockState state) {
+        if (state == null) return false;
+        return MPBGround.isRoadReplaceableGround(state) || MPBMillPathPalette.isMillPath(state.getBlock());
     }
 
-    private static final class Dir2 {
-        final int dx;
-        final int dz;
-
-        Dir2(int dx, int dz) {
-            this.dx = dx;
-            this.dz = dz;
-        }
-
-        Dir2 perp() {
-            return new Dir2(-dz, dx);
-        }
-    }
-
-    private static Dir2 localDir(List<BlockPos> line, int idx) {
-        if (line == null || line.isEmpty()) return new Dir2(1, 0);
-        if (line.size() == 1) return new Dir2(1, 0);
-
-        BlockPos prev = line.get(Math.max(0, idx - 1));
-        BlockPos next = line.get(Math.min(line.size() - 1, idx + 1));
-
-        int dx = Integer.signum(next.getX() - prev.getX());
-        int dz = Integer.signum(next.getZ() - prev.getZ());
-
-        if (dx == 0 && dz == 0) {
-            BlockPos cur = line.get(idx);
-            if (idx > 0) {
-                BlockPos p = line.get(idx - 1);
-                dx = Integer.signum(cur.getX() - p.getX());
-                dz = Integer.signum(cur.getZ() - p.getZ());
-            } else if (idx + 1 < line.size()) {
-                BlockPos n = line.get(idx + 1);
-                dx = Integer.signum(n.getX() - cur.getX());
-                dz = Integer.signum(n.getZ() - cur.getZ());
-            }
-        }
-
-        if (dx == 0 && dz == 0) dx = 1;
-        return new Dir2(dx, dz);
+    private static boolean sameXZ(BlockPos a, BlockPos b) {
+        return a.getX() == b.getX() && a.getZ() == b.getZ();
     }
 }
