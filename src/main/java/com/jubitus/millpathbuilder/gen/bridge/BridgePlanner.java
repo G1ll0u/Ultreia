@@ -2,6 +2,7 @@ package com.jubitus.millpathbuilder.gen.bridge;
 
 import com.jubitus.millpathbuilder.config.MPBConfig;
 import com.jubitus.millpathbuilder.gen.TerrainSampler;
+import com.jubitus.millpathbuilder.gen.mill.MillVillageIndex;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
 
@@ -347,56 +348,46 @@ public final class BridgePlanner {
     }
 
     private BridgeSpan buildSpan(BlockPos entry, BlockPos exit, boolean micro) {
-        TerrainSampler.Sample se = sampler.sample(entry.getX(), entry.getZ());
-        TerrainSampler.Sample sx = sampler.sample(exit.getX(), exit.getZ());
-        if (se == null || sx == null) return null;
-
-        // We want the walking surface slightly above the ground road:
-        // road full block surface ~= surfaceY + 1. Using bottom slab at y=surfaceY+1 gives surfaceY+1.5 (halfY=2*surfaceY+3)
-        int startHalf = se.surfaceY * 2 + 3;
-        int endHalf = sx.surfaceY * 2 + 3;
-
-        int maxDY = Math.max(0, MPBConfig.BRIDGES.maxBridgeDeltaY) * 2; // convert blocks -> half blocks
-        if (Math.abs(endHalf - startHalf) > maxDY) {
-            endHalf = startHalf + clamp(endHalf - startHalf, -maxDY, maxDY);
-        }
+        if (entry == null || exit == null) return null;
 
         List<BlockPos> line = MPBConfig.BRIDGE_GEOMETRY.useRaster8ForBridges
                 ? RasterLine8.raster(entry.getX(), entry.getZ(), exit.getX(), exit.getZ(), 0)
                 : SupercoverLine.raster(entry.getX(), entry.getZ(), exit.getX(), exit.getZ(), 0);
 
-        int len = Math.max(0, line.size() - 1);
+        if (line == null || line.size() < 2) return null;
 
-        int maxLen = Math.max(8, MPBConfig.BRIDGES.maxBridgeLenBlocks);
-        if (len > maxLen) return null;
+        int len = Math.max(0, line.size() - 1);
 
         if (MPBConfig.BRIDGES.microBridges) {
             int microMax = Math.max(2, MPBConfig.BRIDGES.microBridgeMaxLen);
-            if (len <= microMax) micro = true;
+            if (len <= microMax) {
+                micro = true;
+            }
         } else {
             micro = false;
         }
 
-        // Reject spans that would be underground relative to the straight line terrain.
-        int baseline = Math.max(se.surfaceY, sx.surfaceY);
-        int ridgeRise = Math.max(0, MPBConfig.VALLEY_BRIDGING.ridgeRiseBlocks);
-        int maxAllowed = baseline + ridgeRise;
+        BridgeSpan span = BridgeFeasibility.tryCreate(world, sampler, entry, exit, micro);
+        if (span == null) return null;
+        if (spanTouchesForbiddenVillageOrProtected(span)) return null;
 
-        int hits = 0;
-        for (BlockPos p : line) {
-            TerrainSampler.Sample sp = sampler.sample(p.getX(), p.getZ());
-            if (sp == null) continue;
-            if (sp.surfaceY > maxAllowed) {
-                hits++;
-                if (hits >= 2) return null; // intersects a wall/mountain
-            }
-        }
-
-        return new BridgeSpan(entry, exit, line, startHalf, endHalf, micro);
+        return span;
     }
 
     private static int clamp(int v, int lo, int hi) {
         return v < lo ? lo : (v > hi ? hi : v);
+    }
+    private boolean spanTouchesForbiddenVillageOrProtected(BridgeSpan span) {
+        if (span == null || span.centerline == null) return true;
+
+        for (BlockPos p : span.centerline) {
+            if (sampler.isProtectedNoPaint(p.getX(), p.getZ())) return true;
+
+            if (MillVillageIndex.isNearVillage(world, p, MPBConfig.BRIDGE_AWARE_PATHFINDING.crossVillageRadius)) return true;
+            if (MillVillageIndex.isNearAnySettlement(world, p, MPBConfig.BRIDGE_AWARE_PATHFINDING.crossLoneBuildingRadius)) return true;
+        }
+
+        return false;
     }
 
 }

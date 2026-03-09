@@ -35,7 +35,7 @@ import java.util.Set;
 public final class TerrainSampler {
 
     public enum Mode { PATHFINDING, PAINTING }
-    public enum ForbiddenReason { NONE, OCEAN, BLACKLIST, WATER_BUFFER, BLOCKED }
+    public enum ForbiddenReason { NONE, OCEAN, BLACKLIST, WATER, WATER_BUFFER, BLOCKED }
 
     private static final int MAX_SAMPLE_CACHE = 200_000;
 
@@ -254,13 +254,15 @@ public final class TerrainSampler {
         if (MPBConfig.GENERAL.forbidOcean && s.isOcean) return true;
         if (MPBConfig.GENERAL.hardBlockBlacklistedBiomes && s.isBlacklisted) return true;
 
+        if (mode == Mode.PATHFINDING && s.isWater) return true;
+
         return mode == Mode.PAINTING ? s.blockedPaint : s.blockedPath;
     }
 
     public ForbiddenReason forbiddenReason(Sample s, Mode mode) {
         if (MPBConfig.GENERAL.forbidOcean && s.isOcean) return ForbiddenReason.OCEAN;
         if (MPBConfig.GENERAL.hardBlockBlacklistedBiomes && s.isBlacklisted) return ForbiddenReason.BLACKLIST;
-
+        if (mode == Mode.PATHFINDING && s.isWater) return ForbiddenReason.WATER;
 
         if (mode == Mode.PAINTING ? s.blockedPaint : s.blockedPath) return ForbiddenReason.BLOCKED;
         return ForbiddenReason.NONE;
@@ -270,6 +272,7 @@ public final class TerrainSampler {
         ForbiddenReason r = forbiddenReason(s, mode);
         if (r == ForbiddenReason.OCEAN) return "ocean biome";
         if (r == ForbiddenReason.BLACKLIST) return "blacklisted biome";
+        if (r == ForbiddenReason.WATER) return "water requires explicit bridge";
         if (r == ForbiddenReason.WATER_BUFFER) return "near water buffer";
         if (r == ForbiddenReason.BLOCKED) {
             return mode == Mode.PAINTING ? "blocked (paint rules/manmade/tile)" : "blocked (walk/headroom)";
@@ -280,6 +283,22 @@ public final class TerrainSampler {
     public boolean forbiddenHard(Sample s) {
         if (MPBConfig.GENERAL.forbidOcean && s.isOcean) return true;
         return MPBConfig.GENERAL.hardBlockBlacklistedBiomes && s.isBlacklisted;
+    }
+
+    public boolean isProtectedNoPaint(int x, int z) {
+        return protectedAreas != null && protectedAreas.contains(x, z);
+    }
+
+    public boolean isNaturalLandEndpoint(int x, int z) {
+        Sample s = sample(x, z);
+        if (s == null) return false;
+        if (s.isWater || s.isOcean) return false;
+        if (forbidden(s, Mode.PATHFINDING)) return false;
+        if (isProtectedNoPaint(x, z)) return false;
+
+        BlockPos top = new BlockPos(x, s.surfaceY, z);
+        IBlockState st = world.getBlockState(top);
+        return MPBGround.isRoadReplaceableGround(st) || MPBMillPathPalette.isMillPath(st.getBlock());
     }
 
     private Sample cachePut(long k, Sample out) {

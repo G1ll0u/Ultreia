@@ -180,6 +180,9 @@ public class MPBConfig {
         @Config.Comment("Enable tiny spans (< microBridgeMaxLen) as slabs-only micro-bridges.")
         public boolean microBridges = true;
 
+        @Config.Comment("If true, tiny water bridges are validated and built as simple supportless decks.")
+        public boolean simpleWaterMicroBridgesNoSupports = true;
+
         @Config.Comment("Max length (in blocks) for a micro-bridge (slabs only). < 6 recommended.")
         @Config.RangeInt(min = 2, max = 16)
         public int microBridgeMaxLen = 5;
@@ -196,8 +199,6 @@ public class MPBConfig {
         @Config.RangeInt(min = 8, max = 128)
         public int maxSupportDepth = 64;
 
-
-
         @Config.Comment("Max total deltaY allowed between bridge start and end deck height.")
         @Config.RangeInt(min = 0, max = 16)
         public int maxBridgeDeltaY = 3;
@@ -213,7 +214,6 @@ public class MPBConfig {
         @Config.Comment("Max delta in bridge deck surface per block, in HALF blocks. 1 = 0.5 block per step.")
         @Config.RangeInt(min = 0, max = 4)
         public int maxDeckDeltaHalfPerBlock = 1;
-        public boolean allowTerrainBridges = true;
 
         @Config.Comment("How many blocks after a bridge exit we check to ensure the road does not immediately climb.")
         @Config.RangeInt(min = 0, max = 12)
@@ -222,6 +222,18 @@ public class MPBConfig {
         @Config.Comment("Max allowed rise (in blocks) within exitLookaheadBlocks after the exit. 0 = must be flat.")
         @Config.RangeInt(min = 0, max = 8)
         public int exitMaxRiseBlocks = 1;
+
+        @Config.Comment("Extra lift applied near the middle of bridges, in HALF blocks. 0 = disabled.")
+        @Config.RangeInt(min = 0, max = 12)
+        public int bridgeCrownHalfBlocks = 2;
+
+        @Config.Comment("Only apply crown lift on bridges at least this long.")
+        @Config.RangeInt(min = 2, max = 512)
+        public int bridgeCrownMinLenBlocks = 8;
+
+        @Config.Comment("If true, water bridges get +1 extra HALF block of crown compared to land bridges.")
+        public boolean extraWaterBridgeCrown = true;
+
     }
 
     public static final class ValleyBridging {
@@ -289,11 +301,162 @@ public class MPBConfig {
 
         // If true: bridges use an 8-connected raster line (recommended). Prevents diagonal widening artifacts.
         public boolean useRaster8ForBridges = true;
+        
+    }
+    @Config.Name("BridgeAwarePathfinding")
+    public static final BridgeAwarePathfinding BRIDGE_AWARE_PATHFINDING = new BridgeAwarePathfinding();
 
-        // Ensures bridge width stays odd and constant in all directions.
-        public boolean enforceOddWidth = true;
+    public static final class BridgeAwarePathfinding {
+        @Config.Comment("Enable A* bridge-aware pathfinding.")
+        public boolean enabled = true;
 
-        // Place supports adjacent to deck edge (outside), symmetric.
-        public boolean supportsAdjacentToDeck = true;
+        @Config.Comment("Minimum bridge length in blocks for A* bridge moves.")
+        @Config.RangeInt(min = 2, max = 512)
+        public int minBridgeLenBlocks = 10;
+
+        @Config.Comment("Maximum bridge probe length in blocks for A* bridge moves.")
+        @Config.RangeInt(min = 8, max = 512)
+        public int maxProbeLenBlocks = 160;
+
+        @Config.Comment("Probe step in blocks when searching bridge landing points.")
+        @Config.RangeInt(min = 1, max = 32)
+        public int probeLenStepBlocks = 6;
+
+        @Config.Comment("Max accepted bridge candidates per expanded A* node.")
+        @Config.RangeInt(min = 1, max = 32)
+        public int maxBridgeCandidatesPerNode = 4;
+
+        @Config.Comment("Fixed extra cost added to every bridge move.")
+        public double bridgeFixedCost = 22.0;
+
+        @Config.Comment("Multiplier applied to bridge geometric length cost.")
+        public double bridgeLengthCostMultiplier = 1.18;
+
+        @Config.Comment("Bonus per block of valley depth. Higher = more valley bridges.")
+        public double bridgeValleyPreferenceBonusPerBlock = 1.5;
+
+        @Config.Comment("Minimum number of normal path blocks between two bridges.")
+        @Config.RangeInt(min = 0, max = 512)
+        public int minDistanceBetweenBridgesBlocks = 28;
+
+        @Config.Comment("Minimum air/gap wanted below bridge deck on interior cells.")
+        @Config.RangeInt(min = 1, max = 16)
+        public int minGroundClearanceBelowDeck = 2;
+
+        @Config.Comment("Minimum consecutive interior cells that really benefit from a bridge.")
+        @Config.RangeInt(min = 1, max = 128)
+        public int minMeaningfulGapRun = 4;
+
+        @Config.Comment("Clearance above bridge deck checked during feasibility.")
+        @Config.RangeInt(min = 2, max = 8)
+        public int walkClearanceAboveDeck = 3;
+
+        @Config.Comment("Require bridge direction to be aligned with incoming path direction.")
+        public boolean requireAlignedApproach = true;
+
+        @Config.Comment("Minimum normalized dot product between incoming direction and bridge direction.")
+        public double minApproachDot = 0.15;
+
+        @Config.Comment("No bridge start/end within this radius of a village.")
+        @Config.RangeInt(min = 0, max = 128)
+        public int endpointVillageRadius = 36;
+
+        @Config.Comment("No bridge start/end within this radius of a lone building.")
+        @Config.RangeInt(min = 0, max = 128)
+        public int endpointLoneBuildingRadius = 24;
+
+        @Config.Comment("Bridge centerline must not pass within this radius of a village.")
+        @Config.RangeInt(min = 0, max = 128)
+        public int crossVillageRadius = 28;
+
+        @Config.Comment("Bridge centerline must not pass within this radius of a lone building.")
+        @Config.RangeInt(min = 0, max = 128)
+        public int crossLoneBuildingRadius = 18;
+
+        @Config.Comment("Minimum clearance below bridge deck for water cells. 1 allows normal river bridges when bank and water are at the same Y.")
+        @Config.RangeInt(min = 1, max = 16)
+        public int minWaterClearanceBelowDeck = 1;
+
+        @Config.Comment("If a bridge is at least this long, require stronger elevation above terrain.")
+        @Config.RangeInt(min = 2, max = 512)
+        public int longBridgeMinLenForExtraClearance = 14;
+
+        @Config.Comment("Minimum average terrain clearance required for long bridges.")
+        @Config.RangeInt(min = 1, max = 32)
+        public int longBridgeRequiredAverageClearance = 4;
+
+        @Config.Comment("Minimum max terrain clearance required somewhere along a long bridge.")
+        @Config.RangeInt(min = 1, max = 32)
+        public int longBridgeRequiredMaxClearance = 6;
+
+        @Config.Comment("If true, disables the old opportunistic BridgePlanner fallback and only uses bridge-aware A* bridges.")
+        public boolean disableLegacyBridgePlannerFallback = true;
+        @Config.Comment("Require this many buildable blocks straight ahead after bridge exit.")
+        @Config.RangeInt(min = 1, max = 16)
+        public int requiredExitCorridorBlocks = 4;
+
+        @Config.Comment("Require this many forward-aligned blocks after bridge exit.")
+        @Config.RangeInt(min = 1, max = 16)
+        public int requiredForwardExitBlocks = 3;
+
+        @Config.Comment("Force-paint this many blocks after bridge exit to secure road continuation.")
+        @Config.RangeInt(min = 0, max = 16)
+        public int forcePaintExitBlocks = 4;
+
+        @Config.Comment("Minimum consecutive interior water cells required before a water crossing counts as a real bridge candidate.")
+        @Config.RangeInt(min = 1, max = 128)
+        public int minWaterRunBlocks = 3;
+        @Config.Comment("For water bridges, max dry interior cells allowed before the first real water run.")
+        @Config.RangeInt(min = 0, max = 64)
+        public int maxWaterBridgeLeadInBlocks = 2;
+
+        @Config.Comment("For water bridges, max dry interior cells allowed after the last real water run.")
+        @Config.RangeInt(min = 0, max = 64)
+        public int maxWaterBridgeLeadOutBlocks = 2;
+
+        @Config.Comment("Extra side clearance checked around bridge centerline during feasibility. 0 = centerline only.")
+        @Config.RangeInt(min = 0, max = 8)
+        public int sideClearanceRadius = 1;
+
+        @Config.Comment("When snapping to an existing road, keep at least this many land blocks before merging into it.")
+        @Config.RangeInt(min = 1, max = 32)
+        public int bridgeRoadApproachMinBlocks = 4;
+
+        @Config.Comment("Maximum search radius around a snapped road to find a small natural land approach before the road.")
+        @Config.RangeInt(min = 1, max = 48)
+        public int bridgeRoadApproachMaxBlocks = 10;
+
+        @Config.Comment("Maximum allowed vertical difference with an existing road when merging, in HALF blocks. 1 = 0.5 block.")
+        @Config.RangeInt(min = 0, max = 8)
+        public int maxRoadJoinDeltaHalfBlocks = 1;
+
+        @Config.Comment("Do not early-merge into an existing road until at least this many blocks after a bridge exit.")
+        @Config.RangeInt(min = 0, max = 64)
+        public int minBlocksAfterBridgeBeforeMerge = 6;
+        @Config.Comment("Minimum terrain clearance required for a bridge cell to count as genuinely elevated.")
+
+        @Config.RangeInt(min = 1, max = 32)
+        public int meaningfulGroundClearanceBlocks = 3;
+
+        @Config.Comment("Minimum water clearance required for a bridge cell to count as genuinely elevated above water.")
+        @Config.RangeInt(min = 1, max = 32)
+        public int meaningfulWaterClearanceBlocks = 2;
+
+        @Config.Comment("Minimum percentage of interior bridge cells that must have meaningful clearance. 0..100.")
+        @Config.RangeInt(min = 0, max = 100)
+        public int minMeaningfulClearancePercent = 65;
+
+        @Config.Comment("Ignore this many cells near each bridge end when evaluating global meaningful clearance.")
+        @Config.RangeInt(min = 0, max = 16)
+        public int endpointGraceCells = 2;
+
+        @Config.Comment("Require the final cells before bridge exit to stay clearly above terrain/water. 0 disables.")
+        @Config.RangeInt(min = 0, max = 16)
+        public int exitMinClearanceBlocks = 2;
+
+        @Config.Comment("How many cells before the bridge end must satisfy exitMinClearanceBlocks. 0 disables.")
+        @Config.RangeInt(min = 0, max = 16)
+        public int exitMinClearanceCheckCells = 3;
+
     }
 }

@@ -4,8 +4,7 @@ import com.jubitus.millpathbuilder.config.MPBConfig;
 import com.jubitus.millpathbuilder.gen.MPBGround;
 import com.jubitus.millpathbuilder.gen.TerrainSampler;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import net.minecraft.block.BlockPlanks;
-import net.minecraft.block.BlockSlab;
+import net.minecraft.block.*;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
@@ -79,7 +78,7 @@ public final class BridgeBuilder2 {
         int supportSpacing = Math.max(2, MPBConfig.BRIDGES.supportSpacing);
         int maxSupportDepth = Math.max(8, MPBConfig.BRIDGES.maxSupportDepth);
 
-        int[] deckHalfY = buildDeckHalfProfile(span);
+        int[] deckHalfY = buildDeckHalfProfile(span, sampler);
         LongOpenHashSet deckXZ = new LongOpenHashSet(Math.max(128, span.centerline.size() * 8));
 
         // We place deck cells using local segment direction to keep geometry stable.
@@ -93,8 +92,9 @@ public final class BridgeBuilder2 {
             IBlockState deckSlab = sp.top ? slabTop() : slabBottom();
 
             // Place main stripe
-            placeStripe(world, c.getX(), c.getZ(), perp, half, sp, deckSlab, dryRun, sampler, deckXZ);
-
+            if (!placeStripe(world, c.getX(), c.getZ(), perp, half, sp, deckSlab, dryRun, sampler, deckXZ)) {
+                return false;
+            }
             // If diagonal step, fill missing corner cells WITHOUT widening:
             // We fill only the cells that lie between previous and current stripe for each offset.
             if (i > 0) {
@@ -103,7 +103,9 @@ public final class BridgeBuilder2 {
                 int stepZ = c.getZ() - p.getZ();
 
                 if (stepX != 0 && stepZ != 0) {
-                    fillDiagonalGap(world, p.getX(), p.getZ(), c.getX(), c.getZ(), perp, half, sp, deckSlab, dryRun, sampler, deckXZ);
+                    if (!fillDiagonalGap(world, p.getX(), p.getZ(), c.getX(), c.getZ(), perp, half, sp, deckSlab, dryRun, sampler, deckXZ)) {
+                        return false;
+                    }
                 }
             }
 
@@ -123,17 +125,20 @@ public final class BridgeBuilder2 {
         return true;
     }
 
-    private static void placeStripe(WorldServer world, int cx, int cz, Dir2 perp, int half, SlabPlacement sp,
-                                    IBlockState slab, boolean dryRun, TerrainSampler sampler, LongOpenHashSet deckXZ) {
+    private static boolean placeStripe(WorldServer world, int cx, int cz, Dir2 perp, int half, SlabPlacement sp,
+                                       IBlockState slab, boolean dryRun, TerrainSampler sampler, LongOpenHashSet deckXZ) {
         for (int o = -half; o <= half; o++) {
             int x = cx + perp.dx * o;
             int z = cz + perp.dz * o;
-            placeDeckCell(world, x, z, sp, slab, dryRun, sampler, deckXZ);
+            if (!placeDeckCell(world, x, z, sp, slab, dryRun, sampler, deckXZ)) {
+                return false;
+            }
         }
+        return true;
     }
 
-    private static void fillDiagonalGap(WorldServer world, int px, int pz, int cx, int cz, Dir2 perp, int half, SlabPlacement sp,
-                                        IBlockState slab, boolean dryRun, TerrainSampler sampler, LongOpenHashSet deckXZ) {
+    private static boolean fillDiagonalGap(WorldServer world, int px, int pz, int cx, int cz, Dir2 perp, int half, SlabPlacement sp,
+                                           IBlockState slab, boolean dryRun, TerrainSampler sampler, LongOpenHashSet deckXZ) {
         int stepX = Integer.signum(cx - px);
         int stepZ = Integer.signum(cz - pz);
 
@@ -147,15 +152,21 @@ public final class BridgeBuilder2 {
             int c1x = ax + stepX;
             int c1z = az;
             if (isBetween(c1x, c1z, ax, az, bx, bz)) {
-                placeDeckCell(world, c1x, c1z, sp, slab, dryRun, sampler, deckXZ);
+                if (!placeDeckCell(world, c1x, c1z, sp, slab, dryRun, sampler, deckXZ)) {
+                    return false;
+                }
             }
 
             int c2x = ax;
             int c2z = az + stepZ;
             if (isBetween(c2x, c2z, ax, az, bx, bz)) {
-                placeDeckCell(world, c2x, c2z, sp, slab, dryRun, sampler, deckXZ);
+                if (!placeDeckCell(world, c2x, c2z, sp, slab, dryRun, sampler, deckXZ)) {
+                    return false;
+                }
             }
         }
+
+        return true;
     }
 
     // -------------------------
@@ -208,26 +219,80 @@ public final class BridgeBuilder2 {
         return x >= minX && x <= maxX && z >= minZ && z <= maxZ;
     }
 
-    private static void placeDeckCell(WorldServer world, int x, int z, SlabPlacement sp, IBlockState slab,
-                                      boolean dryRun, TerrainSampler sampler, LongOpenHashSet deckXZ) {
+    private static boolean placeDeckCell(WorldServer world, int x, int z, SlabPlacement sp, IBlockState slab,
+                                         boolean dryRun, TerrainSampler sampler, LongOpenHashSet deckXZ) {
         long k = xzKey(x, z);
         deckXZ.add(k);
 
-        if (dryRun) return;
+        if (dryRun) return true;
 
         BlockPos deckPos = new BlockPos(x, sp.blockY, z);
+        IBlockState cur = world.getBlockState(deckPos);
 
-        // If there's a tile entity exactly where we want the deck, abort placing here.
-        // (Avoid breaking chests/TEs; keeps bridge from griefing villages.)
-        if (world.getTileEntity(deckPos) != null) return;
+        if (world.getTileEntity(deckPos) != null) return false;
 
-        // Place slab
-        world.setBlockState(deckPos, slab, 2);
+        if (!canReplaceForBridgeDeck(world, deckPos, cur)) {
+            return false;
+        }
 
-        // Clear 3 blocks above the deck surface:
-        // - for bottom slab, surface is y+0.5; clearing y+1..y+3 is correct
-        // - for top slab, surface is y+1.0; clearing y+1..y+3 is also correct
+        clearBridgeDeckCell(world, deckPos);
+
+        if (!world.setBlockState(deckPos, slab, 2)) {
+            return false;
+        }
+
+        IBlockState placed = world.getBlockState(deckPos);
+        if (placed == null || placed.getBlock() != slab.getBlock()) {
+            return false;
+        }
+
         clearBridgeWalkVolume(world, x, z, sp.blockY + 1, sp.blockY + 3);
+        return true;
+    }
+
+    private static boolean canReplaceForBridgeDeck(WorldServer world, BlockPos pos, IBlockState st) {
+        if (st == null) return true;
+
+        Material m = st.getMaterial();
+        Block b = st.getBlock();
+
+        if (m == Material.AIR) return true;
+        if (m == Material.WATER) return true;
+        if (m == Material.PLANTS || m == Material.VINE) return true;
+        if (m.isReplaceable()) return true;
+        if (b == Blocks.WATERLILY) return true;
+        if (b == Blocks.SNOW_LAYER) return true;
+        if (b.isLeaves(st, world, pos) || m == Material.LEAVES) return true;
+
+        if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
+            if (b.isWood(world, pos) || m == Material.WOOD) return true;
+        }
+
+        return MPBGround.isRoadReplaceableGround(st);
+    }
+
+    private static void clearBridgeDeckCell(WorldServer world, BlockPos pos) {
+        IBlockState st = world.getBlockState(pos);
+        if (st == null) return;
+
+        Material m = st.getMaterial();
+        Block b = st.getBlock();
+
+        if (m == Material.AIR) return;
+        if (world.getTileEntity(pos) != null) return;
+
+        if (m == Material.WATER || b == Blocks.WATERLILY || m == Material.PLANTS || m == Material.VINE || m.isReplaceable()
+                || b == Blocks.SNOW_LAYER || b.isLeaves(st, world, pos) || m == Material.LEAVES) {
+            world.setBlockState(pos, Blocks.AIR.getDefaultState(), 2);
+            return;
+        }
+
+        if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
+            if (b.isWood(world, pos) || m == Material.WOOD) {
+                world.setBlockState(pos, Blocks.AIR.getDefaultState(), 2);
+                return;
+            }
+        }
     }
 
     private static void clearBridgeWalkVolume(WorldServer world, int x, int z, int yFrom, int yTo) {
@@ -356,7 +421,7 @@ public final class BridgeBuilder2 {
     // Height profile (0.5 steps)
     // -------------------------
 
-    private static int[] buildDeckHalfProfile(BridgeSpan span) {
+    private static int[] buildDeckHalfProfile(BridgeSpan span, TerrainSampler sampler) {
         int n = span.centerline.size();
         int[] ideal = new int[n];
 
@@ -368,12 +433,28 @@ public final class BridgeBuilder2 {
             ideal[i] = (int) Math.round((1.0 - t) * (double) a + t * (double) b);
         }
 
+        int len = Math.max(0, n - 1);
+        int crown = 0;
+
+        if (len >= Math.max(2, MPBConfig.BRIDGES.bridgeCrownMinLenBlocks)) {
+            crown = Math.max(0, MPBConfig.BRIDGES.bridgeCrownHalfBlocks);
+
+            if (MPBConfig.BRIDGES.extraWaterBridgeCrown && hasMeaningfulWaterInterior(span, sampler)) {
+                crown += 1;
+            }
+        }
+
+        if (crown > 0 && n >= 3) {
+            for (int i = 1; i < n - 1; i++) {
+                double t = (double) i / (double) (n - 1);
+                double arch = 1.0 - Math.abs(2.0 * t - 1.0);
+                ideal[i] += (int) Math.round((double) crown * arch);
+            }
+        }
+
         int maxStepHalf = Math.max(0, MPBConfig.BRIDGES.maxDeckDeltaHalfPerBlock);
         if (maxStepHalf <= 0) {
-            int flat = Math.max(a, b);
-            int[] out = new int[n];
-            for (int i = 0; i < n; i++) out[i] = flat;
-            return out;
+            return ideal;
         }
 
         int[] out = new int[n];
@@ -398,6 +479,28 @@ public final class BridgeBuilder2 {
         }
 
         return out;
+    }
+
+    private static boolean hasMeaningfulWaterInterior(BridgeSpan span, TerrainSampler sampler) {
+        if (span == null || span.centerline == null || span.centerline.size() < 3 || sampler == null) return false;
+
+        int run = 0;
+        int best = 0;
+
+        for (int i = 1; i < span.centerline.size() - 1; i++) {
+            BlockPos p = span.centerline.get(i);
+            TerrainSampler.Sample s = sampler.sample(p.getX(), p.getZ());
+
+            boolean water = s != null && s.isWater && !s.isOcean;
+            if (water) {
+                run++;
+                if (run > best) best = run;
+            } else {
+                run = 0;
+            }
+        }
+
+        return best >= Math.max(2, MPBConfig.BRIDGE_AWARE_PATHFINDING.minWaterRunBlocks);
     }
 
     private static final class SlabPlacement {

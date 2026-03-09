@@ -2,6 +2,9 @@ package com.jubitus.millpathbuilder.gen;
 
 import com.jubitus.millpathbuilder.MillPathBuilderMod;
 import com.jubitus.millpathbuilder.config.MPBConfig;
+import com.jubitus.millpathbuilder.gen.bridge.BridgeAwarePathResult;
+import com.jubitus.millpathbuilder.gen.bridge.BridgeSpan;
+import com.jubitus.millpathbuilder.gen.bridge.MPBRoadConnectionHelper;
 import com.jubitus.millpathbuilder.gen.mill.MillBuildingObstacles;
 import com.jubitus.millpathbuilder.gen.mill.MillBuildingObstacles2;
 import com.jubitus.millpathbuilder.gen.mill.MillGateRouting;
@@ -161,18 +164,36 @@ public final class MPBGenerationJob {
 
 // Lonebuilding rule: if lone endpoint is near an existing road, build a spur to that road instead of a long parallel edge.
                 if (aIsLone && nearA != null && (protectedAreas == null || !protectedAreas.contains(nearA.getX(), nearA.getZ()))) {
-                    BlockPos spurGoal = anchorFromXZ(nearA.getX(), nearA.getZ());
-                    b0 = spurGoal;
-                } else if (bIsLone && nearB != null && (protectedAreas == null || !protectedAreas.contains(nearB.getX(), nearB.getZ()))) {
-                    BlockPos spurGoal = anchorFromXZ(nearB.getX(), nearB.getZ());
-                    a0 = spurGoal;
-                } else {
-                    // Normal snap: move endpoints onto the existing road if close enough.
-                    if (nearA != null) {
-                        a0 = anchorFromXZ(nearA.getX(), nearA.getZ());
+                    BlockPos spurGoal = MPBRoadConnectionHelper.resolveSnappedApproachAnchor(
+                            world, sampler, roadIndex, a0, e.b, nearA, protectedAreas
+                    );
+                    if (spurGoal != null) {
+                        b0 = spurGoal;
                     }
+                } else if (bIsLone && nearB != null && (protectedAreas == null || !protectedAreas.contains(nearB.getX(), nearB.getZ()))) {
+                    BlockPos spurGoal = MPBRoadConnectionHelper.resolveSnappedApproachAnchor(
+                            world, sampler, roadIndex, b0, e.a, nearB, protectedAreas
+                    );
+                    if (spurGoal != null) {
+                        a0 = spurGoal;
+                    }
+                } else {
+                    if (nearA != null) {
+                        BlockPos approachA = MPBRoadConnectionHelper.resolveSnappedApproachAnchor(
+                                world, sampler, roadIndex, a0, e.b, nearA, protectedAreas
+                        );
+                        if (approachA != null) {
+                            a0 = approachA;
+                        }
+                    }
+
                     if (nearB != null) {
-                        b0 = anchorFromXZ(nearB.getX(), nearB.getZ());
+                        BlockPos approachB = MPBRoadConnectionHelper.resolveSnappedApproachAnchor(
+                                world, sampler, roadIndex, b0, e.a, nearB, protectedAreas
+                        );
+                        if (approachB != null) {
+                            b0 = approachB;
+                        }
                     }
                 }
 
@@ -201,7 +222,9 @@ public final class MPBGenerationJob {
                     return;
                 }
                 if (sr == AStarPathfinder.StepResult.FOUND) {
-                    List<BlockPos> coarse = curSession.getPath();
+                    BridgeAwarePathResult pathResult = curSession.getResult();
+                    List<BlockPos> coarse = pathResult.getPath();
+                    List<BridgeSpan> bridges = pathResult.getBridges();
                     curSession = null;
 
                     boolean aIsMillRoad = roadIndex != null && roadIndex.isRoadXZ(coarse.get(0).getX(), coarse.get(0).getZ());
@@ -214,7 +237,7 @@ public final class MPBGenerationJob {
 // If either endpoint is on an existing Mill path, we want to reach it exactly.
                     boolean allowEarlyMerge = true;
 
-                    curPainter = RoadPainter.start(world, coarse, sampler, protectedAreas, roadIndex, dryRun, allowEarlyMerge);
+                    curPainter = RoadPainter.start(world, coarse, bridges, sampler, protectedAreas, roadIndex, dryRun, allowEarlyMerge);
 
                     if (MPBConfig.GENERAL.unloadChunksAfterEachEdge) {
                         chunkManager.releaseAll(world);
