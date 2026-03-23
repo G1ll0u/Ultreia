@@ -12,9 +12,9 @@ import net.minecraft.init.Blocks;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
 
+import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
-
-
 public final class BridgeFeasibility {
 
     private BridgeFeasibility() {}
@@ -39,11 +39,24 @@ public final class BridgeFeasibility {
         if (isTooNearSettlement(world, start, true)) return null;
         if (isTooNearSettlement(world, end, true)) return null;
 
-        List<BlockPos> line = MPBConfig.BRIDGE_GEOMETRY.useRaster8ForBridges
+        List<BlockPos> rawLine = MPBConfig.BRIDGE_GEOMETRY.useRaster8ForBridges
                 ? RasterLine8.raster(start.getX(), start.getZ(), end.getX(), end.getZ(), 0)
                 : SupercoverLine.raster(start.getX(), start.getZ(), end.getX(), end.getZ(), 0);
 
-        if (line == null || line.size() < 2) return null;
+        if (rawLine == null || rawLine.size() < 2) return null;
+
+        TrimmedBridgeCandidate trimmed = trimBridgeEndBeforeTargetRoad(world, sampler, start, end, rawLine);
+        if (trimmed == null) return null;
+
+        end = trimmed.end;
+        List<BlockPos> line = trimmed.line;
+
+        startSample = sampler.sample(start.getX(), start.getZ());
+        endSample = sampler.sample(end.getX(), end.getZ());
+        if (startSample == null || endSample == null) return null;
+
+        if (!isValidBridgeEndpoint(world, sampler, startSample)) return null;
+        if (!isValidBridgeEndpoint(world, sampler, endSample)) return null;
 
         int len = Math.max(0, line.size() - 1);
         int minLen = Math.max(2, MPBConfig.BRIDGE_AWARE_PATHFINDING.minBridgeLenBlocks);
@@ -53,8 +66,8 @@ public final class BridgeFeasibility {
         );
         if (len < minLen || len > maxLen) return null;
 
-        int startHalf = startSample.surfaceY * 2 + 3;
-        int endHalf = endSample.surfaceY * 2 + 3;
+        int startHalf = BridgeGeometry.naturalSurfaceHalfY(startSample.surfaceY);
+        int endHalf = BridgeGeometry.naturalSurfaceHalfY(endSample.surfaceY);
 
         int maxDeltaHalf = Math.max(0, MPBConfig.BRIDGES.maxBridgeDeltaY) * 2;
         if (Math.abs(endHalf - startHalf) > maxDeltaHalf) return null;
@@ -74,6 +87,7 @@ public final class BridgeFeasibility {
         final int exitMinClearance = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.exitMinClearanceBlocks);
         final int exitMinClearanceCells = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.exitMinClearanceCheckCells);
         final int sideRadius = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.sideClearanceRadius);
+        final int minUnderRoadClearance = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.underBridgeRoadMinClearanceBlocks);
 
         int bestGroundGapRun = 0;
         int currentGroundGapRun = 0;
@@ -103,6 +117,13 @@ public final class BridgeFeasibility {
 
             if (!endpoint && sample.surfaceY > deckSurfaceY) {
                 return null;
+            }
+
+            if (!endpoint && minUnderRoadClearance > 0 && sampler.isExistingRoadXZ(p.getX(), p.getZ())) {
+                int freeBlocksBelowDeck = deckBlockY - sample.surfaceY - 1;
+                if (freeBlocksBelowDeck < minUnderRoadClearance) {
+                    return null;
+                }
             }
 
             int gap = deckSurfaceY - sample.surfaceY;
@@ -154,7 +175,7 @@ public final class BridgeFeasibility {
                 return null;
             }
 
-            if (!checkSideClearance(world, sampler, line, i, deckHalf[i], clearAbove, endpoint, sideRadius)) {
+            if (!checkSideClearance(world, sampler, line, i, deckHalf[i], clearAbove, endpoint, sideRadius, minUnderRoadClearance)) {
                 return null;
             }
         }
@@ -164,9 +185,25 @@ public final class BridgeFeasibility {
 
         if (!validValleyBridge && !validWaterBridge) return null;
 
+        if (!validWaterBridge) {
+            int interior = Math.max(1, line.size() - 2);
+            int usefulGroundPct = (int) Math.floor((100.0 * (double) bestGroundGapRun) / (double) interior);
+            if (usefulGroundPct < 60) return null;
+        }
+
+        int interiorCells = Math.max(1, line.size() - 2);
+        int usefulCells = Math.max(bestGroundGapRun, bestWaterRun);
+        double usefulPct = (100.0 * (double) usefulCells) / (double) interiorCells;
+
+        if (usefulPct < 45.0) return null;
+
         if (countedInteriorCells > 0 && minMeaningfulPercent > 0) {
             int pct = (int) Math.floor((100.0 * (double) meaningfulInteriorCells) / (double) countedInteriorCells);
             if (pct < minMeaningfulPercent) return null;
+
+            if (!validWaterBridge && pct < Math.max(minMeaningfulPercent, 75)) {
+                return null;
+            }
         }
 
         if (exitMinClearance > 0 && exitMinClearanceCells > 0) {
@@ -204,6 +241,8 @@ public final class BridgeFeasibility {
             int sumGap = 0;
             int countGap = 0;
             int maxGapSeen = 0;
+            int strongGapCells = 0;
+            int veryStrongGapCells = 0;
 
             for (int i = 1; i < line.size() - 1; i++) {
                 BlockPos p = line.get(i);
@@ -218,12 +257,24 @@ public final class BridgeFeasibility {
                 if (gap > maxGapSeen) {
                     maxGapSeen = gap;
                 }
+                if (gap >= requiredAvgGap) {
+                    strongGapCells++;
+                }
+                if (gap >= requiredAvgGap + 2) {
+                    veryStrongGapCells++;
+                }
             }
 
             int avgGap = countGap <= 0 ? 0 : (int) Math.round((double) sumGap / (double) countGap);
 
             if (avgGap < requiredAvgGap) return null;
             if (maxGapSeen < requiredMaxGap) return null;
+
+            int strongPct = countGap <= 0 ? 0 : (int) Math.floor((100.0 * (double) strongGapCells) / (double) countGap);
+            int veryStrongPct = countGap <= 0 ? 0 : (int) Math.floor((100.0 * (double) veryStrongGapCells) / (double) countGap);
+
+            if (strongPct < 80) return null;
+            if (veryStrongPct < 35) return null;
         }
 
         int forwardLook = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.requiredForwardExitBlocks);
@@ -239,16 +290,113 @@ public final class BridgeFeasibility {
         return new BridgeSpan(start, end, line, startHalf, endHalf, micro);
     }
 
+    private static final class TrimmedBridgeCandidate {
+        final BlockPos end;
+        final List<BlockPos> line;
+
+        TrimmedBridgeCandidate(BlockPos end, List<BlockPos> line) {
+            this.end = end;
+            this.line = line;
+        }
+    }
+
+    @Nullable
+    private static TrimmedBridgeCandidate trimBridgeEndBeforeTargetRoad(WorldServer world,
+                                                                        TerrainSampler sampler,
+                                                                        BlockPos start,
+                                                                        BlockPos end,
+                                                                        List<BlockPos> rawLine) {
+        if (rawLine == null || rawLine.size() < 2) return null;
+
+        int roadSearch = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeRoadApproachMaxBlocks);
+        int minApproach = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeRoadApproachMinBlocks);
+
+        BlockPos targetRoad = sampler.findNearestExistingRoad(end.getX(), end.getZ(), roadSearch);
+        if (targetRoad == null) {
+            return new TrimmedBridgeCandidate(end, rawLine);
+        }
+
+        int roadHitIdx = -1;
+        int roadHitDistSq = Integer.MAX_VALUE;
+
+        int scanFrom = Math.max(1, rawLine.size() - 1 - (roadSearch + minApproach + 4));
+
+        for (int i = scanFrom; i < rawLine.size() - 1; i++) {
+            BlockPos p = rawLine.get(i);
+
+            if (!sampler.isExistingRoadXZ(p.getX(), p.getZ())) {
+                continue;
+            }
+
+            int d2 = distSq2D(p.getX(), p.getZ(), targetRoad.getX(), targetRoad.getZ());
+            if (d2 < roadHitDistSq) {
+                roadHitDistSq = d2;
+                roadHitIdx = i;
+            }
+        }
+
+        if (roadHitIdx < 0) {
+            return new TrimmedBridgeCandidate(end, rawLine);
+        }
+
+        int minBridgeLen = Math.max(2, MPBConfig.BRIDGE_AWARE_PATHFINDING.minBridgeLenBlocks);
+        int searchStart = Math.max(1, roadHitIdx - Math.max(roadSearch + minApproach + 4, 8));
+        int searchEnd = Math.max(searchStart, roadHitIdx - minApproach);
+
+        int bestIdx = -1;
+        int bestScore = Integer.MAX_VALUE;
+
+        for (int i = searchEnd; i >= searchStart; i--) {
+            BlockPos p = rawLine.get(i);
+
+            if (i < minBridgeLen) continue;
+            if (sampler.isExistingRoadXZ(p.getX(), p.getZ())) continue;
+            if (!sampler.isNaturalLandEndpoint(p.getX(), p.getZ())) continue;
+
+            int d2Road = distSq2D(p.getX(), p.getZ(), targetRoad.getX(), targetRoad.getZ());
+            if (d2Road < minApproach * minApproach) continue;
+
+            TerrainSampler.Sample s = sampler.sample(p.getX(), p.getZ());
+            if (s == null) continue;
+
+            int score = d2Road + (roadHitIdx - i) * 6;
+            if (score < bestScore) {
+                bestScore = score;
+                bestIdx = i;
+            }
+        }
+
+        if (bestIdx < 0) {
+            return new TrimmedBridgeCandidate(end, rawLine);
+        }
+
+        List<BlockPos> trimmedLine = new ArrayList<BlockPos>(bestIdx + 1);
+        for (int i = 0; i <= bestIdx; i++) {
+            BlockPos p = rawLine.get(i);
+            TerrainSampler.Sample s = sampler.sample(p.getX(), p.getZ());
+            if (s == null) return null;
+            trimmedLine.add(new BlockPos(p.getX(), s.surfaceY, p.getZ()));
+        }
+
+        BlockPos newEnd2D = rawLine.get(bestIdx);
+        TerrainSampler.Sample newEndSample = sampler.sample(newEnd2D.getX(), newEnd2D.getZ());
+        if (newEndSample == null) return null;
+
+        BlockPos newEnd = new BlockPos(newEnd2D.getX(), newEndSample.surfaceY, newEnd2D.getZ());
+        return new TrimmedBridgeCandidate(newEnd, trimmedLine);
+    }
+
     private static boolean isValidBridgeEndpoint(WorldServer world,
                                                  TerrainSampler sampler,
                                                  TerrainSampler.Sample sample) {
         if (sample.isWater || sample.isOcean) return false;
         if (sampler.forbidden(sample, TerrainSampler.Mode.PATHFINDING)) return false;
         if (sampler.isProtectedNoPaint(sample.x, sample.z)) return false;
+        if (sampler.isExistingRoadXZ(sample.x, sample.z)) return false;
 
         BlockPos top = new BlockPos(sample.x, sample.surfaceY, sample.z);
         IBlockState ground = world.getBlockState(top);
-        if (!isNaturalOrRoad(ground)) return false;
+        if (!isNaturalGroundOnly(ground)) return false;
 
         IBlockState up1 = world.getBlockState(top.up());
         IBlockState up2 = world.getBlockState(top.up(2));
@@ -289,7 +437,8 @@ public final class BridgeFeasibility {
                                               int deckHalfY,
                                               int clearAbove,
                                               boolean endpoint,
-                                              int sideRadius) {
+                                              int sideRadius,
+                                              int minUnderRoadClearance) {
         if (sideRadius <= 0) return true;
         if (idx < 0 || idx >= line.size()) return false;
 
@@ -314,6 +463,13 @@ public final class BridgeFeasibility {
                     return false;
                 }
 
+                if (!endpoint && minUnderRoadClearance > 0 && sampler.isExistingRoadXZ(x, z)) {
+                    int freeBlocksBelowDeck = deckBlockY - sample.surfaceY - 1;
+                    if (freeBlocksBelowDeck < minUnderRoadClearance) {
+                        return false;
+                    }
+                }
+
                 if (!walkVolumePassable(world, x, z, deckBlockY + 1, deckBlockY + clearAbove, endpoint)) {
                     return false;
                 }
@@ -335,10 +491,11 @@ public final class BridgeFeasibility {
 
         if (endpoint) {
             if (sample.isWater || sample.isOcean) return false;
+            if (sampler.isExistingRoadXZ(x, z)) return false;
 
             BlockPos top = new BlockPos(x, sample.surfaceY, z);
             IBlockState ground = world.getBlockState(top);
-            return isNaturalOrRoad(ground);
+            return isNaturalGroundOnly(ground);
         }
 
         return sample.surfaceY <= deckSurfaceY;
@@ -455,7 +612,19 @@ public final class BridgeFeasibility {
         return MPBGround.isRoadReplaceableGround(state) || MPBMillPathPalette.isMillPath(state.getBlock());
     }
 
+    private static boolean isNaturalGroundOnly(IBlockState state) {
+        if (state == null) return false;
+        if (MPBMillPathPalette.isMillPath(state.getBlock())) return false;
+        return MPBGround.isRoadReplaceableGround(state);
+    }
+
     private static boolean sameXZ(BlockPos a, BlockPos b) {
         return a.getX() == b.getX() && a.getZ() == b.getZ();
+    }
+
+    private static int distSq2D(int x1, int z1, int x2, int z2) {
+        int dx = x1 - x2;
+        int dz = z1 - z2;
+        return dx * dx + dz * dz;
     }
 }

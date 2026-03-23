@@ -174,7 +174,7 @@ public final class MPBRoadConnectionHelper {
     }
 
     private static int naturalSurfaceHalf(int surfaceY) {
-        return surfaceY * 2 + 2;
+        return BridgeGeometry.naturalSurfaceHalfY(surfaceY);
     }
 
     private static double pointToSegmentDistanceSq(int px, int pz, int ax, int az, int bx, int bz) {

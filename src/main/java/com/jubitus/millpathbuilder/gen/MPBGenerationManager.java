@@ -3,6 +3,7 @@ package com.jubitus.millpathbuilder.gen;
 import com.jubitus.millpathbuilder.MillPathBuilderMod;
 import com.jubitus.millpathbuilder.config.MPBConfig;
 import net.minecraft.command.ICommandSender;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
@@ -14,17 +15,17 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class MPBGenerationManager {
 
-    private static final ConcurrentHashMap<Integer, MPBGenerationJob> JOBS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer, MPBAsyncJob> JOBS = new ConcurrentHashMap<>();
 
     public static String status(World world) {
         if (world == null || world.provider == null) return "No world.";
-        MPBGenerationJob job = JOBS.get(world.provider.getDimension());
+        MPBAsyncJob job = JOBS.get(world.provider.getDimension());
         return job == null ? "Idle." : job.statusLine();
     }
 
     public static void cancel(World world) {
         if (world == null || world.provider == null) return;
-        MPBGenerationJob job = JOBS.remove(world.provider.getDimension());
+        MPBAsyncJob job = JOBS.remove(world.provider.getDimension());
         if (job != null) {
             try {
                 job.shutdown();
@@ -36,12 +37,35 @@ public final class MPBGenerationManager {
     public static void start(WorldServer world, ICommandSender sender, boolean force, boolean dryRun) {
         int dim = world.provider.getDimension();
         if (JOBS.containsKey(dim)) {
-            if (sender != null) sender.sendMessage(new TextComponentString("MillPathBuilder: already running. Use /millpathbuilder status or /millpathbuilder clear."));
+            if (sender != null) {
+                sender.sendMessage(new TextComponentString("MillPathBuilder: already running in this dimension. Use /millpathbuilder status or /millpathbuilder cancel."));
+            }
             return;
         }
-        MPBGenerationJob job = new MPBGenerationJob(world, sender, force, dryRun);
+
+        MPBAsyncJob job = new MPBGenerationJob(world, sender, force, dryRun);
         JOBS.put(dim, job);
-        if (sender != null) sender.sendMessage(new TextComponentString("MillPathBuilder: async generation started."));
+
+        if (sender != null) {
+            sender.sendMessage(new TextComponentString("MillPathBuilder: async generation started."));
+        }
+    }
+
+    public static void startCustom(WorldServer world, ICommandSender sender, BlockPos start, BlockPos goal, boolean dryRun) {
+        int dim = world.provider.getDimension();
+        if (JOBS.containsKey(dim)) {
+            if (sender != null) {
+                sender.sendMessage(new TextComponentString("MillPathBuilder: already running in this dimension. Use /millpathbuilder status or /millpathbuilder cancel."));
+            }
+            return;
+        }
+
+        MPBAsyncJob job = new MPBCustomPathGenerationJob(world, sender, start, goal, dryRun);
+        JOBS.put(dim, job);
+
+        if (sender != null) {
+            sender.sendMessage(new TextComponentString("MillPathBuilder: custom path generation started."));
+        }
     }
 
     @SubscribeEvent
@@ -51,7 +75,7 @@ public final class MPBGenerationManager {
 
         long budgetNs = Math.max(1, MPBConfig.GENERAL.tickBudgetMs) * 1_000_000L;
 
-        for (MPBGenerationJob job : JOBS.values()) {
+        for (MPBAsyncJob job : JOBS.values()) {
             long start = System.nanoTime();
             job.tick(budgetNs);
 
@@ -65,7 +89,9 @@ public final class MPBGenerationManager {
 
                 WeakReference<ICommandSender> wr = job.getSenderRef();
                 ICommandSender sender = wr != null ? wr.get() : null;
-                if (sender != null) sender.sendMessage(new TextComponentString("MillPathBuilder: generation completed."));
+                if (sender != null) {
+                    sender.sendMessage(new TextComponentString(job.completionMessage()));
+                }
                 MillPathBuilderMod.LOGGER.info("Async generation finished for dim={}", job.getDim());
             } else {
                 long spent = System.nanoTime() - start;

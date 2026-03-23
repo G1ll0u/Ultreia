@@ -31,17 +31,29 @@ public final class MPBEndpointResolver {
             BlockPos gate = MillGateRouting.pickGateFacing(world, vi.center, otherNodeCenter);
 
             if (gate != null && gateLooksOnApproachSide(vi.center, otherNodeCenter, gate)) {
-                // 1) Join the first existing Millenaire path near the gate (usually under the arch)
                 BlockPos snap = MillPathSnapping.findFirstMillPathAround(world, sampler, gate, 18);
-                if (snap != null) return snap;
+                if (snap != null) {
+                    if (protectedAreas == null || !protectedAreas.contains(snap.getX(), snap.getZ())) {
+                        return snap;
+                    }
+                    return findOutsideProtected(world, snap, otherNodeCenter, sampler, protectedAreas, protectR);
+                }
 
-                // 2) Fallback: stop near the gate like before
-                return MPBGenerationJob.findAnchor(world, gate, sampler, 24);
+                BlockPos gateAnchor = MPBGenerationJob.findAnchor(world, gate, sampler, 24);
+                if (protectedAreas == null || !protectedAreas.contains(gateAnchor.getX(), gateAnchor.getZ())) {
+                    return gateAnchor;
+                }
+                return findOutsideProtected(world, gateAnchor, otherNodeCenter, sampler, protectedAreas, protectR);
             }
 
-            // No gate on approach side: keep your existing behavior (approach point near village edge)
-            BlockPos approx = approachPoint(vi.center, otherNodeCenter, Math.max(10, protectR / 2));
-            return MPBGenerationJob.findAnchor(world, approx, sampler, 32);
+            BlockPos approx = approachPoint(vi.center, otherNodeCenter, Math.max(10, protectR + 6));
+            BlockPos approxAnchor = MPBGenerationJob.findAnchor(world, approx, sampler, 32);
+
+            if (protectedAreas == null || !protectedAreas.contains(approxAnchor.getX(), approxAnchor.getZ())) {
+                return approxAnchor;
+            }
+
+            return findOutsideProtected(world, approxAnchor, otherNodeCenter, sampler, protectedAreas, protectR);
         }
 
         // Lone buildings: always bypass, otherwise painter will cut inside radius

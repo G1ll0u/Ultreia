@@ -3,7 +3,7 @@ package com.jubitus.millpathbuilder.config;
 import com.jubitus.millpathbuilder.Tags;
 import net.minecraftforge.common.config.Config;
 
-@Config(modid = Tags.MOD_ID)
+@Config(modid = Tags.MOD_ID, name = "millpathbuilder/millpathbuilder")
 public class MPBConfig {
 
     @Config.Name("General")
@@ -174,6 +174,34 @@ public class MPBConfig {
     public static final ValleyBridging VALLEY_BRIDGING = new ValleyBridging();
 
     public static final class Bridges {
+
+        @Config.Comment("Active bridge template name. Empty = legacy hardcoded bridge builder.")
+        public String activeTemplateName = "";
+
+        @Config.Comment("Search radius in blocks for /millpathbuilder bridge create.")
+        @Config.RangeInt(min = 8, max = 96)
+        public int templateCreateSearchRadius = 24;
+
+        @Config.Comment("Search radius in blocks for /millpathbuilder bridge export.")
+        @Config.RangeInt(min = 8, max = 128)
+        public int debugExportSearchRadius = 48;
+
+        @Config.Comment("Maximum lateral reach from the 3-wide deck centerline that template export keeps.")
+        @Config.RangeInt(min = 3, max = 32)
+        public int templateMaxLateral = 8;
+
+        @Config.Comment("Maximum blocks above deck kept in a bridge template.")
+        @Config.RangeInt(min = 2, max = 32)
+        public int templateMaxAboveDeck = 8;
+
+        @Config.Comment("Maximum blocks below deck kept in a bridge template.")
+        @Config.RangeInt(min = 2, max = 64)
+        public int templateMaxBelowDeck = 20;
+
+        @Config.Comment("Maximum number of saved blocks in one bridge template or bridge debug export.")
+        @Config.RangeInt(min = 64, max = 16384)
+        public int templateMaxBlocks = 4096;
+
         @Config.Comment("Master switch for any bridge generation.")
         public boolean enabled = true;
 
@@ -307,6 +335,10 @@ public class MPBConfig {
         @Config.Comment("Enable A* bridge-aware pathfinding.")
         public boolean enabled = true;
 
+        @Config.Comment("Do not apply road earthworks this many cells before/after a bridge join.")
+        @Config.RangeInt(min = 0, max = 8)
+        public int bridgeJoinProtectionBlocks = 2;
+
         @Config.Comment("Minimum bridge length in blocks for A* bridge moves.")
         @Config.RangeInt(min = 2, max = 512)
         public int minBridgeLenBlocks = 10;
@@ -327,7 +359,7 @@ public class MPBConfig {
         public double bridgeFixedCost = 280.0;
 
         @Config.Comment("Multiplier applied to bridge geometric length cost.")
-        public double bridgeLengthCostMultiplier = 1.18;
+        public double bridgeLengthCostMultiplier = 1.10;
 
         @Config.Comment("Bonus per block of valley depth. Higher = more valley bridges.")
         public double bridgeValleyPreferenceBonusPerBlock = 1.25;
@@ -454,6 +486,10 @@ public class MPBConfig {
         @Config.Comment("How many cells before the bridge end must satisfy exitMinClearanceBlocks. 0 disables.")
         @Config.RangeInt(min = 0, max = 16)
         public int exitMinClearanceCheckCells = 3;
+
+        @Config.Comment("Minimum full air blocks required between an existing road below and the bridge deck underside.")
+        @Config.RangeInt(min = 0, max = 8)
+        public int underBridgeRoadMinClearanceBlocks = 2;
 
     }
 }

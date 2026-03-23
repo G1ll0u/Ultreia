@@ -29,6 +29,7 @@ import net.minecraft.world.WorldServer;
 import net.minecraft.world.biome.Biome;
 import net.minecraftforge.common.BiomeDictionary;
 
+import javax.annotation.Nullable;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -287,6 +288,16 @@ public final class TerrainSampler {
 
     public boolean isProtectedNoPaint(int x, int z) {
         return protectedAreas != null && protectedAreas.contains(x, z);
+    }
+
+    public boolean isExistingRoadXZ(int x, int z) {
+        return roadIndex != null && roadIndex.isRoadXZ(x, z);
+    }
+
+    @Nullable
+    public BlockPos findNearestExistingRoad(int x, int z, int radius) {
+        if (roadIndex == null) return null;
+        return roadIndex.findNearestRoad(x, z, Math.max(0, radius));
     }
 
     public boolean isNaturalLandEndpoint(int x, int z) {

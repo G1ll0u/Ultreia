@@ -1,10 +1,7 @@
 package com.jubitus.millpathbuilder.gen;
 
 import com.jubitus.millpathbuilder.config.MPBConfig;
-import com.jubitus.millpathbuilder.gen.bridge.BridgeAwarePathResult;
-import com.jubitus.millpathbuilder.gen.bridge.BridgeFeasibility;
-import com.jubitus.millpathbuilder.gen.bridge.BridgeSpan;
-import com.jubitus.millpathbuilder.gen.bridge.SupercoverLine;
+import com.jubitus.millpathbuilder.gen.bridge.*;
 import com.jubitus.millpathbuilder.gen.util.MPBPos2D;
 import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
@@ -123,6 +120,9 @@ public final class AStarPathfinder {
                 { 1, 2}, { 1,-2}, {-1, 2}, {-1,-2}
         };
 
+        private static final int NORMAL_MOVE_EARTHWORK_MARGIN = 2;
+        private static final int BRIDGE_LEN_BIAS_TRIES = 3;
+
         Session(WorldServer world, BlockPos start, BlockPos goal, TerrainSampler sampler) {
             this.world = world;
             this.sampler = sampler;
@@ -152,6 +152,26 @@ public final class AStarPathfinder {
             this.sz = sFix[1];
             this.gx = gFix[0];
             this.gz = gFix[1];
+
+            if (sampler.isProtectedNoPaint(this.sx, this.sz) || sampler.isProtectedNoPaint(this.gx, this.gz)) {
+                failed = true;
+                failReason = "start/goal snapped inside protected no-paint zone";
+                return;
+            }
+
+            int startFree = countLocalFreeNeighbors(this.sx, this.sz, step, sampler);
+            int goalFree = countLocalFreeNeighbors(this.gx, this.gz, step, sampler);
+
+            if (startFree <= 0) {
+                failed = true;
+                failReason = "start snapped into blocked pocket";
+                return;
+            }
+            if (goalFree <= 0) {
+                failed = true;
+                failReason = "goal snapped into blocked pocket";
+                return;
+            }
 
             this.ax = this.sx;
             this.az = this.sz;
@@ -278,6 +298,12 @@ public final class AStarPathfinder {
         }
 
         private void expandNormalMoves(Node cur, long ck, TerrainSampler.Sample cs) {
+            final int configMaxDy = Math.max(1, MPBConfig.PATHFINDING.maxYDeltaPerStep);
+            final boolean earthworks = MPBConfig.PATHFINDING.allowEarthworks;
+            final int allowedWorstStepDy = earthworks
+                    ? Math.max(configMaxDy + NORMAL_MOVE_EARTHWORK_MARGIN, 3)
+                    : configMaxDy;
+
             for (int[] dir : NEIGHBOR_DIRS) {
                 int dx = dir[0] * step;
                 int dz = dir[1] * step;
@@ -294,10 +320,7 @@ public final class AStarPathfinder {
                     continue;
                 }
 
-                int dy = Math.abs(ns.surfaceY - cs.surfaceY);
-                int maxDy = Math.max(1, MPBConfig.PATHFINDING.maxYDeltaPerStep);
-
-                SegmentWalkability sw = segmentWalkability(cur.x, cur.z, nx, nz);
+                SegmentWalkability sw = segmentWalkability(cur.x, cur.z, nx, nz, allowedWorstStepDy);
                 if (sw.crossesWater) {
                     skipBridge++;
                     continue;
@@ -307,17 +330,17 @@ public final class AStarPathfinder {
                     continue;
                 }
 
-                if (dy > Math.max(2, maxDy)) {
-                    skipSlope++;
-                    continue;
-                }
+                int dy = Math.abs(ns.surfaceY - cs.surfaceY);
 
                 double base = Math.sqrt((double) dx * (double) dx + (double) dz * (double) dz);
-                double slopeCost = (double) dy * MPBConfig.PATHFINDING.slopePenalty;
+                double slopeCost = (double) Math.min(dy, configMaxDy) * MPBConfig.PATHFINDING.slopePenalty;
 
-                if (MPBConfig.PATHFINDING.allowEarthworks && dy > maxDy) {
-                    double extra = (double) (dy - maxDy);
-                    slopeCost += extra * extra * 60.0;
+                if (earthworks && dy > configMaxDy) {
+                    double extra = (double) (dy - configMaxDy);
+                    slopeCost += extra * extra * 20.0;
+                } else if (!earthworks && dy > configMaxDy) {
+                    skipSlope++;
+                    continue;
                 }
 
                 double tentative = gScore.get(ck) + base + slopeCost + sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
@@ -328,7 +351,9 @@ public final class AStarPathfinder {
                     gScore.put(nk, tentative);
 
                     int prevDist = distSinceBridge.get(ck);
-                    int nextDist = (prevDist >= Integer.MAX_VALUE / 8) ? prevDist : Math.min(1000000, prevDist + (int) Math.round(base));
+                    int nextDist = (prevDist >= Integer.MAX_VALUE / 8)
+                            ? prevDist
+                            : Math.min(1000000, prevDist + (int) Math.round(base));
                     distSinceBridge.put(nk, nextDist);
 
                     double f = tentative + heuristic(nx, nz, gx, gz);
@@ -383,8 +408,6 @@ public final class AStarPathfinder {
             final int lenStep = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.probeLenStepBlocks);
             final int maxCandidates = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.maxBridgeCandidatesPerNode);
 
-            int accepted = 0;
-
             int[][] dirs = BRIDGE_DIRS;
             long parentK = cameFrom.get(ck);
 
@@ -401,12 +424,12 @@ public final class AStarPathfinder {
             }
 
             for (int[] dir : dirs) {
-                if (accepted >= maxCandidates) break;
-
                 if (MPBConfig.BRIDGE_AWARE_PATHFINDING.requireAlignedApproach && hasIncoming) {
                     double dot = normalizedDot(inDx, inDz, dir[0], dir[1]);
                     if (dot < MPBConfig.BRIDGE_AWARE_PATHFINDING.minApproachDot) continue;
                 }
+
+                int acceptedInDir = 0;
 
                 for (int len = minLen; len <= maxLen; len += lenStep) {
                     int nx = x + dir[0] * len;
@@ -416,7 +439,6 @@ public final class AStarPathfinder {
                     nz = snap(nz, step);
 
                     if (nx == x && nz == z) continue;
-
                     if (nx < minX || nx > maxX || nz < minZ || nz > maxZ) continue;
                     if (!inCorridor(nx, nz)) continue;
 
@@ -439,8 +461,32 @@ public final class AStarPathfinder {
 
                     double geometric = bridgeSpanCost(span);
                     out.add(new BridgeMove(nx, nz, geometric, span));
-                    accepted++;
+                    acceptedInDir++;
+
+                    if (out.size() >= maxCandidates) {
+                        break;
+                    }
+
+                    if (acceptedInDir >= BRIDGE_LEN_BIAS_TRIES) {
+                        break;
+                    }
+                }
+
+                if (out.size() >= maxCandidates) {
                     break;
+                }
+            }
+
+            if (out.size() > 1) {
+                Collections.sort(out, new Comparator<BridgeMove>() {
+                    @Override
+                    public int compare(BridgeMove a, BridgeMove b) {
+                        return Double.compare(a.cost, b.cost);
+                    }
+                });
+
+                while (out.size() > maxCandidates) {
+                    out.remove(out.size() - 1);
                 }
             }
 
@@ -448,24 +494,81 @@ public final class AStarPathfinder {
         }
 
         private double bridgeSpanCost(BridgeSpan span) {
-            int len = Math.max(1, span.lengthBlocks());
             double euclid = Math.sqrt(distSq(span.start.getX(), span.start.getZ(), span.end.getX(), span.end.getZ()));
 
             double fixed = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeFixedCost);
             double mult = Math.max(1.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeLengthCostMultiplier);
             double valleyBonus = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeValleyPreferenceBonusPerBlock);
 
-            int midpointIdx = span.centerline.size() / 2;
-            BlockPos mid = span.centerline.get(midpointIdx);
-            TerrainSampler.Sample sm = sampler.sample(mid.getX(), mid.getZ());
-
             int baseline = Math.max(
                     sampler.sample(span.start.getX(), span.start.getZ()).surfaceY,
                     sampler.sample(span.end.getX(), span.end.getZ()).surfaceY
             );
-            int depth = Math.max(0, baseline - sm.surfaceY);
 
-            return fixed + euclid * mult - ((double) depth * valleyBonus);
+            int deepCells = 0;
+            int waterCells = 0;
+            int meaningfulCells = 0;
+            int sumDepth = 0;
+            int maxDepth = 0;
+
+            int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span, sampler);
+
+            for (int i = 1; i < span.centerline.size() - 1; i++) {
+                BlockPos p = span.centerline.get(i);
+                TerrainSampler.Sample s = sampler.sample(p.getX(), p.getZ());
+                if (s == null) continue;
+
+                int terrainDepth = Math.max(0, baseline - s.surfaceY);
+                int deckY = BridgeGeometry.surfaceYFromHalf(deckHalf[i]);
+                int clearance = Math.max(0, deckY - s.surfaceY);
+
+                sumDepth += terrainDepth;
+                if (terrainDepth > maxDepth) maxDepth = terrainDepth;
+
+                if (s.isWater && !s.isOcean) {
+                    waterCells++;
+                }
+                if (terrainDepth >= 3) {
+                    deepCells++;
+                }
+                if (clearance >= 3 || (s.isWater && !s.isOcean && clearance >= 1)) {
+                    meaningfulCells++;
+                }
+            }
+
+            int interior = Math.max(1, span.centerline.size() - 2);
+            double avgDepth = (double) sumDepth / (double) interior;
+            double meaningfulPct = (100.0 * (double) meaningfulCells) / (double) interior;
+
+            double cost = fixed + euclid * mult;
+
+            cost -= avgDepth * valleyBonus * 0.75;
+            cost -= Math.min(waterCells, 12) * 10.0;
+            cost -= Math.min(deepCells, 12) * 6.0;
+
+            if (maxDepth <= 1) {
+                cost += 220.0;
+            } else if (maxDepth == 2) {
+                cost += 120.0;
+            }
+
+            if (avgDepth < 2.0) {
+                cost += 140.0;
+            } else if (avgDepth < 3.0) {
+                cost += 70.0;
+            }
+
+            if (meaningfulPct < 50.0) {
+                cost += 180.0;
+            } else if (meaningfulPct < 65.0) {
+                cost += 80.0;
+            }
+
+            if (waterCells <= 0 && deepCells <= 2) {
+                cost += 200.0;
+            }
+
+            return cost;
         }
 
         private boolean baseNodeChecks(int nx, int nz, long nk) {
@@ -505,11 +608,24 @@ public final class AStarPathfinder {
                 if (span != null) {
                     spans.add(span);
 
+                    int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span, sampler);
+
+                    if (!out.isEmpty() && span.centerline != null && !span.centerline.isEmpty()) {
+                        BlockPos firstBridge = span.centerline.get(0);
+                        int firstDeckY = BridgeGeometry.walkSurfaceBlockYFloor(deckHalf[0]);
+                        BlockPos prevOut = out.get(out.size() - 1);
+
+                        if (prevOut.getX() == firstBridge.getX() && prevOut.getZ() == firstBridge.getZ()) {
+                            out.set(out.size() - 1, new BlockPos(firstBridge.getX(), firstDeckY, firstBridge.getZ()));
+                        }
+                    }
+
                     for (int j = 1; j < span.centerline.size(); j++) {
                         BlockPos p = span.centerline.get(j);
-                        TerrainSampler.Sample s = sampler.sample(p.getX(), p.getZ());
+                        int deckY = BridgeGeometry.walkSurfaceBlockYFloor(deckHalf[j]);
+
                         if (out.isEmpty() || out.get(out.size() - 1).getX() != p.getX() || out.get(out.size() - 1).getZ() != p.getZ()) {
-                            out.add(new BlockPos(p.getX(), s.surfaceY, p.getZ()));
+                            out.add(new BlockPos(p.getX(), deckY, p.getZ()));
                         }
                     }
                 } else {
@@ -524,32 +640,73 @@ public final class AStarPathfinder {
         }
 
         private static int[] nearestValidGrid(int x0, int z0, int step, TerrainSampler sampler) {
-            int maxR = step * 2;
+            int maxR = Math.max(24, step * 8);
 
             int bestX = 0, bestZ = 0;
             double best = Double.POSITIVE_INFINITY;
             boolean found = false;
 
-            for (int dz = -maxR; dz <= maxR; dz += step) {
-                for (int dx = -maxR; dx <= maxR; dx += step) {
-                    int x = x0 + dx;
-                    int z = z0 + dz;
+            for (int r = 0; r <= maxR; r += step) {
+                for (int dz = -r; dz <= r; dz += step) {
+                    for (int dx = -r; dx <= r; dx += step) {
+                        if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
 
-                    TerrainSampler.Sample s = sampler.sample(x, z);
-                    if (sampler.forbidden(s, TerrainSampler.Mode.PATHFINDING)) continue;
-                    if (s.isOcean || s.isWater) continue;
+                        int x = x0 + dx;
+                        int z = z0 + dz;
 
-                    double d2 = (double) dx * (double) dx + (double) dz * (double) dz;
-                    if (d2 < best) {
-                        best = d2;
-                        bestX = x;
-                        bestZ = z;
-                        found = true;
+                        TerrainSampler.Sample s = sampler.sample(x, z);
+                        if (s == null) continue;
+                        if (sampler.forbidden(s, TerrainSampler.Mode.PATHFINDING)) continue;
+                        if (s.isOcean || s.isWater) continue;
+                        if (sampler.isProtectedNoPaint(x, z)) continue;
+                        if (!hasLocalExitFreedom(x, z, step, sampler)) continue;
+
+                        double d2 = (double) dx * (double) dx + (double) dz * (double) dz;
+
+                        if (sampler.isExistingRoadXZ(x, z)) {
+                            d2 -= 64.0;
+                        }
+
+                        int exits = countLocalFreeNeighbors(x, z, step, sampler);
+                        d2 -= exits * 6.0;
+
+                        if (d2 < best) {
+                            best = d2;
+                            bestX = x;
+                            bestZ = z;
+                            found = true;
+                        }
                     }
+                }
+
+                if (found) {
+                    return new int[]{bestX, bestZ};
                 }
             }
 
             return found ? new int[]{bestX, bestZ} : null;
+        }
+        private static boolean hasLocalExitFreedom(int x, int z, int step, TerrainSampler sampler) {
+            return countLocalFreeNeighbors(x, z, step, sampler) >= 2;
+        }
+
+        private static int countLocalFreeNeighbors(int x, int z, int step, TerrainSampler sampler) {
+            int free = 0;
+
+            for (int[] dir : NEIGHBOR_DIRS) {
+                int nx = x + dir[0] * step;
+                int nz = z + dir[1] * step;
+
+                TerrainSampler.Sample ns = sampler.sample(nx, nz);
+                if (ns == null) continue;
+                if (sampler.forbidden(ns, TerrainSampler.Mode.PATHFINDING)) continue;
+                if (ns.isOcean || ns.isWater) continue;
+                if (sampler.isProtectedNoPaint(nx, nz)) continue;
+
+                free++;
+            }
+
+            return free;
         }
 
         public List<BlockPos> getPath() {
@@ -593,12 +750,10 @@ public final class AStarPathfinder {
 
                 int d = Math.abs(yy - prevY);
                 if (d > worst) worst = d;
-                int maxDy = Math.max(1, MPBConfig.PATHFINDING.maxYDeltaPerStep);
-                if (MPBConfig.PATHFINDING.allowEarthworks) maxDy = Math.max(maxDy, 2);
 
-                if (worst > (maxDy + 1)) return worst;
                 prevY = yy;
             }
+
             return worst;
         }
 
@@ -612,19 +767,13 @@ public final class AStarPathfinder {
             }
         }
 
-        private SegmentWalkability segmentWalkability(int x0, int z0, int x1, int z1) {
+        private SegmentWalkability segmentWalkability(int x0, int z0, int x1, int z1, int allowedWorstStepDy) {
             if (segmentCrossesWater(x0, z0, x1, z1)) {
                 return new SegmentWalkability(false, true);
             }
 
             int worst = maxStepDeltaAlongSegment(x0, z0, x1, z1);
-
-            int maxDy = Math.max(1, MPBConfig.PATHFINDING.maxYDeltaPerStep);
-            if (MPBConfig.PATHFINDING.allowEarthworks) {
-                maxDy = Math.max(maxDy, 2);
-            }
-
-            return new SegmentWalkability(worst <= maxDy, false);
+            return new SegmentWalkability(worst <= allowedWorstStepDy, false);
         }
 
         private boolean segmentCrossesWater(int x0, int z0, int x1, int z1) {

@@ -3,6 +3,9 @@ package com.jubitus.millpathbuilder.gen;
 import com.jubitus.millpathbuilder.MillPathBuilderMod;
 import com.jubitus.millpathbuilder.config.MPBConfig;
 import com.jubitus.millpathbuilder.gen.bridge.*;
+import com.jubitus.millpathbuilder.gen.bridge.template.BridgeBuildService;
+import com.jubitus.millpathbuilder.gen.bridge.template.BridgeTemplate;
+import com.jubitus.millpathbuilder.gen.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.millpathbuilder.gen.mill.MPBMillPathPalette;
 import com.jubitus.millpathbuilder.gen.world.Earthworks;
 import com.jubitus.millpathbuilder.gen.world.MPBRoadIndexData;
@@ -34,6 +37,7 @@ import java.util.Map;
 
 public final class RoadPainter {
 
+
     public enum PaintResult { RUNNING, OK, FAILED }
 
     private static final class ForcedBridgeRef {
@@ -49,6 +53,7 @@ public final class RoadPainter {
     }
 
     public static final class Session {
+        private final it.unimi.dsi.fastutil.longs.LongOpenHashSet bridgeProtected = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
 
         private int[] gradeY = null;
 
@@ -167,6 +172,7 @@ public final class RoadPainter {
                     densifyDone = true;
 
                     indexForcedBridges();
+                    buildBridgeProtection();
 
                     detectEarlyMergeOnce();
 
@@ -197,9 +203,10 @@ public final class RoadPainter {
                 if (mergeStopArmed && i > mergeStopAt) {
                     if (pendingBridge != null) {
                         if (!paintBridgeNow(pendingBridge)) {
-                            failed = true;
-                            failReason = "bridge build failed";
-                            return PaintResult.FAILED;
+                            MillPathBuilderMod.LOGGER.warn("Bridge build degraded at end of edge start=({}, {}) end=({}, {}) len={}",
+                                    pendingBridge.start.getX(), pendingBridge.start.getZ(),
+                                    pendingBridge.end.getX(), pendingBridge.end.getZ(),
+                                    pendingBridge.lengthBlocks());
                         }
                         pendingBridge = null;
                     }
@@ -209,9 +216,10 @@ public final class RoadPainter {
                 if (i >= path.size()) {
                     if (pendingBridge != null) {
                         if (!paintBridgeNow(pendingBridge)) {
-                            failed = true;
-                            failReason = "bridge build failed";
-                            return PaintResult.FAILED;
+                            MillPathBuilderMod.LOGGER.warn("Bridge build degraded at final path end start=({}, {}) end=({}, {}) len={}",
+                                    pendingBridge.start.getX(), pendingBridge.start.getZ(),
+                                    pendingBridge.end.getX(), pendingBridge.end.getZ(),
+                                    pendingBridge.lengthBlocks());
                         }
                         pendingBridge = null;
                     }
@@ -231,13 +239,17 @@ public final class RoadPainter {
 
                 if (pendingBridge != null) {
                     if (i >= pendingBridgeEndIdx) {
-                        if (!paintBridgeNow(pendingBridge)) {
-                            failed = true;
-                            failReason = "bridge build failed";
-                            return PaintResult.FAILED;
+                        BridgeSpan builtSpan = pendingBridge;
+                        boolean bridgeOk = paintBridgeNow(builtSpan);
+
+                        if (!bridgeOk) {
+                            MillPathBuilderMod.LOGGER.warn("Bridge build degraded start=({}, {}) end=({}, {}) len={}",
+                                    builtSpan.start.getX(), builtSpan.start.getZ(),
+                                    builtSpan.end.getX(), builtSpan.end.getZ(),
+                                    builtSpan.lengthBlocks());
                         }
 
-                        reinforceBridgeExit(pendingBridge, MPBConfig.BRIDGE_AWARE_PATHFINDING.forcePaintExitBlocks);
+                        reinforceBridgeExit(builtSpan, MPBConfig.BRIDGE_AWARE_PATHFINDING.forcePaintExitBlocks);
 
                         pendingBridge = null;
                         pendingBridgeEndIdx = -1;
@@ -279,6 +291,7 @@ public final class RoadPainter {
             return PaintResult.RUNNING;
         }
 
+
         public String failureReason() {
             return failReason;
         }
@@ -318,11 +331,13 @@ public final class RoadPainter {
 
             int maxJoinDeltaHalf = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.maxRoadJoinDeltaHalfBlocks);
             int minAfterBridge = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.minBlocksAfterBridgeBeforeMerge);
+            int minApproach = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeRoadApproachMinBlocks);
+            int protectedMergeDistance = Math.max(minAfterBridge, minApproach);
 
             for (int idx = minIdx; idx <= scanTo; idx++) {
                 BlockPos p = path.get(idx);
                 if (forcedByStartKey.containsKey(xzKey(p.getX(), p.getZ()))) continue;
-                if (isTooCloseToBridgeExit(idx, minAfterBridge)) continue;
+                if (isTooCloseToBridgeExit(idx, protectedMergeDistance)) continue;
 
                 BlockPos near = roadIndex.findNearestRoad(p.getX(), p.getZ(), 2);
                 if (near == null) continue;
@@ -358,6 +373,7 @@ public final class RoadPainter {
                 return;
             }
         }
+
         private boolean isTooCloseToBridgeExit(int idx, int extraBlocks) {
             if (extraBlocks <= 0) return false;
             if (forcedByStartKey.isEmpty()) return false;
@@ -486,7 +502,7 @@ public final class RoadPainter {
                         int x = cx + dx;
                         int z = cz + dz;
 
-                        if (isForcedBridgeCell(x, z)) continue;
+                        if (isForcedBridgeCell(x, z) || isBridgeProtectedCell(x, z)) continue;
                         if (protectedAreas != null && protectedAreas.contains(x, z)) continue;
 
                         TerrainSampler.Sample s = sampler.sample(x, z);
@@ -719,7 +735,7 @@ public final class RoadPainter {
                     int x = cx + dx;
                     int z = cz + dz;
 
-                    if (isForcedBridgeCell(x, z)) continue;
+                    if (isForcedBridgeCell(x, z) || isBridgeProtectedCell(x, z)) continue;
                     if (protectedAreas != null && protectedAreas.contains(x, z)) continue;
 
                     TerrainSampler.Sample s = sampler.sample(x, z);
@@ -735,7 +751,7 @@ public final class RoadPainter {
         }
 
         private boolean shouldPaintCell(int x, int z) {
-            if (isForcedBridgeCell(x, z)) return false;
+            if (isForcedBridgeCell(x, z) || isBridgeProtectedCell(x, z)) return false;
             long k = xzKey(x, z);
             return forcePaint.contains(k) || planned.contains(k);
         }
@@ -766,6 +782,7 @@ public final class RoadPainter {
 
                 long k = xzKey(xx, zz);
                 if (!painted.add(k)) continue;
+                if (isBridgeProtectedCell(xx, zz)) continue;
 
                 TerrainSampler.Sample s = sampler.sample(xx, zz);
                 if (sampler.forbiddenHard(s)) continue;
@@ -779,9 +796,14 @@ public final class RoadPainter {
         }
 
         private void paintSingle(int x, int z, int surfaceY) {
+            if (isBridgeProtectedCell(x, z)) return;
+
             int placeY = surfaceY;
 
             boolean earthworks = earthworksEnabled();
+            if (isBridgeJoinIndex(i)) {
+                earthworks = false;
+            }
 
             boolean nearNoPaint = false;
             if (protectedAreas != null) {
@@ -815,7 +837,7 @@ public final class RoadPainter {
 
             BlockPos top = new BlockPos(x, placeY, z);
 
-            if (!dryRun && !nearNoPaint) {
+            if (!dryRun && !nearNoPaint && !isBridgeJoinIndex(i)) {
                 MPBRoadColumns.clearAtAndAbove(world, top, 2, false, earthworks);
             }
 
@@ -1103,14 +1125,9 @@ public final class RoadPainter {
                 if (protectedAreas.contains(span.end.getX(), span.end.getZ())) return false;
             }
 
-            if (MPBConfig.BRIDGE_AWARE_PATHFINDING.enabled) {
-                BridgeSpan checked = BridgeFeasibility.tryCreate(world, sampler, span.start, span.end, span.micro);
-                if (checked == null) return false;
-                span = checked;
-            }
-
-            return BridgeBuilder2.build(world, sampler, span, roadW, dryRun);
+            return BridgeBuildService.build(world, sampler, span, roadW, dryRun);
         }
+
         private void reinforceBridgeExit(BridgeSpan span, int blocks) {
             if (span == null || blocks <= 0) return;
 
@@ -1119,10 +1136,10 @@ public final class RoadPainter {
 
             if (dx == 0 && dz == 0) return;
 
-            int x = span.end.getX();
-            int z = span.end.getZ();
+            int x = span.end.getX() + dx;
+            int z = span.end.getZ() + dz;
 
-            for (int i = 0; i <= blocks; i++) {
+            for (int i = 0; i < blocks; i++) {
                 long k = xzKey(x, z);
                 planned.add(k);
                 forcePaint.add(k);
@@ -1133,6 +1150,104 @@ public final class RoadPainter {
             }
         }
 
+        private void buildBridgeProtection() {
+            bridgeProtected.clear();
+
+            int lateral = bridgeProtectionHalfWidth();
+
+            for (BridgeSpan span : forcedBridges) {
+                if (span == null || span.centerline == null || span.centerline.isEmpty()) continue;
+
+                for (int i = 0; i < span.centerline.size(); i++) {
+                    BlockPos c = span.centerline.get(i);
+                    BridgeGeometry.Dir2 perp = BridgeGeometry.localDir(span.centerline, i).perp();
+
+                    markBridgeStripe(c.getX(), c.getZ(), perp, lateral);
+
+                    if (i > 0) {
+                        BlockPos p = span.centerline.get(i - 1);
+                        int stepX = Integer.signum(c.getX() - p.getX());
+                        int stepZ = Integer.signum(c.getZ() - p.getZ());
+
+                        if (stepX != 0 && stepZ != 0) {
+                            markBridgeDiagonalGap(p.getX(), p.getZ(), c.getX(), c.getZ(), perp, lateral);
+                        }
+                    }
+                }
+            }
+        }
+
+        private int bridgeProtectionHalfWidth() {
+            int half = 1;
+
+            BridgeTemplate active = BridgeTemplateRegistry.getActiveTemplate();
+            if (active != null) {
+                int tHalf = Math.max(Math.abs(active.minLateral), Math.abs(active.maxLateral));
+                if (tHalf > half) half = tHalf;
+            }
+
+            return half;
+        }
+
+        private void markBridgeStripe(int cx, int cz, BridgeGeometry.Dir2 perp, int half) {
+            for (int o = -half; o <= half; o++) {
+                int x = cx + perp.dx * o;
+                int z = cz + perp.dz * o;
+                bridgeProtected.add(xzKey(x, z));
+            }
+        }
+
+        private void markBridgeDiagonalGap(int px, int pz, int cx, int cz, BridgeGeometry.Dir2 perp, int half) {
+            int stepX = Integer.signum(cx - px);
+            int stepZ = Integer.signum(cz - pz);
+
+            for (int o = -half; o <= half; o++) {
+                int ax = px + perp.dx * o;
+                int az = pz + perp.dz * o;
+
+                int bx = cx + perp.dx * o;
+                int bz = cz + perp.dz * o;
+
+                int c1x = ax + stepX;
+                int c1z = az;
+                if (isBetween2D(c1x, c1z, ax, az, bx, bz)) {
+                    bridgeProtected.add(xzKey(c1x, c1z));
+                }
+
+                int c2x = ax;
+                int c2z = az + stepZ;
+                if (isBetween2D(c2x, c2z, ax, az, bx, bz)) {
+                    bridgeProtected.add(xzKey(c2x, c2z));
+                }
+            }
+        }
+
+        private boolean isBridgeProtectedCell(int x, int z) {
+            return bridgeProtected.contains(xzKey(x, z));
+        }
+
+        private boolean isBridgeJoinIndex(int idx) {
+            int protect = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeJoinProtectionBlocks);
+            if (protect <= 0) return false;
+            if (forcedByStartKey.isEmpty()) return false;
+
+            for (ForcedBridgeRef ref : forcedByStartKey.values()) {
+                if (ref == null) continue;
+
+                if (idx >= ref.startIdx - protect && idx <= ref.startIdx + protect) return true;
+                if (idx >= ref.endIdx - protect && idx <= ref.endIdx + protect) return true;
+            }
+
+            return false;
+        }
+
+        private static boolean isBetween2D(int x, int z, int x0, int z0, int x1, int z1) {
+            int minX = Math.min(x0, x1);
+            int maxX = Math.max(x0, x1);
+            int minZ = Math.min(z0, z1);
+            int maxZ = Math.max(z0, z1);
+            return x >= minX && x <= maxX && z >= minZ && z <= maxZ;
+        }
     }
 
     private RoadPainter() {}

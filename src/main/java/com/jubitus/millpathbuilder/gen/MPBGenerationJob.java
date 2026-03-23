@@ -24,7 +24,7 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class MPBGenerationJob {
+public final class MPBGenerationJob implements MPBAsyncJob {
 
     private final WorldServer world;
     private final WeakReference<ICommandSender> senderRef;
@@ -286,7 +286,7 @@ public final class MPBGenerationJob {
         return (((long) p.getX()) << 32) ^ (p.getZ() & 0xffffffffL);
     }
 
-    private static MPBProtectedAreas buildProtectedAreas(WorldServer world, TerrainSampler sampler) {
+    static MPBProtectedAreas buildProtectedAreas(WorldServer world, TerrainSampler sampler) {
         MPBProtectedAreas pa = new MPBProtectedAreas();
 
         MillWorldData data = MillIntegration.ensureLoaded(world);
@@ -316,6 +316,10 @@ public final class MPBGenerationJob {
         MillBuildingObstacles2.addBuildingsFromLocationsAsNoPaint(world, pa, 1, hardPenalty);
 
         return pa;
+    }
+    @Override
+    public String completionMessage() {
+        return "MillPathBuilder: generation completed.";
     }
 
     // Made public for MPBEndpointResolver

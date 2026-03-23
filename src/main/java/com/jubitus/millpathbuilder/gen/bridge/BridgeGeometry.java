@@ -79,6 +79,14 @@ public final class BridgeGeometry {
         return (surfaceHalfY - 1) / 2;
     }
 
+    public static int naturalSurfaceHalfY(int surfaceY) {
+        return surfaceY * 2 + 2;
+    }
+
+    public static int walkSurfaceBlockYFloor(int surfaceHalfY) {
+        return surfaceHalfY / 2;
+    }
+
     public static int[] buildDeckHalfProfile(int startHalf, int endHalf, List<BlockPos> line, TerrainSampler sampler) {
         int n = line.size();
         int[] ideal = new int[n];
