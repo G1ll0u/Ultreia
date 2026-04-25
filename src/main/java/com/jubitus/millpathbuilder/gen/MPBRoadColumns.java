@@ -1,6 +1,8 @@
 package com.jubitus.millpathbuilder.gen;
 
+import com.jubitus.millpathbuilder.config.MPBConfig;
 import com.jubitus.millpathbuilder.gen.mill.MPBMillPathPalette;
+import com.jubitus.millpathbuilder.gen.newp.MPBTreeCompat;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockDoublePlant;
 import net.minecraft.block.material.Material;
@@ -88,9 +90,12 @@ public final class MPBRoadColumns {
 
         if (m == Material.AIR) return false;
         if (b == Blocks.SNOW_LAYER) return true;
-        if (m == Material.PLANTS || m == Material.VINE) return true;
         if (m.isReplaceable()) return true;
-        if (b.isLeaves(st, world, pos) || m == Material.LEAVES) return true;
+        if (MPBTreeCompat.isTreeFoliageLike(world, pos, st)) return true;
+
+        if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
+            if (MPBTreeCompat.isDynamicTreesBlock(st)) return true;
+        }
 
         return false;
     }
@@ -99,6 +104,10 @@ public final class MPBRoadColumns {
         if (st == null) return false;
 
         if (MPBMillPathPalette.isMillPath(st.getBlock())) return false;
+
+        if (MPBTreeCompat.isDynamicTreesBlock(st)) {
+            return MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks;
+        }
 
         Material m = st.getMaterial();
         if (!m.isSolid()) return false;

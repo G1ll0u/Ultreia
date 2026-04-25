@@ -5,12 +5,13 @@ I strongly recommend using RTG since I built my mod using RTG world generation (
 
 It's a complex pathfinder that will try to find the best paths between villages and lonebuildings. You'll be able to travel using these paths
 
+The mod fully depends on Millénaire villages.
+
 ### Planned
 ```
 | Planned          | Details                                                 |
 |------------------|---------------------------------------------------------|
-| Bridge materials | Biome-dependent bridge materials                        |
+| Bridges | Custom bridge models doable by user                        |
 | Speed modifier   | Millénaire paths will increase player speed             |
 | Decorations      | There will be some decorations at the side of the roads |
-|                  |                                                         |
 ```

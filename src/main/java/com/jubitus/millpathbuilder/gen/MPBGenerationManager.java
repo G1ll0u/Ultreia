@@ -77,7 +77,26 @@ public final class MPBGenerationManager {
 
         for (MPBAsyncJob job : JOBS.values()) {
             long start = System.nanoTime();
-            job.tick(budgetNs);
+
+            try {
+                job.tick(budgetNs);
+            } catch (Throwable t) {
+                JOBS.remove(job.getDim());
+
+                try {
+                    job.shutdown();
+                } catch (Throwable ignored) {
+                }
+
+                WeakReference<ICommandSender> wr = job.getSenderRef();
+                ICommandSender sender = wr != null ? wr.get() : null;
+                if (sender != null) {
+                    sender.sendMessage(new TextComponentString("MillPathBuilder: generation failed with an internal error. See log."));
+                }
+
+                MillPathBuilderMod.LOGGER.error("Generation job crashed in dim=" + job.getDim(), t);
+                continue;
+            }
 
             if (job.isDone()) {
                 JOBS.remove(job.getDim());

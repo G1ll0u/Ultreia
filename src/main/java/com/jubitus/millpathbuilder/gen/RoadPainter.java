@@ -7,6 +7,7 @@ import com.jubitus.millpathbuilder.gen.bridge.template.BridgeBuildService;
 import com.jubitus.millpathbuilder.gen.bridge.template.BridgeTemplate;
 import com.jubitus.millpathbuilder.gen.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.millpathbuilder.gen.mill.MPBMillPathPalette;
+import com.jubitus.millpathbuilder.gen.newp.MPBRoadHalfProfile;
 import com.jubitus.millpathbuilder.gen.world.Earthworks;
 import com.jubitus.millpathbuilder.gen.world.MPBRoadIndexData;
 import net.minecraft.block.Block;
@@ -21,18 +22,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.material.Material;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.init.Blocks;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.WorldServer;
 
-import java.util.ArrayList;
-import java.util.ArrayDeque;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public final class RoadPainter {
@@ -57,15 +48,12 @@ public final class RoadPainter {
 
         private int[] gradeY = null;
 
-        private final int baseWidth;
         private final int baseR;
-        private final long organicSeed;
         private final WorldServer world;
         private final TerrainSampler sampler;
         private final MPBProtectedAreas protectedAreas;
         private final boolean dryRun;
 
-        private final int width;
         private final int r;
 
         private final List<BlockPos> coarse;
@@ -124,6 +112,11 @@ public final class RoadPainter {
         private BridgeSpan pendingBridge = null;
         private int pendingBridgeEndIdx = -1;
 
+        private int[] centerHalf = null;
+
+        private final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap plannedHalfByXZ = new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
+        private final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap plannedPriorityByXZ = new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
+
         Session(WorldServer world,
                 List<BlockPos> coarsePath,
                 List<BridgeSpan> forcedBridges,
@@ -140,17 +133,17 @@ public final class RoadPainter {
             this.dryRun = dryRun;
             this.forcedBridges = forcedBridges == null ? Collections.<BridgeSpan>emptyList() : forcedBridges;
 
+            this.plannedHalfByXZ.defaultReturnValue(Integer.MIN_VALUE);
+            this.plannedPriorityByXZ.defaultReturnValue(Integer.MAX_VALUE);
+
             this.bridgePlanner = new BridgePlanner(world, sampler);
 
             int w = Math.max(1, MPBConfig.PAINTING.roadWidth);
             if ((w % 2) == 0) w++;
 
-            this.baseWidth = w;
             this.baseR = w / 2;
-            this.width = w;
             this.r = w / 2;
 
-            this.organicSeed = world.getSeed() ^ (((long) w) << 32) ^ (long) world.provider.getDimension();
             this.coarse = coarsePath == null ? Collections.<BlockPos>emptyList() : coarsePath;
 
             if (!this.coarse.isEmpty()) {
@@ -178,6 +171,9 @@ public final class RoadPainter {
 
                     if (MPBConfig.PATHFINDING.allowEarthworks) {
                         this.gradeY = buildGradeProfile();
+                        if (failed) {
+                            return PaintResult.FAILED;
+                        }
                     }
                     continue;
                 }
@@ -282,13 +278,15 @@ public final class RoadPainter {
                     }
                 }
 
-                curCenter = p;
-                curDx = -radiusByIdx[i];
-                curDz = -radiusByIdx[i];
-                paintingCell = true;
+                beginPaintSweep(p, i);
             }
 
             return PaintResult.RUNNING;
+        }
+
+        private void resetPaintCursor(int localR) {
+            curDx = -localR;
+            curDz = -localR;
         }
 
 
@@ -326,8 +324,12 @@ public final class RoadPainter {
             if (roadIndex == null) return;
             if (path.size() < 8) return;
 
-            int minIdx = Math.max(6, baseR + 3);
-            int scanTo = Math.max(minIdx, path.size() - 1);
+            // Never merge before 20% of the path is painted — prevents premature stop
+            // when path starts inside a village that already has Millénaire/MPB road blocks.
+            int minIdx = Math.max(Math.max(6, baseR + 3), path.size() / 5);
+            // Protect the end of the path symmetrically: don't merge within minIdx steps
+            // of the destination (avoids stopping short when approaching a village entry path).
+            int scanTo = Math.max(minIdx, path.size() - 1 - minIdx);
 
             int maxJoinDeltaHalf = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.maxRoadJoinDeltaHalfBlocks);
             int minAfterBridge = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.minBlocksAfterBridgeBeforeMerge);
@@ -370,6 +372,10 @@ public final class RoadPainter {
                 mergeStopArmed = true;
                 mergeStopAt = mergeHitIndex;
 
+                MillPathBuilderMod.LOGGER.info(
+                        "[MPB] Early merge: path index {}/{} -> existing road ({}, {})",
+                        idx, path.size() - 1, near.getX(), near.getZ());
+
                 return;
             }
         }
@@ -393,9 +399,16 @@ public final class RoadPainter {
                 BlockPos a = coarse.get(densifyIndex - 1);
                 BlockPos b = coarse.get(densifyIndex);
 
-                List<BlockPos> line = MPBConfig.BRIDGE_GEOMETRY.useRaster8ForBridges
-                        ? RasterLine8.raster(a.getX(), a.getZ(), b.getX(), b.getZ(), 0)
-                        : SupercoverLine.raster(a.getX(), a.getZ(), b.getX(), b.getZ(), 0);
+                List<BlockPos> line;
+                try {
+                    line = MPBConfig.BRIDGE_GEOMETRY.useRaster8ForBridges
+                            ? RasterLine8.raster(a.getX(), a.getZ(), b.getX(), b.getZ(), 0)
+                            : SupercoverLine.raster(a.getX(), a.getZ(), b.getX(), b.getZ(), 0);
+                } catch (Throwable t) {
+                    failed = true;
+                    failReason = "densify failed on segment (" + a.getX() + "," + a.getZ() + ") -> (" + b.getX() + "," + b.getZ() + "): " + t.getMessage();
+                    return true;
+                }
 
                 if (line == null || line.isEmpty()) {
                     densifyIndex++;
@@ -420,39 +433,29 @@ public final class RoadPainter {
             radiusByIdx = new int[n];
             slabByIdx = new boolean[n];
 
-            int ox = 0;
-            int oz = 0;
             for (int idx = 0; idx < n; idx++) {
-                int tx = rawWobble(idx, 0xA11CE);
-                int tz = rawWobble(idx, 0xBADC0);
+                wobbleX[idx] = 0;
+                wobbleZ[idx] = 0;
+                radiusByIdx[idx] = baseR;
+                slabByIdx[idx] = false;
+            }
 
-                ox = stepToward(ox, tx, 1);
-                oz = stepToward(oz, tz, 1);
-
-                ox = clamp(ox, -2, 2);
-                oz = clamp(oz, -2, 2);
-
-                wobbleX[idx] = ox;
-                wobbleZ[idx] = oz;
+            try {
+                centerHalf = MPBRoadHalfProfile.build(path, forcedBridges, sampler);
+            } catch (IllegalStateException ex) {
+                failed = true;
+                failReason = "No feasible final road profile with max 0.5-block steps: " + ex.getMessage();
+                centerHalf = new int[n];
+                return;
+            } catch (Throwable t) {
+                failed = true;
+                failReason = "Road profile generation failed: " + t.getClass().getSimpleName() + ": " + t.getMessage();
+                centerHalf = new int[n];
+                return;
             }
 
             for (int idx = 0; idx < n; idx++) {
-                int cx = centerXAt(idx);
-                int cz = centerZAt(idx);
-
-                int localR = baseR + organicRadiusDelta(cx, cz, idx);
-                if (localR < 1) localR = 1;
-
-                if (mergeActive && idx >= mergeBlendStart) {
-                    localR = Math.max(localR, baseR);
-                }
-
-                radiusByIdx[idx] = localR;
-            }
-
-            boolean earthworks = earthworksEnabled();
-            for (int idx = 0; idx < n; idx++) {
-                slabByIdx[idx] = shouldUseSlabOnThisCell(idx, earthworks);
+                slabByIdx[idx] = (centerHalf[idx] & 1) != 0;
             }
         }
 
@@ -482,52 +485,184 @@ public final class RoadPainter {
             boolean earthworks = earthworksEnabled();
 
             while (planIdx < path.size() && System.nanoTime() < deadlineNs) {
-                BlockPos center = path.get(planIdx);
-                if (isForcedBridgeCell(center.getX(), center.getZ())) {
-                    core.add(xzKey(center.getX(), center.getZ()));
+                int idx = planIdx;
+                BlockPos center = path.get(idx);
+
+                int cx = centerXAt(idx);
+                int cz = centerZAt(idx);
+
+                core.add(xzKey(cx, cz));
+
+                if (idx == 0) {
+                    int localR = radiusByIdx[idx];
+                    int targetHalf = centerHalf != null && idx < centerHalf.length
+                            ? centerHalf[idx]
+                            : BridgeGeometry.naturalSurfaceHalfY(center.getY());
+
+                    addEndCapToPlan(cx, cz, localR, targetHalf, idx, earthworks);
                     planIdx++;
                     continue;
                 }
 
-                int cx = centerXAt(planIdx);
-                int cz = centerZAt(planIdx);
-                int localR = radiusByIdx[planIdx];
+                int prevIdx = idx - 1;
+                BlockPos prev = path.get(prevIdx);
 
-                core.add(xzKey(cx, cz));
+                int x0 = centerXAt(prevIdx);
+                int z0 = centerZAt(prevIdx);
+                int x1 = cx;
+                int z1 = cz;
 
-                for (int dx = -localR; dx <= localR; dx++) {
-                    for (int dz = -localR; dz <= localR; dz++) {
-                        if (dx * dx + dz * dz > localR * localR) continue;
+                int r0 = radiusByIdx[prevIdx];
+                int r1 = radiusByIdx[idx];
+                int localR = Math.max(r0, r1);
 
-                        int x = cx + dx;
-                        int z = cz + dz;
+                int half0 = centerHalf != null && prevIdx < centerHalf.length
+                        ? centerHalf[prevIdx]
+                        : BridgeGeometry.naturalSurfaceHalfY(prev.getY());
 
-                        if (isForcedBridgeCell(x, z) || isBridgeProtectedCell(x, z)) continue;
-                        if (protectedAreas != null && protectedAreas.contains(x, z)) continue;
+                int half1 = centerHalf != null && idx < centerHalf.length
+                        ? centerHalf[idx]
+                        : BridgeGeometry.naturalSurfaceHalfY(center.getY());
 
-                        TerrainSampler.Sample s = sampler.sample(x, z);
-                        if (sampler.forbiddenHard(s)) continue;
-                        if (s.isOcean || s.isWater) continue;
-                        if (sampler.forbidden(s, TerrainSampler.Mode.PAINTING)) continue;
-
-                        if (!earthworks) {
-                            BlockPos top = new BlockPos(x, s.surfaceY, z);
-                            IBlockState g = world.getBlockState(top);
-                            if (!isNaturalGround(g) && !MPBMillPathPalette.isMillPath(g.getBlock())) continue;
-                        }
-
-                        if (isExistingRoadNotOurs(x, z) || nearExistingRoadNotOurs(x, z)) {
-                            if (dx != 0 || dz != 0) continue;
-                        }
-
-                        planned.add(xzKey(x, z));
-                    }
-                }
+                addRibbonSegmentToPlan(x0, z0, x1, z1, localR, half0, half1, idx, earthworks);
 
                 planIdx++;
             }
 
             return planIdx >= path.size();
+        }
+
+        private void addEndCapToPlan(int cx,
+                                     int cz,
+                                     int localR,
+                                     int targetHalf,
+                                     int idx,
+                                     boolean earthworks) {
+            int pad = localR + 1;
+            double radius = (double) localR + 0.5;
+
+            for (int x = cx - pad; x <= cx + pad; x++) {
+                for (int z = cz - pad; z <= cz + pad; z++) {
+                    if (!cellIntersectsDisk(x, z, cx + 0.5, cz + 0.5, radius)) {
+                        continue;
+                    }
+
+                    double dx = ((double) x + 0.5) - ((double) cx + 0.5);
+                    double dz = ((double) z + 0.5) - ((double) cz + 0.5);
+                    double distSq = dx * dx + dz * dz;
+
+                    addPlannedRibbonCell(x, z, distSq, targetHalf, idx, earthworks);
+                }
+            }
+        }
+
+        private void addRibbonSegmentToPlan(int x0,
+                                            int z0,
+                                            int x1,
+                                            int z1,
+                                            int localR,
+                                            int half0,
+                                            int half1,
+                                            int idx,
+                                            boolean earthworks) {
+            int pad = localR + 2;
+
+            int minX = Math.min(x0, x1) - pad;
+            int maxX = Math.max(x0, x1) + pad;
+            int minZ = Math.min(z0, z1) - pad;
+            int maxZ = Math.max(z0, z1) + pad;
+
+            double ax = x0 + 0.5;
+            double az = z0 + 0.5;
+            double bx = x1 + 0.5;
+            double bz = z1 + 0.5;
+
+            double halfWidth = (double) localR + 0.5;
+
+            for (int x = minX; x <= maxX; x++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    if (!cellIntersectsRibbon(x, z, ax, az, bx, bz, halfWidth)) {
+                        continue;
+                    }
+
+                    double px = x + 0.5;
+                    double pz = z + 0.5;
+                    double t = segmentParam01(px, pz, ax, az, bx, bz);
+                    double distSq = pointToSegmentDistanceSqClamped(px, pz, ax, az, bx, bz);
+
+                    int targetHalf = (int) Math.round((1.0 - t) * (double) half0 + t * (double) half1);
+                    addPlannedRibbonCell(x, z, distSq, targetHalf, idx, earthworks);
+                }
+            }
+        }
+
+        private void addPlannedRibbonCell(int x,
+                                          int z,
+                                          double distSq,
+                                          int targetHalf,
+                                          int idx,
+                                          boolean earthworks) {
+            if (isForcedBridgeCell(x, z) || isBridgeProtectedCell(x, z)) return;
+            if (protectedAreas != null && protectedAreas.contains(x, z)) return;
+
+            TerrainSampler.Sample s = sampler.sample(x, z);
+            if (s == null) return;
+            if (sampler.forbiddenHard(s)) return;
+            if (s.isOcean || s.isWater) return;
+            if (sampler.forbidden(s, TerrainSampler.Mode.PAINTING)) return;
+
+            if (!earthworks) {
+                BlockPos top = new BlockPos(x, s.surfaceY, z);
+                IBlockState g = world.getBlockState(top);
+                if (!isNaturalGround(g) && !MPBMillPathPalette.isMillPath(g.getBlock())) return;
+            }
+
+            boolean centerish = distSq <= 0.26;
+
+            if (isExistingRoadNotOurs(x, z) || nearExistingRoadNotOurs(x, z)) {
+                if (!centerish) return;
+            }
+
+            long k = xzKey(x, z);
+            planned.add(k);
+
+            int priority = (int) Math.round(distSq * 1024.0) + Math.abs(idx);
+            if (forcePaint.contains(k)) {
+                priority -= 100000;
+            }
+
+            int prev = plannedPriorityByXZ.get(k);
+            if (priority < prev) {
+                plannedPriorityByXZ.put(k, priority);
+                plannedHalfByXZ.put(k, targetHalf);
+            }
+        }
+
+        private double segmentParam01(double px, double pz,
+                                      double ax, double az,
+                                      double bx, double bz) {
+            double dx = bx - ax;
+            double dz = bz - az;
+            double lenSq = dx * dx + dz * dz;
+
+            if (lenSq <= 1.0e-9) return 0.0;
+
+            double t = ((px - ax) * dx + (pz - az) * dz) / lenSq;
+            if (t < 0.0) return 0.0;
+            if (t > 1.0) return 1.0;
+            return t;
+        }
+
+        private double pointToSegmentDistanceSq(double px, double pz,
+                                                double ax, double az,
+                                                double bx, double bz) {
+            double t = segmentParam01(px, pz, ax, az, bx, bz);
+            double cx = ax + (bx - ax) * t;
+            double cz = az + (bz - az) * t;
+
+            double dx = px - cx;
+            double dz = pz - cz;
+            return dx * dx + dz * dz;
         }
 
         private boolean isForcedBridgeCell(int x, int z) {
@@ -624,66 +759,10 @@ public final class RoadPainter {
         }
 
         private it.unimi.dsi.fastutil.longs.LongOpenHashSet applyGentleBoundaryNoise(it.unimi.dsi.fastutil.longs.LongOpenHashSet in) {
-            if (in.size() < 64) return in;
-
-            it.unimi.dsi.fastutil.longs.LongOpenHashSet removed = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
-
-            long[] keys = in.toLongArray();
-            for (long k : keys) {
-                if (core.contains(k)) continue;
-                if (forcePaint.contains(k)) continue;
-
-                int x = (int) (k >> 32);
-                int z = (int) k;
-
-                int n4 = neigh4Count(in, x, z);
-                if (n4 >= 3) continue;
-                if (!isBoundaryCell(in, x, z)) continue;
-
-                int v = hash32((int) (organicSeed ^ 0x51EDBEEF), x, z);
-                int r0 = (v >>> 28) & 15;
-                if (r0 != 0 && r0 != 1) continue;
-
-                if (wouldCreateNotch(in, x, z)) continue;
-
-                removed.add(k);
-            }
-
-            if (removed.isEmpty()) return in;
-
-            it.unimi.dsi.fastutil.longs.LongOpenHashSet tmp = new it.unimi.dsi.fastutil.longs.LongOpenHashSet(in);
-            tmp.removeAll(removed);
-
-            return keepOnlyConnectedToCore(tmp, core);
+            return in;
         }
 
-        private boolean wouldCreateNotch(it.unimi.dsi.fastutil.longs.LongOpenHashSet set, int x, int z) {
-            boolean e = set.contains(xzKey(x + 1, z));
-            boolean w = set.contains(xzKey(x - 1, z));
-            boolean s = set.contains(xzKey(x, z + 1));
-            boolean n = set.contains(xzKey(x, z - 1));
 
-            int count = 0;
-            if (e) count++;
-            if (w) count++;
-            if (s) count++;
-            if (n) count++;
-
-            if (count <= 1) return true;
-
-            if (e && w && !s && !n) return true;
-            if (s && n && !e && !w) return true;
-
-            return false;
-        }
-
-        private boolean isBoundaryCell(it.unimi.dsi.fastutil.longs.LongOpenHashSet set, int x, int z) {
-            if (!set.contains(xzKey(x + 1, z))) return true;
-            if (!set.contains(xzKey(x - 1, z))) return true;
-            if (!set.contains(xzKey(x, z + 1))) return true;
-            if (!set.contains(xzKey(x, z - 1))) return true;
-            return false;
-        }
 
         private int neigh4Count(it.unimi.dsi.fastutil.longs.LongOpenHashSet set, int x, int z) {
             int hits = 0;
@@ -763,42 +842,171 @@ public final class RoadPainter {
                 int idx = i;
                 int localR = radiusByIdx[idx];
 
+                if (curDx > localR) {
+                    return true;
+                }
+
+                int localDx = curDx;
+                int localDz = curDz;
+
+                advancePaintCursor(localR);
+
                 int cx = centerXAt(idx);
                 int cz = centerZAt(idx);
 
-                if (curDx > localR) return true;
+                int xx = cx + localDx;
+                int zz = cz + localDz;
 
-                int xx = cx + curDx;
-                int zz = cz + curDz;
-
-                curDz++;
-                if (curDz > localR) {
-                    curDz = -localR;
-                    curDx++;
+                if (!shouldPaintCell(xx, zz)) {
+                    continue;
                 }
 
-                if (curDx * curDx + (curDz - 1) * (curDz - 1) > localR * localR) continue;
-                if (!shouldPaintCell(xx, zz)) continue;
-
                 long k = xzKey(xx, zz);
-                if (!painted.add(k)) continue;
-                if (isBridgeProtectedCell(xx, zz)) continue;
+                if (!painted.add(k)) {
+                    continue;
+                }
+                if (isBridgeProtectedCell(xx, zz)) {
+                    continue;
+                }
 
                 TerrainSampler.Sample s = sampler.sample(xx, zz);
-                if (sampler.forbiddenHard(s)) continue;
-                if (s.isOcean || s.isWater) continue;
-                if (sampler.forbidden(s, TerrainSampler.Mode.PAINTING)) continue;
-                if (protectedAreas != null && protectedAreas.contains(xx, zz)) continue;
+                if (s == null) {
+                    continue;
+                }
+                if (sampler.forbiddenHard(s)) {
+                    continue;
+                }
+                if (s.isOcean || s.isWater) {
+                    continue;
+                }
+                if (sampler.forbidden(s, TerrainSampler.Mode.PAINTING)) {
+                    continue;
+                }
+                if (protectedAreas != null && protectedAreas.contains(xx, zz)) {
+                    continue;
+                }
 
                 paintSingle(xx, zz, s.surfaceY);
             }
+
             return false;
+        }
+
+        private double pointToSegmentDistanceSqClamped(double px, double pz,
+                                                       double ax, double az,
+                                                       double bx, double bz) {
+            double t = segmentParam01(px, pz, ax, az, bx, bz);
+            double cx = ax + (bx - ax) * t;
+            double cz = az + (bz - az) * t;
+
+            double dx = px - cx;
+            double dz = pz - cz;
+            return dx * dx + dz * dz;
+        }
+
+        private boolean cellIntersectsRibbon(int x,
+                                             int z,
+                                             double ax,
+                                             double az,
+                                             double bx,
+                                             double bz,
+                                             double halfWidth) {
+            double nearestX = x + 0.5;
+            double nearestZ = z + 0.5;
+            double bestDistSq = Double.POSITIVE_INFINITY;
+
+            for (int sx = 0; sx <= 1; sx++) {
+                double px = x + sx;
+                for (int sz = 0; sz <= 1; sz++) {
+                    double pz = z + sz;
+                    double d2 = pointToSegmentDistanceSqClamped(px, pz, ax, az, bx, bz);
+                    if (d2 < bestDistSq) {
+                        bestDistSq = d2;
+                        nearestX = px;
+                        nearestZ = pz;
+                    }
+                }
+            }
+
+            double centerD2 = pointToSegmentDistanceSqClamped(x + 0.5, z + 0.5, ax, az, bx, bz);
+            if (centerD2 < bestDistSq) {
+                bestDistSq = centerD2;
+                nearestX = x + 0.5;
+                nearestZ = z + 0.5;
+            }
+
+            if (bestDistSq <= halfWidth * halfWidth) {
+                return true;
+            }
+
+            double segDx = bx - ax;
+            double segDz = bz - az;
+            double segLen = Math.sqrt(segDx * segDx + segDz * segDz);
+            if (segLen <= 1.0e-9) {
+                return false;
+            }
+
+            double nx = -segDz / segLen;
+            double nz = segDx / segLen;
+
+            double support = 0.5 * Math.abs(nx) + 0.5 * Math.abs(nz);
+
+            double t = segmentParam01(nearestX, nearestZ, ax, az, bx, bz);
+            double cx = ax + (bx - ax) * t;
+            double cz = az + (bz - az) * t;
+
+            double perp = Math.abs((nearestX - cx) * nx + (nearestZ - cz) * nz);
+            return perp <= halfWidth + support;
+        }
+
+        private boolean cellIntersectsDisk(int x,
+                                           int z,
+                                           double cx,
+                                           double cz,
+                                           double radius) {
+            double nearestX = Math.max((double) x, Math.min(cx, (double) x + 1.0));
+            double nearestZ = Math.max((double) z, Math.min(cz, (double) z + 1.0));
+
+            double dx = nearestX - cx;
+            double dz = nearestZ - cz;
+            return dx * dx + dz * dz <= radius * radius;
+        }
+
+
+
+        private void beginPaintSweep(BlockPos center, int idx) {
+            this.curCenter = center;
+
+            int localR = radiusByIdx[idx];
+            this.curDx = -localR;
+            this.curDz = -localR;
+            this.paintingCell = true;
+        }
+
+        private void advancePaintCursor(int localR) {
+            curDz++;
+            if (curDz > localR) {
+                curDz = -localR;
+                curDx++;
+            }
+        }
+
+        private boolean isInsidePaintRadius(int dx, int dz, int radius) {
+            return dx * dx + dz * dz <= radius * radius;
         }
 
         private void paintSingle(int x, int z, int surfaceY) {
             if (isBridgeProtectedCell(x, z)) return;
 
-            int placeY = surfaceY;
+            long k = xzKey(x, z);
+            int targetHalf = plannedHalfByXZ.get(k);
+            if (targetHalf == Integer.MIN_VALUE) {
+                targetHalf = BridgeGeometry.naturalSurfaceHalfY(surfaceY);
+            }
+
+            BridgeGeometry.SlabPlacement sp = BridgeGeometry.slabPlacementForSurfaceHalfY(targetHalf);
+            boolean useSlab = (targetHalf & 1) != 0;
+            int supportTopY = useSlab ? (sp.blockY - 1) : sp.blockY;
 
             boolean earthworks = earthworksEnabled();
             if (isBridgeJoinIndex(i)) {
@@ -809,7 +1017,10 @@ public final class RoadPainter {
             if (protectedAreas != null) {
                 for (int dx = -1; dx <= 1 && !nearNoPaint; dx++) {
                     for (int dz = -1; dz <= 1; dz++) {
-                        if (protectedAreas.contains(x + dx, z + dz)) { nearNoPaint = true; break; }
+                        if (protectedAreas.contains(x + dx, z + dz)) {
+                            nearNoPaint = true;
+                            break;
+                        }
                     }
                 }
             }
@@ -818,11 +1029,15 @@ public final class RoadPainter {
             }
 
             if (earthworks) {
-                int centerY = gradeY[i];
-
                 int rr = r;
-                int shoulder = 2;
-                Earthworks.Settings st = new Earthworks.Settings(rr, shoulder, 1, 64, 64);
+                int shoulder = Math.max(0, MPBConfig.PAINTING.earthworksShoulder);
+                Earthworks.Settings st = new Earthworks.Settings(
+                        rr,
+                        shoulder,
+                        1,
+                        Math.max(0, MPBConfig.PAINTING.earthworksMaxCut),
+                        Math.max(0, MPBConfig.PAINTING.earthworksMaxFill)
+                );
 
                 int cx = centerXAt(i);
                 int cz = centerZAt(i);
@@ -831,53 +1046,56 @@ public final class RoadPainter {
                 int dz0 = z - cz;
                 int dist = (int) Math.round(Math.sqrt((double) dx0 * (double) dx0 + (double) dz0 * (double) dz0));
 
-                placeY = Earthworks.gradeCell(world, sampler, x, z, centerY, dist, st, dryRun);
+                supportTopY = Earthworks.gradeCell(world, sampler, x, z, supportTopY, dist, st, dryRun);
                 sampler.invalidateAround(x, z, 1);
             }
 
-            BlockPos top = new BlockPos(x, placeY, z);
+            BlockPos supportTop = new BlockPos(x, supportTopY, z);
 
             if (!dryRun && !nearNoPaint && !isBridgeJoinIndex(i)) {
-                MPBRoadColumns.clearAtAndAbove(world, top, 2, false, earthworks);
+                MPBRoadColumns.clearAtAndAbove(world, supportTop.up(), 2, false, earthworks);
             }
 
-            IBlockState ground = world.getBlockState(top);
+            IBlockState ground = world.getBlockState(supportTop);
             if (!earthworks) {
                 if (ground == null) return;
                 if (!isNaturalGround(ground) && !MPBMillPathPalette.isMillPath(ground.getBlock())) return;
             }
 
             MPBMillPathPalette.Kind kind = pickKindAveraged(x, z);
-
-            boolean useSlab = slabByIdx[i];
-
-            placeRoadBlock(top, kind, useSlab, earthworks);
+            placeRoadBlockFromHalf(supportTop, kind, targetHalf, earthworks);
         }
 
-        private void placeRoadBlock(BlockPos baseTop, MPBMillPathPalette.Kind kind, boolean useSlab, boolean allowSolidCut) {
+        private void placeRoadBlockFromHalf(BlockPos supportTop, MPBMillPathPalette.Kind kind, int targetHalf, boolean allowSolidCut) {
             if (dryRun) return;
 
-            int x = baseTop.getX();
-            int z = baseTop.getZ();
+            int x = supportTop.getX();
+            int z = supportTop.getZ();
 
-            if (columnHasAnyMillPath(baseTop)) {
+            BridgeGeometry.SlabPlacement sp = BridgeGeometry.slabPlacementForSurfaceHalfY(targetHalf);
+            boolean useBottomSlab = (targetHalf & 1) != 0;
+
+            BlockPos placePos = useBottomSlab ? new BlockPos(x, sp.blockY, z) : new BlockPos(x, sp.blockY, z);
+
+            if (columnHasAnyMillPath(placePos)) {
                 if (roadIndex != null) roadIndex.markRoad(x, z);
                 return;
             }
 
-            BlockPos placePos = useSlab ? baseTop.up() : baseTop;
-
-            if (useSlab) {
-                ensureSolidSupportUnderSlab(baseTop, kind);
+            if (useBottomSlab) {
+                ensureSolidSupportUnderBottomSlab(placePos.down(), kind);
             }
 
             MPBRoadColumns.clearAtAndAbove(world, placePos, 2, false, allowSolidCut);
 
-            IBlockState place = useSlab ? MPBMillPathPalette.slabBottom(kind) : MPBMillPathPalette.full(kind);
+            IBlockState place = useBottomSlab
+                    ? MPBMillPathPalette.slabBottom(kind)
+                    : MPBMillPathPalette.full(kind);
+
             world.setBlockState(placePos, place, 2);
 
             if (MPBConfig.PAINTING.clearHeadroom) {
-                MPBRoadColumns.clearRoadColumn(world, placePos, 2, false, allowSolidCut);
+                MPBRoadColumns.clearRoadColumn(world, placePos, 3, false, allowSolidCut);
             }
 
             if (roadIndex != null) {
@@ -885,7 +1103,18 @@ public final class RoadPainter {
                 newlyPlaced.add(xzKey(x, z));
             }
 
-            sampler.invalidateAround(placePos.getX(), placePos.getZ(), 1);
+            sampler.invalidateAround(x, z, 1);
+        }
+
+        private void ensureSolidSupportUnderBottomSlab(BlockPos supportPos, MPBMillPathPalette.Kind kind) {
+            IBlockState st = world.getBlockState(supportPos);
+            Material m = st.getMaterial();
+
+            if (m.isSolid() && m != Material.LEAVES && m != Material.WOOD) return;
+            if (world.getTileEntity(supportPos) != null) return;
+
+            IBlockState support = pickSupportBlock(supportPos, kind);
+            world.setBlockState(supportPos, support, 3);
         }
 
         private boolean columnHasAnyMillPath(BlockPos baseTop) {
@@ -912,80 +1141,27 @@ public final class RoadPainter {
             int n = path.size();
             if (n == 0) return new int[0];
 
-            int[] raw = new int[n];
-            for (int i = 0; i < n; i++) raw[i] = path.get(i).getY();
-
-            int[] noisy = new int[n];
-            for (int i = 0; i < n; i++) {
-                int v = hash32((int)(organicSeed ^ 0xC0FFEE), path.get(i).getX(), path.get(i).getZ());
-                int r = (v >>> 28) & 15;
-                int d = 0;
-                if (r == 0) d = -1;
-                else if (r == 1) d = 1;
-                noisy[i] = raw[i] + d;
+            try {
+                if (centerHalf == null || centerHalf.length != n) {
+                    centerHalf = MPBRoadHalfProfile.build(path, forcedBridges, sampler);
+                }
+            } catch (IllegalStateException ex) {
+                failed = true;
+                failReason = "No feasible final road profile with max 0.5-block steps: " + ex.getMessage();
+                return null;
+            } catch (Throwable t) {
+                failed = true;
+                failReason = "Road profile generation failed: " + t.getClass().getSimpleName() + ": " + t.getMessage();
+                return null;
             }
 
-            int[] sm = new int[n];
-            int win = 5;
-            for (int i = 0; i < n; i++) {
-                int a = Math.max(0, i - win);
-                int b = Math.min(n - 1, i + win);
-                int sum = 0;
-                int cnt = 0;
-                for (int k = a; k <= b; k++) { sum += noisy[k]; cnt++; }
-                sm[i] = (cnt == 0) ? noisy[i] : Math.round((float)sum / (float)cnt);
-            }
-
-            int maxDelta = 1;
             int[] out = new int[n];
-            out[0] = sm[0];
-
-            for (int i = 1; i < n; i++) {
-                int want = sm[i];
-                int prev = out[i - 1];
-                int d = want - prev;
-                if (d > maxDelta) want = prev + maxDelta;
-                else if (d < -maxDelta) want = prev - maxDelta;
-                out[i] = want;
-            }
-
-            for (int i = n - 2; i >= 0; i--) {
-                int want = out[i];
-                int next = out[i + 1];
-                int d = want - next;
-                if (d > maxDelta) want = next + maxDelta;
-                else if (d < -maxDelta) want = next - maxDelta;
-                out[i] = want;
+            for (int i = 0; i < n; i++) {
+                BridgeGeometry.SlabPlacement sp = BridgeGeometry.slabPlacementForSurfaceHalfY(centerHalf[i]);
+                out[i] = ((centerHalf[i] & 1) != 0) ? (sp.blockY - 1) : sp.blockY;
             }
 
             return out;
-        }
-
-        private boolean shouldUseSlabOnThisCell(int idx, boolean earthworks) {
-            int y = currentCenterlineY(idx, earthworks);
-            int prev = (idx > 0) ? currentCenterlineY(idx - 1, earthworks) : y;
-            int next = (idx + 1 < path.size()) ? currentCenterlineY(idx + 1, earthworks) : y;
-
-            if (prev == y + 1) return true;
-            if (next == y + 1) return true;
-
-            return false;
-        }
-
-        private int currentCenterlineY(int idx, boolean earthworks) {
-            if (earthworks && gradeY != null && idx >= 0 && idx < gradeY.length) return gradeY[idx];
-            return path.get(idx).getY();
-        }
-
-        private void ensureSolidSupportUnderSlab(BlockPos supportPos, MPBMillPathPalette.Kind kind) {
-            IBlockState st = world.getBlockState(supportPos);
-            Material m = st.getMaterial();
-
-            if (m.isSolid() && m != Material.LEAVES && m != Material.WOOD) return;
-            if (world.getTileEntity(supportPos) != null) return;
-
-            IBlockState support = pickSupportBlock(supportPos, kind);
-            world.setBlockState(supportPos, support, 3);
         }
 
         private IBlockState pickSupportBlock(BlockPos supportPos, MPBMillPathPalette.Kind kind) {
@@ -1004,44 +1180,6 @@ public final class RoadPainter {
             if (kind == MPBMillPathPalette.Kind.SLABS) return Blocks.STONE.getDefaultState();
 
             return Blocks.DIRT.getDefaultState();
-        }
-
-        private int rawWobble(int idx, int salt) {
-            int v = hash32((int)(organicSeed ^ (long)salt), idx * 31, idx * 17);
-            int r = (v >>> 28) & 15;
-            if (r == 0) return -1;
-            if (r == 1) return 1;
-            return 0;
-        }
-
-        private int organicRadiusDelta(int x, int z, int idx) {
-            int v = hash32((int)(organicSeed ^ 0x9E3779B9L), x + idx * 17, z - idx * 23);
-            int r = (v >>> 29) & 7;
-            if (r == 0) return -1;
-            if (r == 1) return 1;
-            return 0;
-        }
-
-        private int hash32(int seed, int x, int z) {
-            int h = seed;
-            h ^= x * 0x27d4eb2d;
-            h = Integer.rotateLeft(h, 13);
-            h ^= z * 0x165667b1;
-            h = Integer.rotateLeft(h, 15);
-            h *= 0x85ebca6b;
-            h ^= (h >>> 16);
-            return h;
-        }
-
-        private static int stepToward(int cur, int target, int maxStep) {
-            int d = target - cur;
-            if (d > maxStep) return cur + maxStep;
-            if (d < -maxStep) return cur - maxStep;
-            return target;
-        }
-
-        private static int clamp(int v, int lo, int hi) {
-            return v < lo ? lo : (v > hi ? hi : v);
         }
 
         private static long xzKey(int x, int z) {
@@ -1130,24 +1268,79 @@ public final class RoadPainter {
 
         private void reinforceBridgeExit(BridgeSpan span, int blocks) {
             if (span == null || blocks <= 0) return;
+            if (span.centerline == null || span.centerline.size() < 2) return;
 
-            int dx = Integer.signum(span.end.getX() - span.start.getX());
-            int dz = Integer.signum(span.end.getZ() - span.start.getZ());
+            int[] exitStep = bridgeExitStep(span);
+            int dx = exitStep[0];
+            int dz = exitStep[1];
 
             if (dx == 0 && dz == 0) return;
 
-            int x = span.end.getX() + dx;
-            int z = span.end.getZ() + dz;
+            int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span, sampler);
+            int exitHalf = deckHalf[deckHalf.length - 1];
 
-            for (int i = 0; i < blocks; i++) {
+            int maxHalfStep = Math.max(1, MPBConfig.PAINTING.maxRoadStepHalfPerBlock);
+
+            int x = span.end.getX();
+            int z = span.end.getZ();
+            int half = exitHalf;
+
+            for (int i = 1; i <= blocks; i++) {
+                x += dx;
+                z += dz;
+
+                if (isForcedBridgeCell(x, z) || isBridgeProtectedCell(x, z)) continue;
+                if (protectedAreas != null && protectedAreas.contains(x, z)) continue;
+
+                TerrainSampler.Sample s = sampler.sample(x, z);
+                if (s == null) continue;
+                if (sampler.forbiddenHard(s)) continue;
+                if (s.isOcean || s.isWater) continue;
+                if (sampler.forbidden(s, TerrainSampler.Mode.PAINTING)) continue;
+
+                int naturalHalf = BridgeGeometry.naturalSurfaceHalfY(s.surfaceY);
+                half = stepHalfToward(half, naturalHalf, maxHalfStep);
+
                 long k = xzKey(x, z);
                 planned.add(k);
                 forcePaint.add(k);
                 core.add(k);
 
-                x += dx;
-                z += dz;
+                plannedHalfByXZ.put(k, half);
+
+                int priority = -200000 + i;
+                int prev = plannedPriorityByXZ.get(k);
+                if (priority < prev) {
+                    plannedPriorityByXZ.put(k, priority);
+                }
             }
+        }
+
+        private int[] bridgeExitStep(BridgeSpan span) {
+            if (span == null || span.centerline == null || span.centerline.size() < 2) {
+                return new int[]{0, 0};
+            }
+
+            for (int i = span.centerline.size() - 1; i > 0; i--) {
+                BlockPos a = span.centerline.get(i - 1);
+                BlockPos b = span.centerline.get(i);
+
+                int dx = Integer.signum(b.getX() - a.getX());
+                int dz = Integer.signum(b.getZ() - a.getZ());
+
+                if (dx != 0 || dz != 0) {
+                    return new int[]{dx, dz};
+                }
+            }
+
+            return new int[]{0, 0};
+        }
+
+        private int stepHalfToward(int curHalf, int targetHalf, int maxHalfStep) {
+            int d = targetHalf - curHalf;
+            if (d > maxHalfStep) return curHalf + maxHalfStep;
+            if (d < -maxHalfStep) return curHalf - maxHalfStep;
+            return targetHalf;
         }
 
         private void buildBridgeProtection() {

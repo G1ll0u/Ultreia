@@ -7,11 +7,20 @@ import java.util.List;
 
 public final class RasterLine8 {
 
+    private static final int MAX_RASTER_POINTS = 1_000_000;
+
     private RasterLine8() {}
 
-    // Standard Bresenham (8-connected): one cell per step, stable for diagonals.
     public static List<BlockPos> raster(int x0, int z0, int x1, int z1, int yPlaceholder) {
-        ArrayList<BlockPos> out = new ArrayList<>(Math.max(8, Math.abs(x1 - x0) + Math.abs(z1 - z0) + 2));
+        long ldx = (long) x1 - (long) x0;
+        long ldz = (long) z1 - (long) z0;
+        long estimate = Math.abs(ldx) + Math.abs(ldz) + 2L;
+
+        if (estimate <= 0L || estimate > MAX_RASTER_POINTS) {
+            throw new IllegalArgumentException("RasterLine8 segment too large: (" + x0 + "," + z0 + ") -> (" + x1 + "," + z1 + "), estimate=" + estimate);
+        }
+
+        ArrayList<BlockPos> out = new ArrayList<>((int) estimate);
 
         int dx = Math.abs(x1 - x0);
         int dz = Math.abs(z1 - z0);

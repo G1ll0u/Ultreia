@@ -1,13 +1,14 @@
 {
-	"package": "com.jubitus.millpathbuilder.mixin",
-	"required": true,
-	"refmap": "mixins.millpathbuilder.refmap.json",
-	"target": "@env(DEFAULT)",
-	"minVersion": "0.8.5",
-	"compatibilityLevel": "JAVA_8",
-	"mixins": [
-		"MixinMillWorldData_Capture"
-	],
-	"server": [],
-	"client": []
+  "package": "com.jubitus.millpathbuilder.mixin",
+  "required": true,
+  "refmap": "mixins.millpathbuilder.refmap.json",
+  "target": "@env(DEFAULT)",
+  "minVersion": "0.8.5",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "MixinBuilding_PathClearProtection",
+    "MixinMillWorldData_Capture"
+  ],
+  "server": [],
+  "client": []
 }

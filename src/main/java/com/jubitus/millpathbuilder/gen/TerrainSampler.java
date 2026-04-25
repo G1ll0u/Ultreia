@@ -2,6 +2,7 @@ package com.jubitus.millpathbuilder.gen;
 
 import com.jubitus.millpathbuilder.config.MPBConfig;
 import com.jubitus.millpathbuilder.gen.mill.MPBMillPathPalette;
+import com.jubitus.millpathbuilder.gen.newp.MPBTreeCompat;
 import com.jubitus.millpathbuilder.gen.world.MPBRoadIndexData;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -13,10 +14,11 @@ import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
 import net.minecraft.world.biome.Biome;
+import net.minecraft.world.gen.ChunkProviderServer;
 import net.minecraftforge.common.BiomeDictionary;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.block.Block;
@@ -33,12 +35,32 @@ import javax.annotation.Nullable;
 import java.util.HashSet;
 import java.util.Set;
 
-public final class TerrainSampler {
+public class TerrainSampler {
 
     public enum Mode { PATHFINDING, PAINTING }
     public enum ForbiddenReason { NONE, OCEAN, BLACKLIST, WATER, WATER_BUFFER, BLOCKED }
 
-    private static final int MAX_SAMPLE_CACHE = 200_000;
+    private static final int MAX_SAMPLE_CACHE  = 500_000;
+    private static final int MAX_LIGHT_CACHE   = 400_000;
+
+    // Light-sample packed int: bits 0-8 = surfaceY (0-255+), bit 9 = isWater, bit 10 = isOcean.
+    // Integer.MIN_VALUE = not loaded / not in cache.
+    public static final int LIGHT_NOT_LOADED  = Integer.MIN_VALUE;
+    public static final int LIGHT_SURFACE_MASK = 0x1FF;
+    public static final int LIGHT_WATER_BIT   = 1 << 9;
+    public static final int LIGHT_OCEAN_BIT   = 1 << 10;
+
+    public enum BlockedDetail {
+        NONE,
+        NO_PAINT_ZONE,
+        WATER,
+        NON_WALKABLE_GROUND,
+        BAD_HEADROOM,
+        MANMADE_NEARBY,
+        TILE_NEARBY,
+        NON_PAINTABLE_GROUND,
+        BUILDING_GUARD
+    }
 
     public static final class Sample {
         public final int x, z;
@@ -50,11 +72,14 @@ public final class TerrainSampler {
         public final boolean blockedPaint;
         public final Biome biome;
         public final boolean smallWater;
-
         public final boolean nearWaterLike;
 
+        public final BlockedDetail blockedPathDetail;
+        public final BlockedDetail blockedPaintDetail;
+
         public Sample(int x, int z, int surfaceY, boolean isWater, boolean isOcean, boolean isBlacklisted,
-                      boolean blockedPath, boolean blockedPaint, boolean smallWater, boolean nearWaterLike, Biome biome) {
+                      boolean blockedPath, boolean blockedPaint, boolean smallWater, boolean nearWaterLike,
+                      BlockedDetail blockedPathDetail, BlockedDetail blockedPaintDetail, Biome biome) {
             this.x = x;
             this.z = z;
             this.surfaceY = surfaceY;
@@ -65,12 +90,15 @@ public final class TerrainSampler {
             this.blockedPaint = blockedPaint;
             this.smallWater = smallWater;
             this.nearWaterLike = nearWaterLike;
+            this.blockedPathDetail = blockedPathDetail;
+            this.blockedPaintDetail = blockedPaintDetail;
             this.biome = biome;
         }
     }
 
     private final WorldServer world;
     private final Long2ObjectOpenHashMap<Sample> cache = new Long2ObjectOpenHashMap<>();
+    private final Long2IntOpenHashMap lightCache = new Long2IntOpenHashMap();
     private final Set<ResourceLocation> blacklist = new HashSet<>();
     private MPBProtectedAreas protectedAreas;
 
@@ -84,6 +112,7 @@ public final class TerrainSampler {
 
     public TerrainSampler(WorldServer world) {
         this.world = world;
+        lightCache.defaultReturnValue(LIGHT_NOT_LOADED);
         for (String s : MPBConfig.GENERAL.biomeBlacklist) {
             if (s == null || s.trim().isEmpty()) continue;
             blacklist.add(new ResourceLocation(s.trim()));
@@ -105,12 +134,15 @@ public final class TerrainSampler {
 
     public void clearCache() {
         cache.clear();
+        lightCache.clear();
         roadDistCache.clear();
     }
 
     public void invalidate(int x, int z) {
-        cache.remove(key(x, z));
-        roadDistCache.remove(key(x, z));
+        long k = key(x, z);
+        cache.remove(k);
+        lightCache.remove(k);
+        roadDistCache.remove(k);
     }
 
     public void invalidateAround(int x, int z, int r) {
@@ -118,6 +150,7 @@ public final class TerrainSampler {
             for (int dz = -r; dz <= r; dz++) {
                 long k = key(x + dx, z + dz);
                 cache.remove(k);
+                lightCache.remove(k);
                 roadDistCache.remove(k);
             }
         }
@@ -133,11 +166,13 @@ public final class TerrainSampler {
         if (!world.isBlockLoaded(pos)) {
             if (MPBConfig.GENERAL.allowChunkLoading && chunkManager != null) {
                 if (!chunkManager.ensureLoaded(world, x, z)) {
-                    Sample out = new Sample(x, z, 1, false, false, false, true, true, false, false, world.getBiome(pos));
+                    Sample out = new Sample(x, z, 1, false, false, false, true, true, false, false,
+                            BlockedDetail.NON_WALKABLE_GROUND, BlockedDetail.NON_PAINTABLE_GROUND, world.getBiome(pos));
                     return cachePut(k, out);
                 }
             } else {
-                Sample out = new Sample(x, z, 1, false, false, false, true, true, false, false, world.getBiome(pos));
+                Sample out = new Sample(x, z, 1, false, false, false, true, true, false, false,
+                        BlockedDetail.NON_WALKABLE_GROUND, BlockedDetail.NON_PAINTABLE_GROUND, world.getBiome(pos));
                 return cachePut(k, out);
             }
         }
@@ -170,6 +205,17 @@ public final class TerrainSampler {
                 break;
             }
 
+            if (isWaterSurfaceDecoration(st)) {
+                BlockPos below = pos.down();
+                IBlockState belowSt = world.getBlockState(below);
+                if (isWaterLike(belowSt)) {
+                    isWater = true;
+                    y = below.getY();
+                    break;
+                }
+                continue;
+            }
+
             if (isSkippableTop(st, pos)) continue;
 
             break;
@@ -183,27 +229,32 @@ public final class TerrainSampler {
 
         boolean blockedPath = false;
         boolean blockedPaint = false;
+        BlockedDetail blockedPathDetail = BlockedDetail.NONE;
+        BlockedDetail blockedPaintDetail = BlockedDetail.NONE;
 
         if (!isWater) {
             if (inNoPaint) {
                 blockedPaint = true;
+                blockedPaintDetail = BlockedDetail.NO_PAINT_ZONE;
 
                 if (MPBConfig.BUILDINGS.enabled && MPBConfig.BUILDINGS.hardBlockInPathfinding) {
-                    // Never walk through building footprints unless explicitly allowed via existing Millenaire road.
                     if (MPBConfig.BUILDINGS.allowExistingRoadThroughBuildings && hasMillPathCol) {
                         blockedPath = false;
+                        blockedPathDetail = BlockedDetail.NONE;
                     } else {
                         blockedPath = true;
+                        blockedPathDetail = BlockedDetail.NO_PAINT_ZONE;
                     }
                 } else {
-                    // Legacy behavior.
                     blockedPath = !hasMillPathCol;
+                    if (blockedPath) blockedPathDetail = BlockedDetail.NO_PAINT_ZONE;
                 }
             } else {
                 BlockPos.MutableBlockPos pos2 = new BlockPos.MutableBlockPos(x, surfaceY, z);
                 IBlockState ground = world.getBlockState(pos2);
 
-                boolean paintable = isNaturalGround(ground);
+                // Mill path blocks are valid painting surfaces (we paint onto/alongside them).
+                boolean paintable = isNaturalGround(ground) || MPBMillPathPalette.isMillPath(ground.getBlock());
                 boolean walkable = ground.getMaterial().isSolid() && ground.getMaterial() != Material.LEAVES;
 
                 BlockPos.MutableBlockPos up1 = new BlockPos.MutableBlockPos(x, surfaceY + 1, z);
@@ -215,21 +266,25 @@ public final class TerrainSampler {
                         && isClearableOrAir(world.getBlockState(up2), up2, Mode.PAINTING);
 
                 blockedPath = !walkable || !headroomPath;
+                if (!walkable) blockedPathDetail = BlockedDetail.NON_WALKABLE_GROUND;
+                else if (!headroomPath) blockedPathDetail = BlockedDetail.BAD_HEADROOM;
 
                 boolean manmade = hasManmadeNearby(x, surfaceY, z);
                 boolean tile = hasTileEntityNearby(x, surfaceY, z);
 
                 blockedPaint = !paintable || !headroomPaint || manmade || tile;
+                if (!paintable) blockedPaintDetail = BlockedDetail.NON_PAINTABLE_GROUND;
+                else if (!headroomPaint) blockedPaintDetail = BlockedDetail.BAD_HEADROOM;
+                else if (manmade) blockedPaintDetail = BlockedDetail.MANMADE_NEARBY;
+                else if (tile) blockedPaintDetail = BlockedDetail.TILE_NEARBY;
 
-                // Extra building-like guard (optional).
                 if (!blockedPaint && MPBConfig.BUILDINGS.enabled && MPBConfig.BUILDINGS.extraPaintingGuard) {
                     int rr = Math.max(1, MPBConfig.BUILDINGS.extraPaintingGuardRadius);
-
-                    // Only guard near actual building no-paint zones, to avoid blocking forest roads.
                     int nearR = Math.max(2, MPBConfig.BUILDINGS.footprintPadding + 2);
                     if (isNearBuildingNoPaintZone(x, z, nearR)) {
                         if (looksLikeBuildingColumn(x, surfaceY, z, rr)) {
                             blockedPaint = true;
+                            blockedPaintDetail = BlockedDetail.BUILDING_GUARD;
                         }
                     }
                 }
@@ -247,7 +302,9 @@ public final class TerrainSampler {
             nearWaterLike = hasWaterLikeInManhattanRadius(x, z, surfaceY, r);
         }
 
-        Sample out = new Sample(x, z, surfaceY, isWater, isOcean, isBlacklisted, blockedPath, blockedPaint, smallWater, nearWaterLike, biome);
+        Sample out = new Sample(x, z, surfaceY, isWater, isOcean, isBlacklisted,
+                blockedPath, blockedPaint, smallWater, nearWaterLike,
+                blockedPathDetail, blockedPaintDetail, biome);
         return cachePut(k, out);
     }
 
@@ -276,7 +333,8 @@ public final class TerrainSampler {
         if (r == ForbiddenReason.WATER) return "water requires explicit bridge";
         if (r == ForbiddenReason.WATER_BUFFER) return "near water buffer";
         if (r == ForbiddenReason.BLOCKED) {
-            return mode == Mode.PAINTING ? "blocked (paint rules/manmade/tile)" : "blocked (walk/headroom)";
+            BlockedDetail d = mode == Mode.PAINTING ? s.blockedPaintDetail : s.blockedPathDetail;
+            return "blocked:" + d;
         }
         return "none";
     }
@@ -292,6 +350,78 @@ public final class TerrainSampler {
 
     public boolean isExistingRoadXZ(int x, int z) {
         return roadIndex != null && roadIndex.isRoadXZ(x, z);
+    }
+
+    @Nullable
+    public Sample sampleIfLoaded(int x, int z) {
+        long k = key(x, z);
+        Sample cached = cache.get(k);
+        if (cached != null) return cached;
+        ChunkProviderServer cps = (ChunkProviderServer) world.getChunkProvider();
+        if (cps.getLoadedChunk(x >> 4, z >> 4) == null) return null;
+        return sample(x, z);
+    }
+
+    /**
+     * Lightweight surface check: returns a packed int (LIGHT_* constants) or LIGHT_NOT_LOADED.
+     * Only computes surfaceY, isWater, isOcean — skips all paint-blocking checks.
+     * Use this for lateral wall probes and lookahead penalties to avoid polluting the full cache.
+     */
+    public int sampleLightIfLoaded(int x, int z) {
+        long k = key(x, z);
+
+        // Promote from full cache if available (free).
+        Sample full = cache.get(k);
+        if (full != null) {
+            return (full.isOcean ? LIGHT_OCEAN_BIT : 0)
+                    | (full.isWater ? LIGHT_WATER_BIT : 0)
+                    | (full.surfaceY & LIGHT_SURFACE_MASK);
+        }
+
+        // Check light cache.
+        int lv = lightCache.get(k);
+        if (lv != LIGHT_NOT_LOADED) return lv;
+
+        // Chunk must already be loaded — never force-load for lateral probes.
+        ChunkProviderServer cps = (ChunkProviderServer) world.getChunkProvider();
+        if (cps.getLoadedChunk(x >> 4, z >> 4) == null) return LIGHT_NOT_LOADED;
+
+        // Quick surface scan: top-down, skip air/replaceable/snow/foliage — no paint sub-checks.
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(x, 0, z);
+        int topY = world.getHeight(pos).getY() - 1;
+        if (topY < 1) topY = 1;
+
+        boolean isWater = false;
+        int y = topY;
+
+        for (int i = 0; i < 256 && y > 1; i++, y--) {
+            pos.setPos(x, y, z);
+            IBlockState st = world.getBlockState(pos);
+            Material m = st.getMaterial();
+            if (m == Material.AIR) continue;
+            if (isWaterLike(st)) { isWater = true; break; }
+            if (isWaterSurfaceDecoration(st)) {
+                IBlockState below = world.getBlockState(pos.down());
+                if (isWaterLike(below)) { isWater = true; y = y - 1; break; }
+                continue;
+            }
+            if (isSkippableTop(st, pos)) continue;
+            break;
+        }
+        if (y < 1) y = 1;
+
+        boolean isOcean = false;
+        if (MPBConfig.GENERAL.forbidOcean && isWater) {
+            Biome biome = world.getBiome(pos.setPos(x, 0, z));
+            ResourceLocation biomeId = biome.getRegistryName();
+            isOcean = BiomeDictionary.hasType(biome, BiomeDictionary.Type.OCEAN)
+                    || (biomeId != null && biomeId.getPath().contains("ocean"));
+        }
+
+        int packed = (isOcean ? LIGHT_OCEAN_BIT : 0) | (isWater ? LIGHT_WATER_BIT : 0) | (y & LIGHT_SURFACE_MASK);
+        if (lightCache.size() >= MAX_LIGHT_CACHE) lightCache.clear();
+        lightCache.put(k, packed);
+        return packed;
     }
 
     @Nullable
@@ -315,6 +445,7 @@ public final class TerrainSampler {
     private Sample cachePut(long k, Sample out) {
         if (cache.size() >= MAX_SAMPLE_CACHE) {
             cache.clear();
+            lightCache.clear();
             roadDistCache.clear();
         }
         cache.put(k, out);
@@ -402,6 +533,8 @@ public final class TerrainSampler {
         Block b = st.getBlock();
         if (b.isWood(world, pos)) return false;
         if (b.isLeaves(st, world, pos)) return false;
+        // Mill/MPB path blocks are road infrastructure, not obstacles to paint around.
+        if (MPBMillPathPalette.isMillPath(b)) return false;
         return !isNaturalGround(st);
     }
 
@@ -409,12 +542,35 @@ public final class TerrainSampler {
         Material m = st.getMaterial();
         Block b = st.getBlock();
 
-        if (b.isLeaves(st, world, pos)) return true;
-        if (m == Material.PLANTS || m == Material.VINE) return true;
+        if (MPBTreeCompat.isTreeFoliageLike(world, pos, st)) return true;
         if (m.isReplaceable()) return true;
         if (b == Blocks.SNOW_LAYER) return true;
+        if (isWaterSurfaceDecoration(st)) return true;
 
-        if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks && isLikelyTreeWood(st, pos)) return true;
+        if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
+            if (MPBTreeCompat.isTreeWoodLike(world, pos, st)) return true;
+            if (isLikelyTreeWood(st, pos)) return true;
+        }
+
+        return false;
+    }
+
+    private static boolean isWaterSurfaceDecoration(IBlockState st) {
+        if (st == null) return false;
+
+        Block b = st.getBlock();
+        if (b == Blocks.WATERLILY) return true;
+
+        Material m = st.getMaterial();
+        if (m == Material.PLANTS || m == Material.VINE) {
+            ResourceLocation id = b.getRegistryName();
+            if (id != null) {
+                String s = id.toString().toLowerCase(Locale.ROOT);
+                if (s.contains("lilypad") || s.contains("lily_pad") || s.contains("waterlily") || s.contains("water_lily")) {
+                    return true;
+                }
+            }
+        }
 
         return false;
     }
@@ -466,15 +622,12 @@ public final class TerrainSampler {
         Material m = st.getMaterial();
         if (m == Material.AIR) return true;
 
-        Block b = st.getBlock();
-
-        if (b.isLeaves(st, world, pos)) return true;
-        if (m == Material.PLANTS || m == Material.VINE) return true;
+        if (MPBTreeCompat.isTreeFoliageLike(world, pos, st)) return true;
         if (m.isReplaceable()) return true;
-        if (b == Blocks.SNOW_LAYER) return true;
+        if (st.getBlock() == Blocks.SNOW_LAYER) return true;
 
         if (mode == Mode.PATHFINDING && MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
-            if (b.isWood(world, pos) || m == Material.WOOD) return true;
+            if (MPBTreeCompat.isTreeWoodLike(world, pos, st)) return true;
         }
 
         return false;
@@ -535,6 +688,13 @@ public final class TerrainSampler {
 
             if (m == Material.AIR) continue;
             if (isWaterLike(st)) return true;
+
+            if (isWaterSurfaceDecoration(st)) {
+                BlockPos below = p.down();
+                if (isWaterLike(world.getBlockState(below))) return true;
+                continue;
+            }
+
             if (isSkippableTop(st, p)) continue;
 
             break;
@@ -544,7 +704,14 @@ public final class TerrainSampler {
             int yy = yGuess + dy;
             if (yy < 1 || yy > 255) continue;
             p.setPos(x, yy, z);
-            if (isWaterLike(world.getBlockState(p))) return true;
+
+            IBlockState st = world.getBlockState(p);
+            if (isWaterLike(st)) return true;
+
+            if (isWaterSurfaceDecoration(st)) {
+                BlockPos below = p.down();
+                if (isWaterLike(world.getBlockState(below))) return true;
+            }
         }
 
         return false;

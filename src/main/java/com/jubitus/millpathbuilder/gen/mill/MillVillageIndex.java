@@ -572,7 +572,7 @@ public final class MillVillageIndex {
             // Identify gates:
             //  - planKey starts with "full_wall_gateway"
             //  - OR tags contain "borderpostsign"
-            boolean isGatewayPlan = bi.planKey != null && bi.planKey.startsWith("drfgfea");
+            boolean isGatewayPlan = bi.planKey != null && bi.planKey.startsWith("borderpost_gate");
             boolean hasBorderTag = bi.tags != null && bi.tags.contains("borderpostsign");
 
             if (isGatewayPlan) {

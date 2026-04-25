@@ -1,6 +1,7 @@
 package com.jubitus.millpathbuilder.gen;
 
 import com.jubitus.millpathbuilder.gen.mill.MPBMillPathPalette;
+import com.jubitus.millpathbuilder.gen.newp.MPBTreeCompat;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
@@ -14,6 +15,7 @@ public final class MPBGround {
     public static boolean isRoadReplaceableGround(IBlockState st) {
         if (st == null) return false;
 
+        if (MPBTreeCompat.isDynamicTreesBlock(st)) return false;
         Block b = st.getBlock();
         if (b == Blocks.AIR) return false;
 

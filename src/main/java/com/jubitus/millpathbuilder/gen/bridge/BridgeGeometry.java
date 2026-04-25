@@ -149,12 +149,80 @@ public final class BridgeGeometry {
     }
 
     public static int[] buildDeckHalfProfile(BridgeSpan span, TerrainSampler sampler) {
+        if (span == null) return new int[0];
+
+        TerrainSampler useSampler = sampler;
+        if (useSampler == null) {
+            return buildDeckHalfProfileNoWaterBonus(
+                    span.startDeckSurfaceHalfY,
+                    span.endDeckSurfaceHalfY,
+                    span.centerline
+            );
+        }
+
         return buildDeckHalfProfile(
                 span.startDeckSurfaceHalfY,
                 span.endDeckSurfaceHalfY,
                 span.centerline,
-                sampler
+                useSampler
         );
+    }
+
+    private static int[] buildDeckHalfProfileNoWaterBonus(int startHalf, int endHalf, List<BlockPos> line) {
+        int n = line.size();
+        int[] ideal = new int[n];
+
+        for (int i = 0; i < n; i++) {
+            double t = (n <= 1) ? 0.0 : ((double) i / (double) (n - 1));
+            ideal[i] = (int) Math.round((1.0 - t) * (double) startHalf + t * (double) endHalf);
+        }
+
+        int len = Math.max(0, n - 1);
+        int crown = 0;
+
+        if (len >= Math.max(2, MPBConfig.BRIDGES.bridgeCrownMinLenBlocks)) {
+            crown = Math.max(0, MPBConfig.BRIDGES.bridgeCrownHalfBlocks);
+        }
+
+        if (crown > 0 && n >= 3) {
+            for (int i = 1; i < n - 1; i++) {
+                double t = (double) i / (double) (n - 1);
+                double arch = 1.0 - Math.abs(2.0 * t - 1.0);
+                ideal[i] += (int) Math.round((double) crown * arch);
+            }
+        }
+
+        int maxStepHalf = Math.max(0, MPBConfig.BRIDGES.maxDeckDeltaHalfPerBlock);
+        if (maxStepHalf <= 0) {
+            return ideal;
+        }
+
+        int[] out = new int[n];
+        out[0] = ideal[0];
+
+        for (int i = 1; i < n; i++) {
+            int want = ideal[i];
+            int prev = out[i - 1];
+            int d = want - prev;
+
+            if (d > maxStepHalf) want = prev + maxStepHalf;
+            else if (d < -maxStepHalf) want = prev - maxStepHalf;
+
+            out[i] = want;
+        }
+
+        for (int i = n - 2; i >= 0; i--) {
+            int want = out[i];
+            int next = out[i + 1];
+            int d = want - next;
+
+            if (d > maxStepHalf) want = next + maxStepHalf;
+            else if (d < -maxStepHalf) want = next - maxStepHalf;
+
+            out[i] = want;
+        }
+
+        return out;
     }
 
     public static boolean hasMeaningfulWaterInterior(List<BlockPos> line, TerrainSampler sampler) {

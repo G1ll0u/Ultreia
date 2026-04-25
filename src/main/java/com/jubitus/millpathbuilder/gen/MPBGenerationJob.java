@@ -5,9 +5,7 @@ import com.jubitus.millpathbuilder.config.MPBConfig;
 import com.jubitus.millpathbuilder.gen.bridge.BridgeAwarePathResult;
 import com.jubitus.millpathbuilder.gen.bridge.BridgeSpan;
 import com.jubitus.millpathbuilder.gen.bridge.MPBRoadConnectionHelper;
-import com.jubitus.millpathbuilder.gen.mill.MillBuildingObstacles;
 import com.jubitus.millpathbuilder.gen.mill.MillBuildingObstacles2;
-import com.jubitus.millpathbuilder.gen.mill.MillGateRouting;
 import com.jubitus.millpathbuilder.gen.mill.MillVillageIndex;
 import com.jubitus.millpathbuilder.gen.world.MPBRoadIndexData;
 import com.jubitus.millpathbuilder.integration.MillIntegration;
@@ -144,6 +142,11 @@ public final class MPBGenerationJob implements MPBAsyncJob {
                 BlockPos a0 = MPBEndpointResolver.resolveEndpointAnchor(world, e.a, e.b, sampler, protectedAreas);
                 BlockPos b0 = MPBEndpointResolver.resolveEndpointAnchor(world, e.b, e.a, sampler, protectedAreas);
 
+                if (MPBConfig.GENERAL.printFailureBreakdown) {
+                    msg("  anchorA " + MPBEndpointResolver.debugResolveEndpointAnchor(world, e.a, e.b, sampler, protectedAreas));
+                    msg("  anchorB " + MPBEndpointResolver.debugResolveEndpointAnchor(world, e.b, e.a, sampler, protectedAreas));
+                }
+
                 anchorByXZ.put(xzKey(e.a), a0);
                 anchorByXZ.put(xzKey(e.b), b0);
 
@@ -162,7 +165,7 @@ public final class MPBGenerationJob implements MPBAsyncJob {
                 BlockPos nearA = roadIndex.findNearestRoad(a0.getX(), a0.getZ(), snapR);
                 BlockPos nearB = roadIndex.findNearestRoad(b0.getX(), b0.getZ(), snapR);
 
-// Lonebuilding rule: if lone endpoint is near an existing road, build a spur to that road instead of a long parallel edge.
+// Lone building rule: if a lone endpoint is near an existing road, build a short spur to it.
                 if (aIsLone && nearA != null && (protectedAreas == null || !protectedAreas.contains(nearA.getX(), nearA.getZ()))) {
                     BlockPos spurGoal = MPBRoadConnectionHelper.resolveSnappedApproachAnchor(
                             world, sampler, roadIndex, a0, e.b, nearA, protectedAreas
@@ -177,25 +180,9 @@ public final class MPBGenerationJob implements MPBAsyncJob {
                     if (spurGoal != null) {
                         a0 = spurGoal;
                     }
-                } else {
-                    if (nearA != null) {
-                        BlockPos approachA = MPBRoadConnectionHelper.resolveSnappedApproachAnchor(
-                                world, sampler, roadIndex, a0, e.b, nearA, protectedAreas
-                        );
-                        if (approachA != null) {
-                            a0 = approachA;
-                        }
-                    }
-
-                    if (nearB != null) {
-                        BlockPos approachB = MPBRoadConnectionHelper.resolveSnappedApproachAnchor(
-                                world, sampler, roadIndex, b0, e.a, nearB, protectedAreas
-                        );
-                        if (approachB != null) {
-                            b0 = approachB;
-                        }
-                    }
                 }
+                // Village endpoints are already resolved to their Millénaire path entry by
+                // MPBEndpointResolver — no further road-snapping needed here.
 
                 if (a0.getX() == b0.getX() && a0.getZ() == b0.getZ()) {
                     if (!dryRun) saved.markBuilt(curEdge.key());
@@ -213,6 +200,11 @@ public final class MPBGenerationJob implements MPBAsyncJob {
                 msg("Pathfinding: " + key + " (" + (edgeIndex + 1) + "/" + edges.size() + ")"
                         + " endpoints=(" + a0.getX() + "," + a0.getZ() + ")->(" + b0.getX() + "," + b0.getZ() + ")");
 
+                if (MPBConfig.GENERAL.printFailureBreakdown) {
+                    msg("  start " + AStarPathfinder.debugEndpoint(world, sampler, protectedAreas, roadIndex, a0));
+                    msg("  goal  " + AStarPathfinder.debugEndpoint(world, sampler, protectedAreas, roadIndex, b0));
+                }
+
                 curSession = astar.startSession(world, a0, b0, sampler);
             }
 
@@ -221,14 +213,17 @@ public final class MPBGenerationJob implements MPBAsyncJob {
                 if (sr == AStarPathfinder.StepResult.RUNNING) {
                     return;
                 }
-                if (sr == AStarPathfinder.StepResult.FOUND) {
+                if (sr == AStarPathfinder.StepResult.FOUND || sr == AStarPathfinder.StepResult.PARTIAL) {
                     BridgeAwarePathResult pathResult = curSession.getResult();
                     List<BlockPos> coarse = pathResult.getPath();
                     List<BridgeSpan> bridges = pathResult.getBridges();
+
+                    if (sr == AStarPathfinder.StepResult.PARTIAL) {
+                        msg("  PARTIAL: " + curSession.partialSummary());
+                    }
+
                     curSession = null;
 
-
-// If either endpoint is on an existing Mill path, we want to reach it exactly.
                     boolean allowEarlyMerge = true;
 
                     curPainter = RoadPainter.start(world, coarse, bridges, sampler, protectedAreas, roadIndex, dryRun, allowEarlyMerge);
@@ -241,6 +236,10 @@ public final class MPBGenerationJob implements MPBAsyncJob {
 
                 failed++;
                 msg("  FAILED: " + curSession.failureSummary(MPBConfig.GENERAL.printFailureBreakdown));
+                if (MPBConfig.GENERAL.printFailureBreakdown) {
+                    msg("  start " + curSession.debugStartArea());
+                    msg("  goal  " + curSession.debugGoalArea());
+                }
                 curSession = null;
                 curEdge = null;
                 edgeIndex++;

@@ -1,7 +1,10 @@
 package com.jubitus.millpathbuilder.command;
 
+import com.jubitus.millpathbuilder.Tags;
 import com.jubitus.millpathbuilder.config.MPBConfig;
 import com.jubitus.millpathbuilder.gen.*;
+import net.minecraftforge.common.config.Config;
+import net.minecraftforge.common.config.ConfigManager;
 import com.jubitus.millpathbuilder.gen.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.millpathbuilder.gen.util.MPBPos2D;
 import com.jubitus.millpathbuilder.integration.MillIntegration;
@@ -27,7 +30,8 @@ public final class CommandMillPathBuilder extends CommandBase {
             "generatecustom",
             "status",
             "reset",
-            "cancel"
+            "cancel",
+            "reloadconfig"
     );
 
     @Override
@@ -154,6 +158,12 @@ public final class CommandMillPathBuilder extends CommandBase {
         if ("cancel".equals(sub)) {
             MPBGenerationManager.cancel(world);
             sender.sendMessage(new TextComponentString("MillPathBuilder: cancelled active generation in dim " + dim));
+            return;
+        }
+
+        if ("reloadconfig".equals(sub)) {
+            ConfigManager.sync(Tags.MOD_ID, Config.Type.INSTANCE);
+            sender.sendMessage(new TextComponentString("MillPathBuilder: config reloaded from disk."));
             return;
         }
 

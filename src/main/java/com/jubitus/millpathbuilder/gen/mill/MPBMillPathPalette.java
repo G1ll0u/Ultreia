@@ -1,5 +1,6 @@
 package com.jubitus.millpathbuilder.gen.mill;
 
+import com.jubitus.millpathbuilder.gen.newp.MPBMillenairePathCompat;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.material.Material;
@@ -16,26 +17,40 @@ public final class MPBMillPathPalette {
     public enum Kind { DIRT, GRAVEL, SANDSTONE, SLABS, OCHRE, SNOW }
 
     public static IBlockState full(Kind k) {
+        IBlockState st;
         switch (k) {
-            case GRAVEL:    return MillBlocks.PATHGRAVEL.getDefaultState();
-            case SANDSTONE: return MillBlocks.PATHSANDSTONE.getDefaultState();
-            case SLABS:     return MillBlocks.PATHSLABS.getDefaultState();
-            case OCHRE:     return MillBlocks.PATHOCHRESLABS.getDefaultState();
-            case SNOW:      return MillBlocks.PATHSNOW.getDefaultState();
+            case GRAVEL:    st = MillBlocks.PATHGRAVEL.getDefaultState(); break;
+            case SANDSTONE: st = MillBlocks.PATHSANDSTONE.getDefaultState(); break;
+            case SLABS:     st = MillBlocks.PATHSLABS.getDefaultState(); break;
+            case OCHRE:     st = MillBlocks.PATHOCHRESLABS.getDefaultState(); break;
+            case SNOW:      st = MillBlocks.PATHSNOW.getDefaultState(); break;
             case DIRT:
-            default:        return MillBlocks.PATHDIRT.getDefaultState();
+            default:        st = MillBlocks.PATHDIRT.getDefaultState(); break;
         }
+        return MPBMillenairePathCompat.stabilizeIfPossible(st);
     }
 
     public static IBlockState slabBottom(Kind k) {
+        IBlockState st;
         switch (k) {
-            case GRAVEL:    return MillBlocks.PATHGRAVEL_SLAB.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
-            case SANDSTONE: return MillBlocks.PATHDIRT_SLAB.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
-            case SLABS:     return MillBlocks.PATHGRAVEL.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
-            case SNOW:      return MillBlocks.PATHSNOW_SLAB.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
+            case GRAVEL:
+                st = MillBlocks.PATHGRAVEL_SLAB.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
+                break;
+            case SANDSTONE:
+                st = MillBlocks.PATHDIRT_SLAB.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
+                break;
+            case SLABS:
+                st = MillBlocks.PATHGRAVEL.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
+                break;
+            case SNOW:
+                st = MillBlocks.PATHSNOW_SLAB.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
+                break;
             case DIRT:
-            default:        return MillBlocks.PATHDIRT_SLAB.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
+            default:
+                st = MillBlocks.PATHDIRT_SLAB.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
+                break;
         }
+        return MPBMillenairePathCompat.stabilizeIfPossible(st);
     }
 
     public static boolean isMillPath(Block b) {

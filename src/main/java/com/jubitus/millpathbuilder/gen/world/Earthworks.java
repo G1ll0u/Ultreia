@@ -38,24 +38,22 @@ public final class Earthworks {
         }
     }
 
-
     public static int gradeCell(WorldServer world, TerrainSampler sampler, int x, int z, int centerY, int dist, Settings s, boolean dryRun) {
-        int targetY = centerY;
-
         TerrainSampler.Sample sm = sampler.sample(x, z);
+        if (sm == null) return centerY;
         if (sm.isOcean || sm.isWater) return sm.surfaceY;
 
-        int surfaceY = sm.surfaceY;
-        int delta = targetY - surfaceY;
+        int naturalY = sm.surfaceY;
+        int targetY = blendedTargetY(naturalY, centerY, dist, s);
 
+        int delta = targetY - naturalY;
         if (delta > 0) {
-            if (delta > s.maxFill) return surfaceY;
-            fillUp(world, x, z, surfaceY, targetY, dryRun);
+            if (delta > s.maxFill) return naturalY;
+            if (!fillUp(world, x, z, naturalY, targetY, dryRun)) return naturalY;
         } else if (delta < 0) {
             int cut = -delta;
-            if (cut > s.maxCut) return surfaceY;
-            boolean ok = cutDown(world, x, z, surfaceY, targetY, dryRun);
-            if (!ok) return surfaceY;
+            if (cut > s.maxCut) return naturalY;
+            if (!cutDown(world, x, z, naturalY, targetY, dryRun)) return naturalY;
         }
 
         if (!dryRun) {
@@ -65,8 +63,25 @@ public final class Earthworks {
         return targetY;
     }
 
-    private static void fillUp(WorldServer world, int x, int z, int surfaceY, int targetY, boolean dryRun) {
-        if (dryRun) return;
+    private static int blendedTargetY(int naturalY, int centerY, int dist, Settings s) {
+        int fullRoad = Math.max(0, s.roadHalfWidth);
+        int shoulder = Math.max(0, s.shoulder);
+
+        if (dist <= fullRoad) {
+            return centerY;
+        }
+
+        if (shoulder <= 0 || dist >= fullRoad + shoulder) {
+            return naturalY;
+        }
+
+        double t = (double) (dist - fullRoad) / (double) shoulder;
+        double v = (1.0 - t) * (double) centerY + t * (double) naturalY;
+        return (int) Math.round(v);
+    }
+
+    private static boolean fillUp(WorldServer world, int x, int z, int surfaceY, int targetY, boolean dryRun) {
+        if (dryRun) return true;
 
         for (int y = surfaceY + 1; y <= targetY; y++) {
             BlockPos p = new BlockPos(x, y, z);
@@ -74,20 +89,19 @@ public final class Earthworks {
             Material m = st.getMaterial();
 
             if (m == Material.AIR) continue;
-            if (m.isReplaceable() || m == Material.PLANTS || m == Material.VINE) continue;
+            if (m.isReplaceable()) continue;
+            if (m == Material.PLANTS || m == Material.VINE) continue;
             if (st.getBlock().isLeaves(st, world, p) || m == Material.LEAVES) continue;
 
-            return;
+            return false;
         }
 
         for (int y = surfaceY + 1; y <= targetY; y++) {
             BlockPos p = new BlockPos(x, y, z);
-            IBlockState st = world.getBlockState(p);
-            if (st.getMaterial() != Material.AIR && !st.getMaterial().isReplaceable() && st.getMaterial() != Material.PLANTS && st.getMaterial() != Material.VINE) {
-                return;
-            }
             world.setBlockState(p, Blocks.DIRT.getDefaultState(), 2);
         }
+
+        return true;
     }
 
     private static boolean cutDown(WorldServer world, int x, int z, int surfaceY, int targetY, boolean dryRun) {
@@ -100,9 +114,7 @@ public final class Earthworks {
 
             if (m == Material.AIR) continue;
             if (m == Material.WATER) return false;
-
             if (world.getTileEntity(p) != null) return false;
-
             if (wouldCauseWaterFlow(world, p)) return false;
 
             float hardness;
@@ -117,8 +129,9 @@ public final class Earthworks {
         for (int y = surfaceY; y > targetY; y--) {
             BlockPos p = new BlockPos(x, y, z);
             IBlockState st = world.getBlockState(p);
-            if (st.getMaterial() == Material.AIR) continue;
-            world.setBlockState(p, Blocks.AIR.getDefaultState(), 2);
+            if (st.getMaterial() != Material.AIR) {
+                world.setBlockState(p, Blocks.AIR.getDefaultState(), 2);
+            }
         }
 
         BlockPos top = new BlockPos(x, targetY, z);

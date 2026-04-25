@@ -131,10 +131,14 @@ public final class MPBCustomPathGenerationJob implements MPBAsyncJob {
                     return;
                 }
 
-                if (sr == AStarPathfinder.StepResult.FOUND) {
+                if (sr == AStarPathfinder.StepResult.FOUND || sr == AStarPathfinder.StepResult.PARTIAL) {
                     BridgeAwarePathResult pathResult = curSession.getResult();
                     List<BlockPos> coarse = pathResult.getPath();
                     List<BridgeSpan> bridges = pathResult.getBridges();
+
+                    if (sr == AStarPathfinder.StepResult.PARTIAL) {
+                        msg("Manual path PARTIAL: " + curSession.partialSummary());
+                    }
 
                     curSession = null;
 

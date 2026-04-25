@@ -2,9 +2,20 @@ package com.jubitus.millpathbuilder.config;
 
 import com.jubitus.millpathbuilder.Tags;
 import net.minecraftforge.common.config.Config;
+import net.minecraftforge.common.config.ConfigManager;
+import net.minecraftforge.fml.client.event.ConfigChangedEvent;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
 @Config(modid = Tags.MOD_ID, name = "millpathbuilder/millpathbuilder")
 public class MPBConfig {
+
+    @SubscribeEvent
+    public static void onConfigChanged(ConfigChangedEvent.OnConfigChangedEvent event) {
+        if (event.getModID().equals(Tags.MOD_ID)) {
+            ConfigManager.sync(Tags.MOD_ID, Config.Type.INSTANCE);
+        }
+    }
+
 
     @Config.Name("General")
     public static final General GENERAL = new General();
@@ -43,21 +54,19 @@ public class MPBConfig {
         public boolean includeLoneBuildings = true;
 
         @Config.Comment("Treat ocean/sea as forbidden. Prevents 'roads ending at sea'.")
-        public boolean forbidOcean = true;
+        public boolean forbidOcean = false;
 
         @Config.Comment("If true, blacklisted biomes are forbidden (hard block). If false, they are just very expensive.")
-        public boolean hardBlockBlacklistedBiomes = true;
+        public boolean hardBlockBlacklistedBiomes = false;
 
         @Config.Comment("Biome registry names to avoid, e.g. minecraft:desert, minecraft:mesa, biomesoplenty:coral_reef")
         public String[] biomeBlacklist = new String[] {
                 "minecraft:ocean",
                 "minecraft:deep_ocean"
         };
-        @Config.Comment("If true, generation is spread across ticks to avoid freezing the server.")
-        public boolean incrementalGeneration = true;
 
         @Config.Comment("Time budget per server tick for generation (ms).")
-        public int tickBudgetMs = 32;
+        public int tickBudgetMs = 256;
 
         @Config.Comment("Do not paint/clear inside this radius (blocks) around Millenaire village nodes.")
         public int villageNoPaintRadius = 2;
@@ -71,12 +80,12 @@ public class MPBConfig {
         public boolean allowChunkLoading = true;
 
         @Config.Comment("Max number of chunks MPB may force-load per generation job (hard cap).")
-        public int maxForcedChunksPerJob = 2500;
+        public int maxForcedChunksPerJob = 8000;
 
         @Config.Comment("If true, unload chunks loaded by MPB after each edge. If false, unload at end of job.")
         public boolean unloadChunksAfterEachEdge = true;
 
-        public int snapToExistingRoadRadius = 48;
+        public int snapToExistingRoadRadius = 28;
     }
 
     public static class Network {
@@ -96,16 +105,22 @@ public class MPBConfig {
         public int gridStep = 4;
 
         @Config.Comment("Max iterations for A* expansions per edge.")
-        public int maxIterations = 1_200_000;
+        public int maxIterations = 800_000;
 
         @Config.Comment("Max vertical delta allowed between neighbor grid nodes.")
-        public int maxYDeltaPerStep = 3;
+        public int maxYDeltaPerStep = 1;
 
         @Config.Comment("Cost multiplier for climbing/descending.")
-        public double slopePenalty = 8.0;
+        public double slopePenalty = 14.0;
+
+        @Config.Comment("Extra cost per unit of local terrain roughness along a segment.")
+        public double surfaceRoughnessPenalty = 3.0;
+
+        @Config.Comment("Hard cap for cumulative roughness along one neighbor segment.")
+        public int maxSegmentRoughness = 3;
 
         @Config.Comment("Additional cost if stepping on water (non-ocean).")
-        public double waterPenalty = 40.0;
+        public double waterPenalty = 24.0;
 
         @Config.Comment("Additional cost if stepping in a blacklisted biome when hardBlockBlacklistedBiomes=false.")
         public double blacklistedBiomePenalty = 5000.0;
@@ -120,23 +135,90 @@ public class MPBConfig {
         public double protectedZonePenalty = 15000.0;
 
         @Config.Comment("Extra margin around the start-goal bounding box (blocks). Prevents infinite wandering.")
-        public int searchMargin = 460;
+        public int searchMargin = 230;
 
         @Config.Comment("Hard cap radius from start (blocks). 0 disables.")
         public int maxSearchRadius = 0;
 
+        @Config.Comment({
+                "Maximum half-width of the A* search corridor (blocks).",
+                "The corridor is the perpendicular distance the pathfinder can deviate from",
+                "the straight line between start and goal. A smaller value prevents the",
+                "'stadium' chunk-loading pattern and speeds up generation.",
+                "For routes > 1000 blocks, the auto-computed corridor can reach 400+;",
+                "this cap keeps it manageable. Reduce to 128-192 for flat/open terrain,",
+                "increase to 256+ if paths fail in very obstacle-heavy maps.",
+                "Default: 192."
+        })
+        @Config.RangeInt(min = 64, max = 1024)
+        public int corridorHalfWidthMax = 256;
+
+        @Config.Comment("Enable heading-aware pathfinding so uphill routes can prefer switchbacks.")
+        public boolean headingAwareSwitchbacks = false;
+
+        @Config.Comment("How many forward steps to inspect when penalizing straight uphill climbing.")
+        @Config.RangeInt(min = 1, max = 12)
+        public int straightClimbLookahead = 4;
+
+        @Config.Comment("Penalty added when continuing straight into a sustained uphill run.")
+        public double straightClimbAheadPenalty = 70.0 ;
+
+        @Config.Comment("Small penalty for turning when terrain is flat or easy.")
+        public double flatTurnPenalty = 1.5;
+
+        @Config.Comment("Bonus applied when a turn helps avoid direct uphill climbing.")
+        public double uphillTurnBonus = 18.0;
+
+        @Config.Comment("Minimum total rise within lookahead before a straight uphill is considered 'direct climb'.")
+        @Config.RangeInt(min = 1, max = 16)
+        public int uphillLookaheadMinRise = 3;
+
+        @Config.Comment("Predicted maximum cut depth pathfinding treats as normal terrain shaping on one move.")
+        @Config.RangeInt(min = 0, max = 12)
+        public int predictedMaxCutDepth = 1;
+
+        @Config.Comment("Penalty per block of predicted cut depth when a move cuts into terrain.")
+        public double predictedCutPenaltyPerBlock = 90.0;
+
+        @Config.Comment("Lateral scan radius used to detect enclosed mountain cutting.")
+        @Config.RangeInt(min = 1, max = 8)
+        public int enclosedCutScanRadius = 3;
+
+        @Config.Comment("Minimum wall height on both sides for a cell to count as enclosed cutting.")
+        @Config.RangeInt(min = 1, max = 8)
+        public int enclosedWallMinHeight = 2;
+
+        @Config.Comment("Penalty added when a move enters enclosed cutting on both sides.")
+        public double enclosedCutPenalty = 240.0;
+
+        @Config.Comment("Extra penalty per additional enclosed cell in a sustained enclosed cut run.")
+        public double sustainedEnclosedCutPenalty = 140.0;
+
+        @Config.Comment("Forward lookahead used to discourage direct enclosed mountain ascent.")
+        @Config.RangeInt(min = 1, max = 16)
+        public int mountainAscentLookahead = 4;
+
+        @Config.Comment("Penalty for continuing into a sustained enclosed uphill push.")
+        public double mountainAscentPenalty = 75.0;
+
+        @Config.Comment("If true, when the goal cannot be reached exactly, return a path to the best reached point near the goal instead of failing.")
+        public boolean allowPartialPathFallback = true;
+
+        @Config.Comment({
+                "If true, automatically increases gridStep for very long routes to limit search space.",
+                "Routes > 600 blocks use step*2, routes > 1000 blocks use step*3 (capped at 12).",
+                "Disable if you notice roads being too coarse on long segments."
+        })
+        public boolean adaptiveGridStep = true;
+
         public static boolean avoidParallelToExistingRoads = true;
 
-        // how far from an existing road we start penalizing (in blocks)
         public static int parallelRoadAvoidRadius = 32;
 
-        // scan step for approx distance (2 or 3 is good)
         public static int parallelRoadAvoidScanStep = 2;
 
-        // penalty scale
         public static double parallelRoadPenalty = 1.25;
 
-        // penalty curve power (2.0 = strong repulsion near road)
         public static double parallelRoadPenaltyPower = 2.0;
     }
 
@@ -165,8 +247,27 @@ public class MPBConfig {
         @Config.Comment("If the number of nearby water cells in scan radius is <= this, it's considered 'small water'.")
         public int smallWaterMaxCells = 22;
 
+        @Config.Comment("Smoothing radius for the road centerline height profile.")
+        @Config.RangeInt(min = 1, max = 32)
+        public int verticalSmoothRadius = 2;
 
+        @Config.Comment("Maximum height change per road block in HALF blocks. 1 = 0.5 block.")
+        @Config.RangeInt(min = 1, max = 4)
+        public int maxRoadStepHalfPerBlock = 1;
+
+        @Config.Comment("Maximum cut depth for road earthworks.")
+        @Config.RangeInt(min = 0, max = 16)
+        public int earthworksMaxCut = 2;
+
+        @Config.Comment("Maximum fill height for road earthworks.")
+        @Config.RangeInt(min = 0, max = 16)
+        public int earthworksMaxFill = 2;
+
+        @Config.Comment("Shoulder width used to taper earthworks away from the road surface.")
+        @Config.RangeInt(min = 0, max = 8)
+        public int earthworksShoulder = 2;
     }
+
     @Config.Name("Bridges")
     public static final Bridges BRIDGES = new Bridges();
 
@@ -176,7 +277,7 @@ public class MPBConfig {
     public static final class Bridges {
 
         @Config.Comment("Active bridge template name. Empty = legacy hardcoded bridge builder.")
-        public String activeTemplateName = "";
+        public String activeTemplateName = "default";
 
         @Config.Comment("Search radius in blocks for /millpathbuilder bridge create.")
         @Config.RangeInt(min = 8, max = 96)
@@ -214,7 +315,7 @@ public class MPBConfig {
 
         @Config.Comment("Hard cap for any bridge length in blocks (supercover points count).")
         @Config.RangeInt(min = 8, max = 1024)
-        public int maxBridgeLenBlocks = 180;
+        public int maxBridgeLenBlocks = 128;
 
         @Config.Comment("Place supports every N blocks (only for full bridges, not micro-bridges).")
         @Config.RangeInt(min = 2, max = 32)
@@ -222,15 +323,15 @@ public class MPBConfig {
 
         @Config.Comment("Max vertical distance supports may extend down before giving up.")
         @Config.RangeInt(min = 8, max = 128)
-        public int maxSupportDepth = 96;
+        public int maxSupportDepth = 128;
 
         @Config.Comment("Max total deltaY allowed between bridge start and end deck height.")
         @Config.RangeInt(min = 0, max = 16)
-        public int maxBridgeDeltaY = 4;
+        public int maxBridgeDeltaY = 8;
 
         @Config.Comment("Number of consecutive safe blocks required to accept a bridge exit. Prevents over-long bridges.")
         @Config.RangeInt(min = 1, max = 8)
-        public int exitStableBlocks = 3;
+        public int exitStableBlocks = 2;
 
         @Config.Comment("Max blocks allowed after the last obstacle before ending the bridge. Prevents overhang.")
         @Config.RangeInt(min = 0, max = 8)
@@ -242,7 +343,7 @@ public class MPBConfig {
 
         @Config.Comment("How many blocks after a bridge exit we check to ensure the road does not immediately climb.")
         @Config.RangeInt(min = 0, max = 12)
-        public int exitLookaheadBlocks = 4;
+        public int exitLookaheadBlocks = 3;
 
         @Config.Comment("Max allowed rise (in blocks) within exitLookaheadBlocks after the exit. 0 = must be flat.")
         @Config.RangeInt(min = 0, max = 8)
@@ -250,7 +351,7 @@ public class MPBConfig {
 
         @Config.Comment("Extra lift applied near the middle of bridges, in HALF blocks. 0 = disabled.")
         @Config.RangeInt(min = 0, max = 12)
-        public int bridgeCrownHalfBlocks = 4;
+        public int bridgeCrownHalfBlocks = 0;
 
         @Config.Comment("Only apply crown lift on bridges at least this long.")
         @Config.RangeInt(min = 2, max = 512)
@@ -267,7 +368,7 @@ public class MPBConfig {
 
         @Config.Comment("Max lookahead distance (blocks) to search for a valid exit point for a straight bridge.")
         @Config.RangeInt(min = 16, max = 512)
-        public int maxLookahead = 160;
+        public int maxLookahead = 128;
 
         @Config.Comment("Minimum straight bridge length (blocks) to consider valley bridging (avoids spam).")
         @Config.RangeInt(min = 8, max = 128)
@@ -296,30 +397,30 @@ public class MPBConfig {
         public boolean enabled = true;
 
         // Extra padding added around each Millenaire BuildingLocation footprint (blocks).
-        public int footprintPadding = 3;
+        public int footprintPadding = 1;
 
         // Also add a soft penalty ring around footprints (helps A* prefer going around).
         public boolean addPenaltyRing = true;
 
         // Radius of the penalty ring outside the hard no-paint footprint (blocks).
-        public int penaltyRingRadius = 6;
+        public int penaltyRingRadius = 1;
 
         // Cost added by the penalty ring (PATHFINDING extra cost).
         public double penaltyRingCost = 15000.0;
 
         // If true: PATHFINDING treats no-paint building zones as forbidden.
         // If false: only penalty applies (and painting still blocks).
-        public boolean hardBlockInPathfinding = true;
+        public boolean hardBlockInPathfinding = false;
 
         // If true, allow pathfinding to go through a building zone ONLY if a Millenaire path column already exists.
-        public boolean allowExistingRoadThroughBuildings = false;
+        public boolean allowExistingRoadThroughBuildings = true;
 
         // Optional additional guard: skip painting if the column "looks like a building" (manmade solids / tiles nearby),
         // even if the zone index missed it. Useful for edge cases/courtyards.
         public boolean extraPaintingGuard = true;
 
         // Radius for the extra painting guard scan (Manhattan-ish square).
-        public int extraPaintingGuardRadius = 2;
+        public int extraPaintingGuardRadius = 1;
     }
 
     public static class BridgeGeometry {
@@ -337,36 +438,63 @@ public class MPBConfig {
 
         @Config.Comment("Do not apply road earthworks this many cells before/after a bridge join.")
         @Config.RangeInt(min = 0, max = 8)
-        public int bridgeJoinProtectionBlocks = 2;
+        public int bridgeJoinProtectionBlocks = 0;
 
         @Config.Comment("Minimum bridge length in blocks for A* bridge moves.")
         @Config.RangeInt(min = 2, max = 512)
-        public int minBridgeLenBlocks = 10;
+        public int minBridgeLenBlocks = 8;
 
         @Config.Comment("Maximum bridge probe length in blocks for A* bridge moves.")
         @Config.RangeInt(min = 8, max = 512)
-        public int maxProbeLenBlocks = 180;
+        public int maxProbeLenBlocks = 128;
 
         @Config.Comment("Probe step in blocks when searching bridge landing points.")
         @Config.RangeInt(min = 1, max = 32)
         public int probeLenStepBlocks = 4;
+
+        @Config.Comment("Extra penalty applied to water-dominant bridge moves before justification discounts.")
+        public double waterBridgeBasePenalty = 128.0;
+
+        @Config.Comment("If the longest interior water run is shorter than this, strongly discourage the bridge.")
+        @Config.RangeInt(min = 1, max = 128)
+        public int waterBridgePreferAvoidBelowRun = 10;
+
+        @Config.Comment("If the longest interior water run is at least this, water bridging starts becoming justified.")
+        @Config.RangeInt(min = 2, max = 256)
+        public int waterBridgeJustifiedRun = 8;
+
+        @Config.Comment("Penalty added per missing block when interior water run is below waterBridgePreferAvoidBelowRun.")
+        public double waterBridgeShortRunPenaltyPerBlock = 32.0;
+
+        @Config.Comment("Discount applied per block when interior water run exceeds waterBridgeJustifiedRun.")
+        public double waterBridgeLongRunDiscountPerBlock = 11.0;
+
+        @Config.Comment("Maximum total discount allowed for a strongly justified water bridge.")
+        public double waterBridgeMaxDiscount = 180.0;
+
+        @Config.Comment("Extra penalty if a water bridge has weak water dominance and looks avoidable.")
+        public double waterBridgeWeakDominancePenalty = 120.0;
+
+        @Config.Comment("Minimum percentage of interior cells that should be water before a water bridge is considered strongly justified.")
+        @Config.RangeInt(min = 0, max = 100)
+        public int waterBridgeStrongDominancePercent = 65;
 
         @Config.Comment("Max accepted bridge candidates per expanded A* node.")
         @Config.RangeInt(min = 1, max = 32)
         public int maxBridgeCandidatesPerNode = 4;
 
         @Config.Comment("Fixed extra cost added to every bridge move.")
-        public double bridgeFixedCost = 280.0;
+        public double bridgeFixedCost = 230;
 
         @Config.Comment("Multiplier applied to bridge geometric length cost.")
         public double bridgeLengthCostMultiplier = 1.10;
 
         @Config.Comment("Bonus per block of valley depth. Higher = more valley bridges.")
-        public double bridgeValleyPreferenceBonusPerBlock = 1.25;
+        public double bridgeValleyPreferenceBonusPerBlock = 1.23;
 
         @Config.Comment("Minimum number of normal path blocks between two bridges.")
         @Config.RangeInt(min = 0, max = 512)
-        public int minDistanceBetweenBridgesBlocks = 48;
+        public int minDistanceBetweenBridgesBlocks = 28;
 
         @Config.Comment("Minimum air/gap wanted below bridge deck on interior cells.")
         @Config.RangeInt(min = 1, max = 16)
@@ -374,7 +502,7 @@ public class MPBConfig {
 
         @Config.Comment("Minimum consecutive interior cells that really benefit from a bridge.")
         @Config.RangeInt(min = 1, max = 128)
-        public int minMeaningfulGapRun = 4;
+        public int minMeaningfulGapRun = 5;
 
         @Config.Comment("Clearance above bridge deck checked during feasibility.")
         @Config.RangeInt(min = 2, max = 8)
@@ -384,23 +512,23 @@ public class MPBConfig {
         public boolean requireAlignedApproach = true;
 
         @Config.Comment("Minimum normalized dot product between incoming direction and bridge direction.")
-        public double minApproachDot = 0.15;
+        public double minApproachDot = 0.55;
 
         @Config.Comment("No bridge start/end within this radius of a village.")
         @Config.RangeInt(min = 0, max = 128)
-        public int endpointVillageRadius = 100;
+        public int endpointVillageRadius = 10;
 
         @Config.Comment("No bridge start/end within this radius of a lone building.")
         @Config.RangeInt(min = 0, max = 128)
-        public int endpointLoneBuildingRadius = 100;
+        public int endpointLoneBuildingRadius = 10;
 
         @Config.Comment("Bridge centerline must not pass within this radius of a village.")
         @Config.RangeInt(min = 0, max = 128)
-        public int crossVillageRadius = 100;
+        public int crossVillageRadius = 10;
 
         @Config.Comment("Bridge centerline must not pass within this radius of a lone building.")
         @Config.RangeInt(min = 0, max = 128)
-        public int crossLoneBuildingRadius = 100;
+        public int crossLoneBuildingRadius = 10;
 
         @Config.Comment("Minimum clearance below bridge deck for water cells. 1 allows normal river bridges when bank and water are at the same Y.")
         @Config.RangeInt(min = 1, max = 16)
@@ -422,26 +550,26 @@ public class MPBConfig {
         public boolean disableLegacyBridgePlannerFallback = true;
         @Config.Comment("Require this many buildable blocks straight ahead after bridge exit.")
         @Config.RangeInt(min = 1, max = 16)
-        public int requiredExitCorridorBlocks = 4;
+        public int requiredExitCorridorBlocks = 1;
 
         @Config.Comment("Require this many forward-aligned blocks after bridge exit.")
         @Config.RangeInt(min = 1, max = 16)
-        public int requiredForwardExitBlocks = 3;
+        public int requiredForwardExitBlocks = 1;
 
         @Config.Comment("Force-paint this many blocks after bridge exit to secure road continuation.")
         @Config.RangeInt(min = 0, max = 16)
-        public int forcePaintExitBlocks = 4;
+        public int forcePaintExitBlocks = 2;
 
         @Config.Comment("Minimum consecutive interior water cells required before a water crossing counts as a real bridge candidate.")
         @Config.RangeInt(min = 1, max = 128)
-        public int minWaterRunBlocks = 2;
+        public int minWaterRunBlocks = 4;
         @Config.Comment("For water bridges, max dry interior cells allowed before the first real water run.")
         @Config.RangeInt(min = 0, max = 64)
-        public int maxWaterBridgeLeadInBlocks = 2;
+        public int maxWaterBridgeLeadInBlocks = 6;
 
         @Config.Comment("For water bridges, max dry interior cells allowed after the last real water run.")
         @Config.RangeInt(min = 0, max = 64)
-        public int maxWaterBridgeLeadOutBlocks = 2;
+        public int maxWaterBridgeLeadOutBlocks = 6;
 
         @Config.Comment("Extra side clearance checked around bridge centerline during feasibility. 0 = centerline only.")
         @Config.RangeInt(min = 0, max = 8)
@@ -449,11 +577,11 @@ public class MPBConfig {
 
         @Config.Comment("When snapping to an existing road, keep at least this many land blocks before merging into it.")
         @Config.RangeInt(min = 1, max = 32)
-        public int bridgeRoadApproachMinBlocks = 4;
+        public int bridgeRoadApproachMinBlocks = 8;
 
         @Config.Comment("Maximum search radius around a snapped road to find a small natural land approach before the road.")
         @Config.RangeInt(min = 1, max = 48)
-        public int bridgeRoadApproachMaxBlocks = 10;
+        public int bridgeRoadApproachMaxBlocks = 8;
 
         @Config.Comment("Maximum allowed vertical difference with an existing road when merging, in HALF blocks. 1 = 0.5 block.")
         @Config.RangeInt(min = 0, max = 8)
@@ -461,7 +589,7 @@ public class MPBConfig {
 
         @Config.Comment("Do not early-merge into an existing road until at least this many blocks after a bridge exit.")
         @Config.RangeInt(min = 0, max = 64)
-        public int minBlocksAfterBridgeBeforeMerge = 6;
+        public int minBlocksAfterBridgeBeforeMerge = 8;
         @Config.Comment("Minimum terrain clearance required for a bridge cell to count as genuinely elevated.")
 
         @Config.RangeInt(min = 1, max = 32)
@@ -469,7 +597,7 @@ public class MPBConfig {
 
         @Config.Comment("Minimum water clearance required for a bridge cell to count as genuinely elevated above water.")
         @Config.RangeInt(min = 1, max = 32)
-        public int meaningfulWaterClearanceBlocks = 2;
+        public int meaningfulWaterClearanceBlocks = 1;
 
         @Config.Comment("Minimum percentage of interior bridge cells that must have meaningful clearance. 0..100.")
         @Config.RangeInt(min = 0, max = 100)
@@ -490,6 +618,17 @@ public class MPBConfig {
         @Config.Comment("Minimum full air blocks required between an existing road below and the bridge deck underside.")
         @Config.RangeInt(min = 0, max = 8)
         public int underBridgeRoadMinClearanceBlocks = 2;
+
+        @Config.Comment("Minimum number of land blocks on each bridge side that must be connectable with strict 0.5-block road steps.")
+        @Config.RangeInt(min = 1, max = 32)
+        public int bridgeApproachRampBlocks = 3;
+
+    }
+
+    @Config.Name("Debug")
+    public static final Debug DEBUG = new Debug();
+
+    public static final class Debug {
 
     }
 }
