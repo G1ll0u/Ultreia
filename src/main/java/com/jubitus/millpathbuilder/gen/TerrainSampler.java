@@ -73,12 +73,15 @@ public class TerrainSampler {
         public final Biome biome;
         public final boolean smallWater;
         public final boolean nearWaterLike;
+        /** True when a tree trunk/branch is present at surfaceY+1 or surfaceY+2. */
+        public final boolean hasTreeTrunk;
 
         public final BlockedDetail blockedPathDetail;
         public final BlockedDetail blockedPaintDetail;
 
         public Sample(int x, int z, int surfaceY, boolean isWater, boolean isOcean, boolean isBlacklisted,
                       boolean blockedPath, boolean blockedPaint, boolean smallWater, boolean nearWaterLike,
+                      boolean hasTreeTrunk,
                       BlockedDetail blockedPathDetail, BlockedDetail blockedPaintDetail, Biome biome) {
             this.x = x;
             this.z = z;
@@ -90,6 +93,7 @@ public class TerrainSampler {
             this.blockedPaint = blockedPaint;
             this.smallWater = smallWater;
             this.nearWaterLike = nearWaterLike;
+            this.hasTreeTrunk = hasTreeTrunk;
             this.blockedPathDetail = blockedPathDetail;
             this.blockedPaintDetail = blockedPaintDetail;
             this.biome = biome;
@@ -166,12 +170,12 @@ public class TerrainSampler {
         if (!world.isBlockLoaded(pos)) {
             if (MPBConfig.GENERAL.allowChunkLoading && chunkManager != null) {
                 if (!chunkManager.ensureLoaded(world, x, z)) {
-                    Sample out = new Sample(x, z, 1, false, false, false, true, true, false, false,
+                    Sample out = new Sample(x, z, 1, false, false, false, true, true, false, false, false,
                             BlockedDetail.NON_WALKABLE_GROUND, BlockedDetail.NON_PAINTABLE_GROUND, world.getBiome(pos));
                     return cachePut(k, out);
                 }
             } else {
-                Sample out = new Sample(x, z, 1, false, false, false, true, true, false, false,
+                Sample out = new Sample(x, z, 1, false, false, false, true, true, false, false, false,
                         BlockedDetail.NON_WALKABLE_GROUND, BlockedDetail.NON_PAINTABLE_GROUND, world.getBiome(pos));
                 return cachePut(k, out);
             }
@@ -302,8 +306,21 @@ public class TerrainSampler {
             nearWaterLike = hasWaterLikeInManhattanRadius(x, z, surfaceY, r);
         }
 
+        boolean hasTreeTrunk = false;
+        if (!isWater && MPBConfig.PAINTING.clearTrees) {
+            BlockPos.MutableBlockPos tp = new BlockPos.MutableBlockPos();
+            for (int dy = 1; dy <= 2; dy++) {
+                tp.setPos(x, surfaceY + dy, z);
+                IBlockState tst = world.getBlockState(tp);
+                if (tst != null && (MPBTreeCompat.isTreeWoodLike(world, tp, tst) || isLikelyTreeWood(tst, tp))) {
+                    hasTreeTrunk = true;
+                    break;
+                }
+            }
+        }
+
         Sample out = new Sample(x, z, surfaceY, isWater, isOcean, isBlacklisted,
-                blockedPath, blockedPaint, smallWater, nearWaterLike,
+                blockedPath, blockedPaint, smallWater, nearWaterLike, hasTreeTrunk,
                 blockedPathDetail, blockedPaintDetail, biome);
         return cachePut(k, out);
     }
@@ -499,6 +516,9 @@ public class TerrainSampler {
             int r = Math.max(1, MPBConfig.WATER_AVOID.bufferRadius);
             cost += 35.0 * (double) r;
         }
+        if (mode == Mode.PATHFINDING && s.hasTreeTrunk && MPBConfig.PAINTING.clearTrees) {
+            cost += MPBConfig.PATHFINDING.treePenalty;
+        }
         return cost;
     }
 
@@ -544,6 +564,7 @@ public class TerrainSampler {
 
         if (MPBTreeCompat.isTreeFoliageLike(world, pos, st)) return true;
         if (m.isReplaceable()) return true;
+        if (b.isReplaceable(world, pos)) return true;
         if (b == Blocks.SNOW_LAYER) return true;
         if (isWaterSurfaceDecoration(st)) return true;
 
@@ -620,11 +641,13 @@ public class TerrainSampler {
 
     private boolean isClearableOrAir(IBlockState st, BlockPos pos, Mode mode) {
         Material m = st.getMaterial();
+        Block b = st.getBlock();
         if (m == Material.AIR) return true;
 
         if (MPBTreeCompat.isTreeFoliageLike(world, pos, st)) return true;
         if (m.isReplaceable()) return true;
-        if (st.getBlock() == Blocks.SNOW_LAYER) return true;
+        if (b.isReplaceable(world, pos)) return true;
+        if (b == Blocks.SNOW_LAYER) return true;
 
         if (mode == Mode.PATHFINDING && MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
             if (MPBTreeCompat.isTreeWoodLike(world, pos, st)) return true;

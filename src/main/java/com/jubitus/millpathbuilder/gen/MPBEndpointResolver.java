@@ -41,17 +41,17 @@ public final class MPBEndpointResolver {
             // Rule 1: connect to the outermost Mill-path floor block at a gate facing the other village.
             // Gate Mill-path blocks are searched ignoring noPaint zones (gate floor IS Mill path by design).
             // The Y coordinate is the actual path floor, not the terrain surface.
-            BlockPos gateEntry = findGateMillPathEntry(world, sampler, nodeCenter, otherNodeCenter, 96, 12);
+            BlockPos gateEntry = findGateMillPathEntry(world, sampler, nodeCenter, otherNodeCenter, 120, 12);
             if (gateEntry != null) return gateEntry;
 
             // Rule 2: outermost Mill-path block facing other village, outside noPaint zones.
             // Also uses actual Mill-path Y (not terrain surface Y).
-            BlockPos millEntry = findOutermostMillPathToward(world, sampler, nodeCenter, otherNodeCenter, 72, protectedAreas);
+            BlockPos millEntry = findOutermostMillPathToward(world, sampler, nodeCenter, otherNodeCenter, 120, protectedAreas);
             if (millEntry != null) return millEntry;
 
             // Rule 3: approach point just outside building noPaint zones
             BlockPos approx = stepToward(nodeCenter, otherNodeCenter, Math.max(8, protectR + 6));
-            BlockPos anchor = MPBGenerationJob.findAnchor(world, approx, sampler, 24);
+            BlockPos anchor = MPBGenerationJob.findAnchor(world, approx, sampler, 120);
             if (protectedAreas == null || !protectedAreas.contains(anchor.getX(), anchor.getZ())) {
                 return anchor;
             }

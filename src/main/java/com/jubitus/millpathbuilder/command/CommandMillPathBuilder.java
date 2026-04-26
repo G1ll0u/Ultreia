@@ -177,7 +177,7 @@ public final class CommandMillPathBuilder extends CommandBase {
         }
         if (args.length >= 2 && "bridge".equals(args[0].toLowerCase(Locale.ROOT))) {
             if (args.length == 2) {
-                return getListOfStringsMatchingLastWord(args, Arrays.asList("create", "set", "export", "import"));
+                return getListOfStringsMatchingLastWord(args, Arrays.asList("create", "set", "export", "import", "reloadconfig"));
             }
 
             if (args.length == 3) {

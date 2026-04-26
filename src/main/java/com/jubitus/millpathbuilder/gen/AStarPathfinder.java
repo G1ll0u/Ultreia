@@ -99,6 +99,9 @@ public final class AStarPathfinder {
 
         private int it = 0;
         private int maxIt;
+        private long sessionStartNs = System.nanoTime();
+        private long lastProgressLogNs = 0;
+        private int profileRejectionCount = 0;
 
         private boolean failed = false;
         private String failReason = "unknown";
@@ -299,6 +302,32 @@ public final class AStarPathfinder {
             if (failed) return StepResult.FAILED;
 
             if (!reconstructing) {
+                long nowNs = System.nanoTime();
+
+                // Wall-clock timeout guard — prevents infinite-seeming hangs on impossible terrain.
+                int maxWallSec = Math.max(30, MPBConfig.PATHFINDING.maxWallTimeSeconds);
+                if (nowNs - sessionStartNs > (long) maxWallSec * 1_000_000_000L) {
+                    if (beginPartialReconstruction("wall-clock timeout (" + maxWallSec + "s)")) {
+                        return StepResult.RUNNING;
+                    }
+                    failed = true;
+                    failReason = "wall-clock timeout (" + maxWallSec + "s)";
+                    flushBridgeDebugSummary();
+                    return StepResult.FAILED;
+                }
+
+                // Periodic progress log so the user can see A* is still alive.
+                if (MPBConfig.GENERAL.printFailureBreakdown
+                        && nowNs - lastProgressLogNs > 10_000_000_000L) {
+                    lastProgressLogNs = nowNs;
+                    long elapsedSec = (nowNs - sessionStartNs) / 1_000_000_000L;
+                    MillPathBuilderMod.LOGGER.info(
+                            "[MPB A*] still running: it={} closed={} open={} best_dist={} elapsed={}s",
+                            it, closed.size(), open.size(),
+                            Double.isFinite(bestApproxHeuristic) ? (int) bestApproxHeuristic : -1,
+                            elapsedSec);
+                }
+
                 while (!open.isEmpty() && it < maxIt && System.nanoTime() < deadlineNs) {
                     it++;
                     Node cur = open.poll();
@@ -400,6 +429,7 @@ public final class AStarPathfinder {
 
                         if (!fullProfileOk) {
                             long badState = foundState;
+                            profileRejectionCount++;
 
                             reconstructing = false;
                             foundState = Long.MIN_VALUE;
@@ -413,15 +443,19 @@ public final class AStarPathfinder {
                                     Collections.<BridgeSpan>emptyList()
                             );
 
-                            if (open.isEmpty()) {
-                                if (beginPartialReconstruction("open exhausted after rejecting non-feasible final road profile")) {
-                                    return StepResult.RUNNING;
-                                }
+                            // Guard: after too many profile rejections, stop retrying.
+                            // beginPartialReconstruction inside the reconstruction block would
+                            // create an infinite silent loop (progress log is in !reconstructing).
+                            if (profileRejectionCount >= 24) {
                                 failed = true;
-                                failReason = "open exhausted after rejecting non-feasible final road profile";
+                                failReason = "non-feasible road profile after " + profileRejectionCount + " attempts";
+                                flushBridgeDebugSummary();
                                 return StepResult.FAILED;
                             }
 
+                            // Return RUNNING without calling beginPartialReconstruction here.
+                            // The next advance() enters !reconstructing, fires the progress log,
+                            // and handles "open exhausted" through the normal path.
                             return StepResult.RUNNING;
                         }
                     }

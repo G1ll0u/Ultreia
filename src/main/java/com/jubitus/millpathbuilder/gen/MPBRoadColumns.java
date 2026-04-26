@@ -91,10 +91,11 @@ public final class MPBRoadColumns {
         if (m == Material.AIR) return false;
         if (b == Blocks.SNOW_LAYER) return true;
         if (m.isReplaceable()) return true;
+        if (b.isReplaceable(world, pos)) return true;
         if (MPBTreeCompat.isTreeFoliageLike(world, pos, st)) return true;
 
         if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
-            if (MPBTreeCompat.isDynamicTreesBlock(st)) return true;
+            if (MPBTreeCompat.isTreeWoodLike(world, pos, st)) return true;
         }
 
         return false;

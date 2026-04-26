@@ -107,6 +107,10 @@ public class MPBConfig {
         @Config.Comment("Max iterations for A* expansions per edge.")
         public int maxIterations = 800_000;
 
+        @Config.Comment("Wall-clock timeout in seconds per path. A* gives up and uses best partial path after this time. Default 90s.")
+        @Config.RangeInt(min = 10, max = 600)
+        public int maxWallTimeSeconds = 90;
+
         @Config.Comment("Max vertical delta allowed between neighbor grid nodes.")
         public int maxYDeltaPerStep = 1;
 
@@ -121,6 +125,13 @@ public class MPBConfig {
 
         @Config.Comment("Additional cost if stepping on water (non-ocean).")
         public double waterPenalty = 24.0;
+
+        @Config.Comment({
+                "Extra cost when a tree trunk/branch is in the headroom above a grid cell.",
+                "Makes the pathfinder prefer routes that go around forests.",
+                "Only applied when clearTrees=true. Set to 0 to disable tree avoidance."
+        })
+        public double treePenalty = 90.0;
 
         @Config.Comment("Additional cost if stepping in a blacklisted biome when hardBlockBlacklistedBiomes=false.")
         public double blacklistedBiomePenalty = 5000.0;
@@ -202,7 +213,7 @@ public class MPBConfig {
         public double mountainAscentPenalty = 75.0;
 
         @Config.Comment("If true, when the goal cannot be reached exactly, return a path to the best reached point near the goal instead of failing.")
-        public boolean allowPartialPathFallback = true;
+        public boolean allowPartialPathFallback = false;
 
         @Config.Comment({
                 "If true, automatically increases gridStep for very long routes to limit search space.",
