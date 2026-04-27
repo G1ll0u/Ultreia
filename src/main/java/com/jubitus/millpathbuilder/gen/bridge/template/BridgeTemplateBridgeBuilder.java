@@ -54,7 +54,8 @@ public final class BridgeTemplateBridgeBuilder {
         int maxLen = Math.max(8, MPBConfig.BRIDGES.maxBridgeLenBlocks);
         if (len > maxLen) return false;
 
-        int[] deckHalfY = BridgeGeometry.buildDeckHalfProfile(span, sampler);
+        int[] deckHalfY = BridgeGeometry.buildDeckHalfProfile(span, sampler,
+                template.bridgeCrownHalfBlocks, template.bridgeCrownMinLenBlocks);
         LongOpenHashSet deckXZ = new LongOpenHashSet(Math.max(128, span.centerline.size() * 8));
 
         IBlockState deckBaseState = template.deckSlab.toState();
@@ -149,7 +150,9 @@ public final class BridgeTemplateBridgeBuilder {
             }
         }
 
-        int maxSupportDepth = Math.max(8, MPBConfig.BRIDGES.maxSupportDepth);
+        int maxSupportDepth = template.maxSupportDepth != null
+                ? Math.max(1, template.maxSupportDepth)
+                : Math.max(8, MPBConfig.BRIDGES.maxSupportDepth);
         for (long xz : supportStarts.keySet()) {
             int x = MPBPos2D.xFromKey(xz);
             int z = MPBPos2D.zFromKey(xz);

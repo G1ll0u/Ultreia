@@ -11,6 +11,7 @@ public final class BridgeTemplateIO {
     private static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
             .disableHtmlEscaping()
+            .serializeNulls()
             .create();
 
     private BridgeTemplateIO() {

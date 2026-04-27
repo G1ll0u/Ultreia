@@ -3,6 +3,7 @@ package com.jubitus.millpathbuilder.gen;
 import com.jubitus.millpathbuilder.config.MPBConfig;
 import com.jubitus.millpathbuilder.gen.bridge.BridgeAwarePathResult;
 import com.jubitus.millpathbuilder.gen.bridge.BridgeSpan;
+import com.jubitus.millpathbuilder.gen.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.millpathbuilder.gen.util.MPBPos2D;
 import com.jubitus.millpathbuilder.gen.world.MPBRoadIndexData;
 import net.minecraft.command.ICommandSender;
@@ -46,6 +47,7 @@ public final class MPBCustomPathGenerationJob implements MPBAsyncJob {
         this.requestedStart = start;
         this.requestedGoal = goal;
 
+        BridgeTemplateRegistry.invalidateTemplateCache();
         this.chunkManager = new MPBChunkManager(MPBConfig.GENERAL.maxForcedChunksPerJob);
 
         this.sampler = new TerrainSampler(world);

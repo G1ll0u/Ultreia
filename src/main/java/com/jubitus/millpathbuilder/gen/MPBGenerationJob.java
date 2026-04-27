@@ -5,6 +5,7 @@ import com.jubitus.millpathbuilder.config.MPBConfig;
 import com.jubitus.millpathbuilder.gen.bridge.BridgeAwarePathResult;
 import com.jubitus.millpathbuilder.gen.bridge.BridgeSpan;
 import com.jubitus.millpathbuilder.gen.bridge.MPBRoadConnectionHelper;
+import com.jubitus.millpathbuilder.gen.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.millpathbuilder.gen.mill.MillBuildingObstacles2;
 import com.jubitus.millpathbuilder.gen.mill.MillVillageIndex;
 import com.jubitus.millpathbuilder.gen.world.MPBRoadIndexData;
@@ -58,6 +59,7 @@ public final class MPBGenerationJob implements MPBAsyncJob {
         this.force = force;
         this.dryRun = dryRun;
 
+        BridgeTemplateRegistry.invalidateTemplateCache();
         this.chunkManager = new MPBChunkManager(MPBConfig.GENERAL.maxForcedChunksPerJob);
 
         this.sampler = new TerrainSampler(world);

@@ -351,7 +351,7 @@ public final class BridgeFeasibility {
             return fail("exitCorridorIsBuildable failed");
         }
 
-        return ok(new BridgeSpan(start, end, line, startHalf, endHalf, micro));
+        return ok(new BridgeSpan(start, end, line, startHalf, endHalf, micro, waterDominant, validWaterBridge));
     }
 
     private static final class TrimmedBridgeCandidate {

@@ -99,7 +99,7 @@ public final class BridgeDebugExporter {
     }
 
     public static ExportResult exportNearestBridge(WorldServer world, BlockPos origin) {
-        BridgeTemplate active = BridgeTemplateRegistry.getActiveTemplate();
+        BridgeTemplate active = BridgeTemplateRegistry.getDefaultTemplate();
         MPBBlockStateRef required = active != null ? active.deckSlab : null;
 
         BridgeTemplateDetector.DetectedDeck deck = BridgeTemplateDetector.findNearestMatchingDeck(
@@ -111,7 +111,7 @@ public final class BridgeDebugExporter {
         );
 
         DebugFile out = new DebugFile();
-        out.activeTemplate = MPBConfig.BRIDGES.activeTemplateName == null ? "" : MPBConfig.BRIDGES.activeTemplateName.trim();
+        out.activeTemplate = MPBConfig.BRIDGES.defaultTemplateName == null ? "" : MPBConfig.BRIDGES.defaultTemplateName.trim();
 
         if (deck != null) {
             out.mode = "deck_component";

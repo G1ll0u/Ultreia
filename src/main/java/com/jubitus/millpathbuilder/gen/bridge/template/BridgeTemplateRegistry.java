@@ -17,8 +17,9 @@ import java.util.List;
 
 public final class BridgeTemplateRegistry {
 
-    private BridgeTemplateRegistry() {
-    }
+    private static volatile List<BridgeTemplate> cachedTemplates = null;
+
+    private BridgeTemplateRegistry() {}
 
     public static File getBridgeDir() {
         return new File(Loader.instance().getConfigDir(), "millpathbuilder/bridges");
@@ -44,6 +45,24 @@ public final class BridgeTemplateRegistry {
         if (template == null) throw new IOException("template is null");
         template.name = sanitizeName(template.name);
         BridgeTemplateIO.save(getTemplateFile(template.name), template);
+        invalidateTemplateCache();
+    }
+
+    public static void invalidateTemplateCache() {
+        cachedTemplates = null;
+    }
+
+    /** Returns all templates from disk, using an in-memory cache. */
+    public static List<BridgeTemplate> loadAllTemplates() {
+        if (cachedTemplates != null) return cachedTemplates;
+
+        List<BridgeTemplate> out = new ArrayList<BridgeTemplate>();
+        for (String name : listTemplateNames()) {
+            BridgeTemplate t = loadTemplate(name);
+            if (t != null) out.add(t);
+        }
+        cachedTemplates = Collections.unmodifiableList(out);
+        return cachedTemplates;
     }
 
     @Nullable
@@ -66,18 +85,18 @@ public final class BridgeTemplateRegistry {
     }
 
     @Nullable
-    public static BridgeTemplate getActiveTemplate() {
-        String name = MPBConfig.BRIDGES.activeTemplateName;
+    public static BridgeTemplate getDefaultTemplate() {
+        String name = MPBConfig.BRIDGES.defaultTemplateName;
         if (name == null || name.trim().isEmpty()) return null;
         return loadTemplate(name);
     }
 
-    public static boolean setActiveTemplate(String rawName) {
+    public static boolean setDefaultTemplate(String rawName) {
         String name = sanitizeName(rawName);
         if (name.isEmpty()) return false;
         if (!getTemplateFile(name).isFile()) return false;
 
-        MPBConfig.BRIDGES.activeTemplateName = name;
+        MPBConfig.BRIDGES.defaultTemplateName = name;
         ConfigManager.sync(Tags.MOD_ID, Config.Type.INSTANCE);
         return true;
     }

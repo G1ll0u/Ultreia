@@ -17,15 +17,22 @@ public final class BridgeSpan {
     public final int endDeckSurfaceHalfY;
 
     public final boolean micro;
+    /** True when water cells dominate the interior (water > 1/3 total AND water >= dry-gap cells). */
+    public final boolean waterDominant;
+    /** True when the bridge has at least minWaterRunBlocks consecutive interior water cells. */
+    public final boolean hasWaterCrossing;
 
     public BridgeSpan(BlockPos start, BlockPos end, List<BlockPos> centerline,
-                      int startDeckSurfaceHalfY, int endDeckSurfaceHalfY, boolean micro) {
+                      int startDeckSurfaceHalfY, int endDeckSurfaceHalfY,
+                      boolean micro, boolean waterDominant, boolean hasWaterCrossing) {
         this.start = start;
         this.end = end;
         this.centerline = centerline;
         this.startDeckSurfaceHalfY = startDeckSurfaceHalfY;
         this.endDeckSurfaceHalfY = endDeckSurfaceHalfY;
         this.micro = micro;
+        this.waterDominant = waterDominant;
+        this.hasWaterCrossing = hasWaterCrossing;
     }
 
     public int lengthBlocks() {

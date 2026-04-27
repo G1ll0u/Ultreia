@@ -1,21 +1,8 @@
 package com.jubitus.millpathbuilder.config;
 
-import com.jubitus.millpathbuilder.Tags;
 import net.minecraftforge.common.config.Config;
-import net.minecraftforge.common.config.ConfigManager;
-import net.minecraftforge.fml.client.event.ConfigChangedEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
-@Config(modid = Tags.MOD_ID, name = "millpathbuilder/millpathbuilder")
 public class MPBConfig {
-
-    @SubscribeEvent
-    public static void onConfigChanged(ConfigChangedEvent.OnConfigChangedEvent event) {
-        if (event.getModID().equals(Tags.MOD_ID)) {
-            ConfigManager.sync(Tags.MOD_ID, Config.Type.INSTANCE);
-        }
-    }
-
 
     @Config.Name("General")
     public static final General GENERAL = new General();
@@ -287,8 +274,8 @@ public class MPBConfig {
 
     public static final class Bridges {
 
-        @Config.Comment("Active bridge template name. Empty = legacy hardcoded bridge builder.")
-        public String activeTemplateName = "default";
+        @Config.Comment("Default bridge template name used when no other template matches the current conditions.")
+        public String defaultTemplateName = "default";
 
         @Config.Comment("Search radius in blocks for /millpathbuilder bridge create.")
         @Config.RangeInt(min = 8, max = 96)
@@ -640,6 +627,7 @@ public class MPBConfig {
     public static final Debug DEBUG = new Debug();
 
     public static final class Debug {
-
+        @Config.Comment("Log which bridge template is selected for each bridge placement.")
+        public boolean logBridgeTemplateSelection = false;
     }
 }

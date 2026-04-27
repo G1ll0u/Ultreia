@@ -21,6 +21,22 @@ public final class BridgeTemplate {
     public int maxRelY;
     public long createdAt;
 
+    // Spawn conditions — null or empty list means no restriction
+    public List<String> biomes;
+    public List<String> biomeTemperatureCategories;
+    public List<String> biomeDictionaryTypes;
+    /** BOTH (default), YES (water bridges only), NO (non-water bridges only) */
+    public String waterOnly = "BOTH";
+    /** Minimum bridge length in blocks; 0 = no extra restriction beyond global config */
+    public Integer minLength;
+    /** Maximum bridge length in blocks; 0 or null = no extra restriction beyond global config */
+    public Integer maxLength;
+
+    // Per-template overrides — null means use the global MPBConfig value
+    public Integer bridgeCrownHalfBlocks;
+    public Integer bridgeCrownMinLenBlocks;
+    public Integer maxSupportDepth;
+
     public static final class BlockEntry {
         public int forward;
         public int lateral;

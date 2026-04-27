@@ -649,8 +649,9 @@ public class TerrainSampler {
         if (b.isReplaceable(world, pos)) return true;
         if (b == Blocks.SNOW_LAYER) return true;
 
-        if (mode == Mode.PATHFINDING && MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
+        if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
             if (MPBTreeCompat.isTreeWoodLike(world, pos, st)) return true;
+            if (isLikelyTreeWood(st, pos)) return true;
         }
 
         return false;

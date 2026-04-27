@@ -1373,7 +1373,7 @@ public final class RoadPainter {
         private int bridgeProtectionHalfWidth() {
             int half = 1;
 
-            BridgeTemplate active = BridgeTemplateRegistry.getActiveTemplate();
+            BridgeTemplate active = BridgeTemplateRegistry.getDefaultTemplate();
             if (active != null) {
                 int tHalf = Math.max(Math.abs(active.minLateral), Math.abs(active.maxLateral));
                 if (tHalf > half) half = tHalf;

@@ -1,13 +1,13 @@
 package com.jubitus.millpathbuilder.command;
 
-import com.jubitus.millpathbuilder.Tags;
-import com.jubitus.millpathbuilder.config.MPBConfig;
+import com.jubitus.millpathbuilder.config.ConfigEntry;
+import com.jubitus.millpathbuilder.config.MPBConfigReflector;
 import com.jubitus.millpathbuilder.gen.*;
-import net.minecraftforge.common.config.Config;
-import net.minecraftforge.common.config.ConfigManager;
 import com.jubitus.millpathbuilder.gen.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.millpathbuilder.gen.util.MPBPos2D;
 import com.jubitus.millpathbuilder.integration.MillIntegration;
+import com.jubitus.millpathbuilder.network.MPBNetworkHandler;
+import com.jubitus.millpathbuilder.network.PacketOpenConfigGui;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
 import net.minecraft.command.ICommandSender;
@@ -28,10 +28,10 @@ public final class CommandMillPathBuilder extends CommandBase {
             "pos2",
             "generate",
             "generatecustom",
+            "config",
             "status",
             "reset",
-            "cancel",
-            "reloadconfig"
+            "cancel"
     );
 
     @Override
@@ -128,6 +128,23 @@ public final class CommandMillPathBuilder extends CommandBase {
             return;
         }
 
+        if ("config".equals(sub)) {
+            if (player == null) {
+                sender.sendMessage(new TextComponentString("MillPathBuilder: config GUI can only be opened by a player."));
+                return;
+            }
+            try {
+                List<ConfigEntry> entries = MPBConfigReflector.buildEntries();
+                Map<String, String> values = MPBConfigReflector.toMap(entries);
+                MPBNetworkHandler.CHANNEL.sendTo(new PacketOpenConfigGui(values), player);
+                sender.sendMessage(new TextComponentString("§7[MPB] Sending config to client..."));
+            } catch (Exception e) {
+                com.jubitus.millpathbuilder.MillPathBuilderMod.LOGGER.error("[MPBConfig] Failed to send config GUI packet", e);
+                sender.sendMessage(new TextComponentString("§c[MPB] Error sending config (check server log)."));
+            }
+            return;
+        }
+
         if ("status".equals(sub)) {
             if (player != null) {
                 MPBManualPathState.PlayerState state = MPBManualPathState.getForDimension(player, dim);
@@ -161,12 +178,6 @@ public final class CommandMillPathBuilder extends CommandBase {
             return;
         }
 
-        if ("reloadconfig".equals(sub)) {
-            ConfigManager.sync(Tags.MOD_ID, Config.Type.INSTANCE);
-            sender.sendMessage(new TextComponentString("MillPathBuilder: config reloaded from disk."));
-            return;
-        }
-
         throw new WrongUsageException(getUsage(sender));
     }
 
@@ -177,7 +188,8 @@ public final class CommandMillPathBuilder extends CommandBase {
         }
         if (args.length >= 2 && "bridge".equals(args[0].toLowerCase(Locale.ROOT))) {
             if (args.length == 2) {
-                return getListOfStringsMatchingLastWord(args, Arrays.asList("create", "set", "export", "import", "reloadconfig"));
+                return getListOfStringsMatchingLastWord(args, Arrays.asList(
+                        "create", "set", "export", "import", "validate", "list", "reloadconfig"));
             }
 
             if (args.length == 3) {
