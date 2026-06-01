@@ -1,5 +1,6 @@
 package com.jubitus.millpathbuilder.gen;
 
+import com.jubitus.millpathbuilder.MillPathBuilderMod;
 import com.jubitus.millpathbuilder.config.MPBConfig;
 import com.jubitus.millpathbuilder.gen.mill.MPBMillPathPalette;
 import com.jubitus.millpathbuilder.gen.mill.MillVillageIndex;
@@ -8,6 +9,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
 
 public final class MPBEndpointResolver {
@@ -16,19 +18,25 @@ public final class MPBEndpointResolver {
 
     /**
      * Resolves the best approach point to connect a village or lone building.
+     * Also populates a {@link VillageGateField} if the node is a village with gates,
+     * so A* can terminate at any valid gate rather than a single pre-selected point.
      *
      * Village priority:
-     * 1. Outermost Mill-path floor block at a gate facing the other village (ignores building noPaint).
+     * 1. Outermost Mill-path floor block at a gate facing the other village (usage-weighted).
      * 2. Outermost Mill-path block generally (outside noPaint zones).
      * 3. Approach point just outside building noPaint zones.
      * 4. Walk outward until free of building obstacles.
+     *
+     * @param gateFieldOut if non-null, filled with all valid gate positions for A* multi-termination
      */
     public static BlockPos resolveEndpointAnchor(
             WorldServer world,
             BlockPos nodeCenter,
             BlockPos otherNodeCenter,
             TerrainSampler sampler,
-            @Nullable MPBProtectedAreas protectedAreas
+            @Nullable MPBProtectedAreas protectedAreas,
+            @Nullable VillageGateTracker gateTracker,
+            @Nullable VillageGateField[] gateFieldOut
     ) {
         MillVillageIndex.VillageInfo vi = MillVillageIndex.findExact(world, nodeCenter);
         boolean isVillage = (vi != null && vi.isVillage);
@@ -38,14 +46,38 @@ public final class MPBEndpointResolver {
                 : Math.max(0, MPBConfig.GENERAL.loneBuildingNoPaintRadius);
 
         if (isVillage) {
-            // Rule 1: connect to the outermost Mill-path floor block at a gate facing the other village.
-            // Gate Mill-path blocks are searched ignoring noPaint zones (gate floor IS Mill path by design).
-            // The Y coordinate is the actual path floor, not the terrain surface.
-            BlockPos gateEntry = findGateMillPathEntry(world, sampler, nodeCenter, otherNodeCenter, 120, 12);
-            if (gateEntry != null) return gateEntry;
+            // Collect all gate candidates with Mill-path entries.
+            List<GateCandidate> candidates = collectGateCandidates(
+                    world, sampler, nodeCenter, otherNodeCenter,
+                    MPBConfig.GENERAL.gateSearchRadius, MPBConfig.GENERAL.gateMillPathSearchRadius,
+                    gateTracker);
+
+            // Build VillageGateField from all candidates so A* can terminate at any gate.
+            if (gateFieldOut != null && !candidates.isEmpty()) {
+                int n = candidates.size();
+                int[] fxs = new int[n], fzs = new int[n], fys = new int[n];
+                for (int i = 0; i < n; i++) {
+                    fxs[i] = candidates.get(i).pos.getX();
+                    fzs[i] = candidates.get(i).pos.getZ();
+                    fys[i] = candidates.get(i).pos.getY();
+                }
+                gateFieldOut[0] = new VillageGateField(fxs, fzs, fys, n);
+            }
+
+            // Best candidate (highest score) = primary endpoint for the A* goal.
+            if (!candidates.isEmpty()) {
+                BlockPos best = candidates.get(0).pos;
+                if (MPBConfig.GENERAL.printFailureBreakdown) {
+                    MillPathBuilderMod.LOGGER.debug(
+                            "[MPB] gate selected village={},{} other={},{} total_candidates={} -> ({},{},{})",
+                            nodeCenter.getX(), nodeCenter.getZ(),
+                            otherNodeCenter.getX(), otherNodeCenter.getZ(),
+                            candidates.size(), best.getX(), best.getY(), best.getZ());
+                }
+                return best;
+            }
 
             // Rule 2: outermost Mill-path block facing other village, outside noPaint zones.
-            // Also uses actual Mill-path Y (not terrain surface Y).
             BlockPos millEntry = findOutermostMillPathToward(world, sampler, nodeCenter, otherNodeCenter, 120, protectedAreas);
             if (millEntry != null) return millEntry;
 
@@ -65,60 +97,107 @@ public final class MPBEndpointResolver {
         return walkOutUntilFree(world, bypass, otherNodeCenter, sampler, protectedAreas);
     }
 
+    /** Backward-compatible overload (no gate tracker, no field output). */
+    public static BlockPos resolveEndpointAnchor(
+            WorldServer world,
+            BlockPos nodeCenter,
+            BlockPos otherNodeCenter,
+            TerrainSampler sampler,
+            @Nullable MPBProtectedAreas protectedAreas
+    ) {
+        return resolveEndpointAnchor(world, nodeCenter, otherNodeCenter, sampler, protectedAreas, null, null);
+    }
+
+    // -------------------------------------------------------------------------
+    // Gate candidate collection
+    // -------------------------------------------------------------------------
+
+    private static final class GateCandidate {
+        final BlockPos pos;
+        final double score;
+
+        GateCandidate(BlockPos pos, double score) {
+            this.pos = pos;
+            this.score = score;
+        }
+    }
+
     /**
-     * Finds the best Mill-path floor block at a village gate, on the side facing the other village.
-     * Ignores noPaint zones so gates inside building footprints are found correctly.
-     * Uses full-column Y scan so the real path elevation is returned (not terrain surface Y).
-     *
-     * @param gateSearchRadius radius around village center to search for gate buildings
-     * @param gateLocalRadius  radius around each gate's anchor to scan for Mill-path blocks
+     * Collects all gate Mill-path entries, scored by alignment with the direction to the other
+     * village minus a usage penalty so less-used gates are preferred.
+     * Returns candidates sorted best-first.
      */
-    @Nullable
-    private static BlockPos findGateMillPathEntry(
+    private static List<GateCandidate> collectGateCandidates(
             WorldServer world,
             TerrainSampler sampler,
             BlockPos villageCenter,
             BlockPos otherNodeCenter,
             int gateSearchRadius,
-            int gateLocalRadius
+            int gateLocalRadius,
+            @Nullable VillageGateTracker tracker
     ) {
-        List<BlockPos> gates = MillVillageIndex.getVillageGates(world, villageCenter, gateSearchRadius, 64);
-        if (gates.isEmpty()) return null;
+        List<MillVillageIndex.BuildingInfo> gates =
+                MillVillageIndex.getVillageGateInfos(world, villageCenter, gateSearchRadius, 64);
+        if (gates.isEmpty()) return java.util.Collections.emptyList();
 
         double ddx = otherNodeCenter.getX() - villageCenter.getX();
         double ddz = otherNodeCenter.getZ() - villageCenter.getZ();
         double dlen = Math.sqrt(ddx * ddx + ddz * ddz);
-        if (dlen < 1.0) return null;
+        if (dlen < 1.0) return java.util.Collections.emptyList();
         double ux = ddx / dlen, uz = ddz / dlen;
 
-        BlockPos best = null;
-        double bestProj = 0.0; // only accept blocks projecting toward the other village
+        // Per-gate: score its outward direction alignment, then search Mill-path blocks nearby.
+        // Keep the best (highest scoring) Mill-path block per gate as its representative entry.
+        List<GateCandidate> result = new ArrayList<>();
 
-        for (BlockPos gatePos : gates) {
-            int gx = gatePos.getX(), gz = gatePos.getZ();
+        for (MillVillageIndex.BuildingInfo bi : gates) {
+            double gx = bi.chestPos.getX() - villageCenter.getX();
+            double gz = bi.chestPos.getZ() - villageCenter.getZ();
+            double gl = Math.sqrt(gx * gx + gz * gz);
+            double gateAlignment = (gl > 0.5) ? ((gx / gl) * ux + (gz / gl) * uz) : 0.0;
 
+            double usagePenalty = (tracker != null)
+                    ? tracker.usagePenalty(bi.chestPos.getX(), bi.chestPos.getZ())
+                    : 0.0;
+
+            BlockPos bestForGate = null;
+            double bestForGateScore = Double.NEGATIVE_INFINITY;
+
+            int cgx = bi.chestPos.getX(), cgz = bi.chestPos.getZ();
             for (int ox = -gateLocalRadius; ox <= gateLocalRadius; ox++) {
                 for (int oz = -gateLocalRadius; oz <= gateLocalRadius; oz++) {
-                    int tx = gx + ox, tz = gz + oz;
+                    int tx = cgx + ox, tz = cgz + oz;
 
-                    // Projection from village center toward other village
-                    double proj = (tx - villageCenter.getX()) * ux + (tz - villageCenter.getZ()) * uz;
-                    if (proj <= bestProj) continue;
-
-                    // Load chunk via sampler side-effect
                     TerrainSampler.Sample sm = sampler.sample(tx, tz);
                     if (sm == null || sm.isOcean || sm.isWater) continue;
 
                     Integer millY = findMillPathY(world, tx, tz, sm.surfaceY);
                     if (millY == null) continue;
 
-                    bestProj = proj;
-                    best = new BlockPos(tx, millY, tz);
+                    double dxOurs = tx - villageCenter.getX(), dzOurs = tz - villageCenter.getZ();
+                    double dxOther = tx - otherNodeCenter.getX(), dzOther = tz - otherNodeCenter.getZ();
+                    double distOurs = Math.sqrt(dxOurs * dxOurs + dzOurs * dzOurs);
+                    double distOther = Math.sqrt(dxOther * dxOther + dzOther * dzOther);
+                    if (distOther < distOurs * 0.7) continue; // wrong-village guard
+
+                    double proj = dxOurs * ux + dzOurs * uz;
+                    if (proj <= 0.0) continue; // behind village center
+
+                    double score = gateAlignment * 0.4 * dlen + proj * 0.6 - usagePenalty;
+                    if (score > bestForGateScore) {
+                        bestForGateScore = score;
+                        bestForGate = new BlockPos(tx, millY, tz);
+                    }
                 }
+            }
+
+            if (bestForGate != null) {
+                result.add(new GateCandidate(bestForGate, bestForGateScore));
             }
         }
 
-        return best;
+        result.sort((a, b) -> Double.compare(b.score, a.score));
+        return result;
     }
 
     /**

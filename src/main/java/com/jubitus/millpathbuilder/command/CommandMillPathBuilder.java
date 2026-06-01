@@ -5,9 +5,13 @@ import com.jubitus.millpathbuilder.config.MPBConfigReflector;
 import com.jubitus.millpathbuilder.gen.*;
 import com.jubitus.millpathbuilder.gen.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.millpathbuilder.gen.util.MPBPos2D;
+import com.jubitus.millpathbuilder.gen.world.MPBRoadNetwork;
+import com.jubitus.millpathbuilder.gen.world.RoadSegment;
+import com.jubitus.millpathbuilder.gen.world.RoadWaypoint;
 import com.jubitus.millpathbuilder.integration.MillIntegration;
 import com.jubitus.millpathbuilder.network.MPBNetworkHandler;
 import com.jubitus.millpathbuilder.network.PacketOpenConfigGui;
+import com.jubitus.millpathbuilder.network.PacketOpenMapGui;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
 import net.minecraft.command.ICommandSender;
@@ -29,9 +33,11 @@ public final class CommandMillPathBuilder extends CommandBase {
             "generate",
             "generatecustom",
             "config",
+            "gui",
             "status",
             "reset",
-            "cancel"
+            "cancel",
+            "bridge"
     );
 
     @Override
@@ -41,7 +47,8 @@ public final class CommandMillPathBuilder extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/millpathbuilder <pos1|pos2|generate|generatecustom|status|reset|cancel>";
+        return "/millpathbuilder <pos1|pos2|generate|generatecustom|status|reset|cancel" +
+               "/millpathbuilder bridge <create <name>|export|import <name>|validate|list|reloadconfig>";
     }
 
     @Override
@@ -124,7 +131,58 @@ public final class CommandMillPathBuilder extends CommandBase {
                 return;
             }
 
-            PathGenerationService.generateCustom(world, sender, state.pos1, state.pos2, false);
+            RoadType roadType = RoadType.VILLAGE_MAIN;
+            if (args.length >= 2) {
+                String typeArg = args[1].toUpperCase(Locale.ROOT);
+                if ("LONE_TRAIL".equals(typeArg)) {
+                    roadType = RoadType.LONE_TRAIL;
+                } else if (!"VILLAGE_MAIN".equals(typeArg)) {
+                    sender.sendMessage(new TextComponentString("MillPathBuilder: unknown road type '" + args[1] + "'. Use VILLAGE_MAIN or LONE_TRAIL."));
+                    return;
+                }
+            }
+
+            PathGenerationService.generateCustom(world, sender, state.pos1, state.pos2, false, roadType);
+            return;
+        }
+
+        if ("gui".equals(sub)) {
+            if (player == null) {
+                sender.sendMessage(new TextComponentString("MillPathBuilder: gui can only be used by a player."));
+                return;
+            }
+            int guiRadius = 2000;
+            if (args.length >= 2) {
+                try {
+                    guiRadius = Math.max(1, Math.min(8000, parseInt(args[1])));
+                } catch (CommandException ignored) {
+                    sender.sendMessage(new TextComponentString("MillPathBuilder: invalid radius — using 2000."));
+                }
+            }
+            BlockPos ppos = player.getPosition();
+            int px = ppos.getX(), pz = ppos.getZ();
+            MPBRoadNetwork network = MPBRoadNetwork.get(world);
+            List<RoadSegment> nearby = network.getSegmentsNear(px, pz, guiRadius);
+            List<PacketOpenMapGui.SegmentData> segData = new ArrayList<>();
+            for (RoadSegment seg : nearby) {
+                int fromX = seg.fromVillage != null ? seg.fromVillage.getX() : PacketOpenMapGui.ABSENT;
+                int fromZ = seg.fromVillage != null ? seg.fromVillage.getZ() : PacketOpenMapGui.ABSENT;
+                int toX   = seg.toVillage   != null ? seg.toVillage.getX()   : PacketOpenMapGui.ABSENT;
+                int toZ   = seg.toVillage   != null ? seg.toVillage.getZ()   : PacketOpenMapGui.ABSENT;
+                int wc = seg.waypoints.size();
+                int[] wp = new int[wc * 3];
+                int[] ty = new int[wc];
+                int wi = 0;
+                for (int k = 0; k < wc; k++) {
+                    RoadWaypoint wpt = seg.waypoints.get(k);
+                    wp[wi++] = wpt.x; wp[wi++] = wpt.y; wp[wi++] = wpt.z;
+                    ty[k] = world.getTopSolidOrLiquidBlock(new BlockPos(wpt.x, 0, wpt.z)).getY();
+                }
+                segData.add(new PacketOpenMapGui.SegmentData(seg.id, seg.isBridge, fromX, fromZ, toX, toZ, wp, ty));
+            }
+            MPBNetworkHandler.CHANNEL.sendTo(new PacketOpenMapGui(px, pz, guiRadius, segData), player);
+            sender.sendMessage(new TextComponentString(
+                    "§7[MPB] Opening map GUI — " + nearby.size() + " segment(s) in radius " + guiRadius + "..."));
             return;
         }
 
@@ -214,6 +272,10 @@ public final class CommandMillPathBuilder extends CommandBase {
                 if (args.length == 3) {
                     return getListOfStringsMatchingLastWord(args, Collections.singletonList(Integer.toString(pos.getZ())));
                 }
+            }
+
+            if ("generatecustom".equals(sub) && args.length == 2) {
+                return getListOfStringsMatchingLastWord(args, Arrays.asList("VILLAGE_MAIN", "LONE_TRAIL"));
             }
         }
 

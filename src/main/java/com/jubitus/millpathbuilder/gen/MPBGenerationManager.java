@@ -2,31 +2,64 @@ package com.jubitus.millpathbuilder.gen;
 
 import com.jubitus.millpathbuilder.MillPathBuilderMod;
 import com.jubitus.millpathbuilder.config.MPBConfig;
+import com.jubitus.millpathbuilder.gen.RoadType;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
+import net.minecraftforge.event.world.WorldEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
 import java.lang.ref.WeakReference;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class MPBGenerationManager {
 
     private static final ConcurrentHashMap<Integer, MPBAsyncJob> JOBS = new ConcurrentHashMap<>();
 
+    // Pending auto-resumes: dim → (world, checkpoint, ticksRemaining)
+    private static final ConcurrentHashMap<Integer, PendingResume> PENDING_RESUMES = new ConcurrentHashMap<>();
+
+    private static final class PendingResume {
+        final WorldServer world;
+        final MPBJobCheckpoint checkpoint;
+        int remainingTicks;
+
+        PendingResume(WorldServer world, MPBJobCheckpoint checkpoint, int delay) {
+            this.world = world;
+            this.checkpoint = checkpoint;
+            this.remainingTicks = delay;
+        }
+    }
+
+    public static boolean isRunning(int dim) {
+        return JOBS.containsKey(dim);
+    }
+
     public static String status(World world) {
         if (world == null || world.provider == null) return "No world.";
-        MPBAsyncJob job = JOBS.get(world.provider.getDimension());
-        return job == null ? "Idle." : job.statusLine();
+        int dim = world.provider.getDimension();
+        MPBAsyncJob job = JOBS.get(dim);
+        if (job != null) return job.statusLine();
+        PendingResume pr = PENDING_RESUMES.get(dim);
+        if (pr != null) return "Resume pending in " + pr.remainingTicks + " ticks.";
+        return "Idle.";
     }
 
     public static void cancel(World world) {
         if (world == null || world.provider == null) return;
-        MPBAsyncJob job = JOBS.remove(world.provider.getDimension());
+        int dim = world.provider.getDimension();
+        PENDING_RESUMES.remove(dim);
+        MPBAsyncJob job = JOBS.remove(dim);
         if (job != null) {
+            // User explicitly cancelled: clear checkpoint so next /mpb generate starts fresh.
+            if (job instanceof MPBGenerationJob) {
+                ((MPBGenerationJob) job).onJobComplete();
+            }
             try {
                 job.shutdown();
             } catch (Throwable ignored) {
@@ -36,7 +69,7 @@ public final class MPBGenerationManager {
 
     public static void start(WorldServer world, ICommandSender sender, boolean force, boolean dryRun) {
         int dim = world.provider.getDimension();
-        if (JOBS.containsKey(dim)) {
+        if (JOBS.containsKey(dim) || PENDING_RESUMES.containsKey(dim)) {
             if (sender != null) {
                 sender.sendMessage(new TextComponentString("MillPathBuilder: already running in this dimension. Use /millpathbuilder status or /millpathbuilder cancel."));
             }
@@ -51,16 +84,16 @@ public final class MPBGenerationManager {
         }
     }
 
-    public static void startCustom(WorldServer world, ICommandSender sender, BlockPos start, BlockPos goal, boolean dryRun) {
+    public static void startCustom(WorldServer world, ICommandSender sender, BlockPos start, BlockPos goal, boolean dryRun, RoadType roadType) {
         int dim = world.provider.getDimension();
-        if (JOBS.containsKey(dim)) {
+        if (JOBS.containsKey(dim) || PENDING_RESUMES.containsKey(dim)) {
             if (sender != null) {
                 sender.sendMessage(new TextComponentString("MillPathBuilder: already running in this dimension. Use /millpathbuilder status or /millpathbuilder cancel."));
             }
             return;
         }
 
-        MPBAsyncJob job = new MPBCustomPathGenerationJob(world, sender, start, goal, dryRun);
+        MPBAsyncJob job = new MPBCustomPathGenerationJob(world, sender, start, goal, dryRun, roadType);
         JOBS.put(dim, job);
 
         if (sender != null) {
@@ -68,9 +101,63 @@ public final class MPBGenerationManager {
         }
     }
 
+    // Queues an auto-resume after a short delay to ensure Millenaire has fully loaded.
+    public static void queueResume(WorldServer world, MPBJobCheckpoint checkpoint) {
+        int dim = world.provider.getDimension();
+        if (JOBS.containsKey(dim) || PENDING_RESUMES.containsKey(dim)) return;
+        int delay = Math.max(20, MPBConfig.GENERAL.autoResumeDelayTicks);
+        PENDING_RESUMES.put(dim, new PendingResume(world, checkpoint, delay));
+        MillPathBuilderMod.LOGGER.info("[MPB] Queued auto-resume for dim={} at edge {}/{} (starts in {} ticks)",
+                dim, checkpoint.getEdgeIndex(), checkpoint.getEdges().size(), delay);
+    }
+
+    // Called from FMLServerStoppingEvent to persist latest progress for all active jobs.
+    public static void onServerStopping() {
+        for (MPBAsyncJob job : JOBS.values()) {
+            if (job instanceof MPBGenerationJob) {
+                ((MPBGenerationJob) job).onServerStopping();
+            }
+        }
+    }
+
+    @SubscribeEvent
+    public void onWorldLoad(WorldEvent.Load event) {
+        if (!(event.getWorld() instanceof WorldServer)) return;
+        if (!MPBConfig.GENERAL.autoResumeGeneration) return;
+
+        WorldServer world = (WorldServer) event.getWorld();
+        MPBJobCheckpoint checkpoint = MPBJobCheckpoint.get(world);
+        if (!checkpoint.isActive() || checkpoint.getEdges().isEmpty()) return;
+
+        queueResume(world, checkpoint);
+    }
+
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent e) {
         if (e.phase != TickEvent.Phase.END) return;
+
+        // Process pending resumes before ticking active jobs.
+        if (!PENDING_RESUMES.isEmpty()) {
+            Iterator<Map.Entry<Integer, PendingResume>> it = PENDING_RESUMES.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<Integer, PendingResume> entry = it.next();
+                PendingResume pr = entry.getValue();
+                if (--pr.remainingTicks <= 0) {
+                    it.remove();
+                    int dim = pr.world.provider.getDimension();
+                    if (!JOBS.containsKey(dim)) {
+                        try {
+                            MPBGenerationJob job = new MPBGenerationJob(pr.world, pr.checkpoint);
+                            JOBS.put(dim, job);
+                            MillPathBuilderMod.LOGGER.info("[MPB] Auto-resumed generation for dim={}", dim);
+                        } catch (Throwable t) {
+                            MillPathBuilderMod.LOGGER.error("[MPB] Failed to resume generation for dim={}", dim, t);
+                        }
+                    }
+                }
+            }
+        }
+
         if (JOBS.isEmpty()) return;
 
         long budgetNs = Math.max(1, MPBConfig.GENERAL.tickBudgetMs) * 1_000_000L;
@@ -83,6 +170,7 @@ public final class MPBGenerationManager {
             } catch (Throwable t) {
                 JOBS.remove(job.getDim());
 
+                // Checkpoint is NOT cleared on crash — the job can be resumed on next startup.
                 try {
                     job.shutdown();
                 } catch (Throwable ignored) {
@@ -91,7 +179,7 @@ public final class MPBGenerationManager {
                 WeakReference<ICommandSender> wr = job.getSenderRef();
                 ICommandSender sender = wr != null ? wr.get() : null;
                 if (sender != null) {
-                    sender.sendMessage(new TextComponentString("MillPathBuilder: generation failed with an internal error. See log."));
+                    sender.sendMessage(new TextComponentString("MillPathBuilder: generation failed with an internal error. See log. The job will resume on next server start."));
                 }
 
                 MillPathBuilderMod.LOGGER.error("Generation job crashed in dim=" + job.getDim(), t);
@@ -101,6 +189,10 @@ public final class MPBGenerationManager {
             if (job.isDone()) {
                 JOBS.remove(job.getDim());
 
+                // Normal completion: clear the checkpoint.
+                if (job instanceof MPBGenerationJob) {
+                    ((MPBGenerationJob) job).onJobComplete();
+                }
                 try {
                     job.shutdown();
                 } catch (Throwable ignored) {

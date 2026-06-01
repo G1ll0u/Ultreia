@@ -121,7 +121,7 @@ public final class BridgeFeasibility {
         int startHalf = BridgeGeometry.naturalSurfaceHalfY(startSample.surfaceY);
         int endHalf = BridgeGeometry.naturalSurfaceHalfY(endSample.surfaceY);
 
-        int maxDeltaHalf = Math.max(0, MPBConfig.BRIDGES.maxBridgeDeltaY) * 2;
+        int maxDeltaHalf = BridgeGeometry.maxBridgeDeltaHalfForLen(len);
         if (Math.abs(endHalf - startHalf) > maxDeltaHalf) {
             return fail("endpoint delta too high startHalf=" + startHalf + " endHalf=" + endHalf + " max=" + maxDeltaHalf);
         }
@@ -270,6 +270,10 @@ public final class BridgeFeasibility {
                 && waterInteriorCells >= groundGapInteriorCells;
 
         if (waterDominant) {
+            int maxWaterLen = Math.max(4, MPBConfig.BRIDGE_AWARE_PATHFINDING.maxWaterBridgeLenBlocks);
+            if (waterInteriorCells > maxWaterLen) {
+                return fail("water bridge too long: waterCells=" + waterInteriorCells + " max=" + maxWaterLen);
+            }
             if (usefulPct < 35.0) return fail("water bridge usefulPct too low: " + usefulPct);
         } else {
             if (!validWaterBridge) {

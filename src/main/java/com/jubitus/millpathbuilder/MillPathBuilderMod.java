@@ -5,6 +5,7 @@ import com.jubitus.millpathbuilder.config.MPBConfigPersistence;
 import com.jubitus.millpathbuilder.gen.MPBGenerationManager;
 import com.jubitus.millpathbuilder.gen.world.MPBChunkLoadingCallback;
 import com.jubitus.millpathbuilder.network.MPBNetworkHandler;
+import com.jubitus.millpathbuilder.player.MPBSpeedBoostHandler;
 import com.jubitus.millpathbuilder.proxy.IProxy;
 import net.minecraftforge.common.ForgeChunkManager;
 import net.minecraftforge.common.MinecraftForge;
@@ -12,6 +13,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.SidedProxy;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
+import net.minecraftforge.fml.common.event.FMLServerStoppingEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -19,7 +21,8 @@ import org.apache.logging.log4j.Logger;
         modid = Tags.MOD_ID,
         name = Tags.MOD_NAME,
         version = Tags.VERSION,
-        acceptableRemoteVersions = "*"
+        acceptableRemoteVersions = "*",
+        dependencies = "after:millenaire"
 )
 public class MillPathBuilderMod {
 
@@ -39,6 +42,7 @@ public class MillPathBuilderMod {
         ForgeChunkManager.setForcedChunkLoadingCallback(MillPathBuilderMod.INSTANCE, new MPBChunkLoadingCallback());
 
         MinecraftForge.EVENT_BUS.register(new MPBGenerationManager());
+        MinecraftForge.EVENT_BUS.register(new MPBSpeedBoostHandler());
         MPBNetworkHandler.init();
         proxy.registerClientPackets();
         LOGGER.info("MillPathBuilder loaded.");
@@ -48,5 +52,11 @@ public class MillPathBuilderMod {
     public void serverStarting(FMLServerStartingEvent event) {
         event.registerServerCommand(new CommandMillPathBuilder());
         MPBConfigPersistence.applyOnStartup();
+    }
+
+    @Mod.EventHandler
+    public void serverStopping(FMLServerStoppingEvent event) {
+        // Flush checkpoint for any in-progress jobs before the world saves and unloads.
+        MPBGenerationManager.onServerStopping();
     }
 }

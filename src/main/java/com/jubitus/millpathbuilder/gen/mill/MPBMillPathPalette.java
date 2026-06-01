@@ -1,5 +1,8 @@
 package com.jubitus.millpathbuilder.gen.mill;
 
+import com.jubitus.millpathbuilder.MillPresence;
+import com.jubitus.millpathbuilder.block.MPBBlocks;
+import com.jubitus.millpathbuilder.block.MPBPathSlabBlock;
 import com.jubitus.millpathbuilder.gen.newp.MPBMillenairePathCompat;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockSlab;
@@ -17,6 +20,9 @@ public final class MPBMillPathPalette {
     public enum Kind { DIRT, GRAVEL, SANDSTONE, SLABS, OCHRE, SNOW }
 
     public static IBlockState full(Kind k) {
+        if (!MillPresence.isPresent()) {
+            return MPBBlocks.PATH_BLOCK.getDefaultState();
+        }
         IBlockState st;
         switch (k) {
             case GRAVEL:    st = MillBlocks.PATHGRAVEL.getDefaultState(); break;
@@ -31,6 +37,10 @@ public final class MPBMillPathPalette {
     }
 
     public static IBlockState slabBottom(Kind k) {
+        if (!MillPresence.isPresent()) {
+            return MPBBlocks.PATH_SLAB.getDefaultState()
+                    .withProperty(MPBPathSlabBlock.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
+        }
         IBlockState st;
         switch (k) {
             case GRAVEL:
@@ -54,6 +64,8 @@ public final class MPBMillPathPalette {
     }
 
     public static boolean isMillPath(Block b) {
+        if (b == MPBBlocks.PATH_BLOCK || b == MPBBlocks.PATH_SLAB) return true;
+        if (!MillPresence.isPresent()) return false;
         return b == MillBlocks.PATHDIRT || b == MillBlocks.PATHGRAVEL || b == MillBlocks.PATHSANDSTONE
                 || b == MillBlocks.PATHSLABS || b == MillBlocks.PATHOCHRESLABS || b == MillBlocks.PATHSNOW
                 || b == MillBlocks.PATHDIRT_SLAB || b == MillBlocks.PATHGRAVEL_SLAB || b == MillBlocks.PATHSANDSTONE_SLAB

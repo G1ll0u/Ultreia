@@ -6,6 +6,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
+import net.minecraft.util.ResourceLocation;
 
 public final class MPBGround {
 
@@ -18,6 +19,9 @@ public final class MPBGround {
         if (MPBTreeCompat.isDynamicTreesBlock(st)) return false;
         Block b = st.getBlock();
         if (b == Blocks.AIR) return false;
+
+        // Never paint over farmland or tilled soil — would destroy crops.
+        if (isFarmland(st)) return false;
 
         if (MPBMillPathPalette.isMillPath(b)) return true;
 
@@ -45,6 +49,9 @@ public final class MPBGround {
         String name = (b.getRegistryName() != null) ? b.getRegistryName().toString().toLowerCase() : "";
         if (name.isEmpty()) return false;
 
+        // Also exclude modded farmland / tilled soil by name.
+        if (name.contains("farmland") || name.contains("tilledsoil") || name.contains("tilled_soil")) return false;
+
         if (name.contains("grass") || name.contains("dirt") || name.contains("soil") || name.contains("loam")
                 || name.contains("silt") || name.contains("sand") || name.contains("gravel") || name.contains("clay")
                 || name.contains("stone") || name.contains("rock") || name.contains("overgrown")
@@ -53,5 +60,19 @@ public final class MPBGround {
         }
 
         return false;
+    }
+
+    /**
+     * Returns true if this block is farmland or a modded equivalent (tilled soil, etc.).
+     * These blocks must never be painted over or replaced by road blocks.
+     */
+    public static boolean isFarmland(IBlockState st) {
+        if (st == null) return false;
+        Block b = st.getBlock();
+        if (b == Blocks.FARMLAND) return true;
+        ResourceLocation id = b.getRegistryName();
+        if (id == null) return false;
+        String name = id.toString().toLowerCase();
+        return name.contains("farmland") || name.contains("tilledsoil") || name.contains("tilled_soil");
     }
 }

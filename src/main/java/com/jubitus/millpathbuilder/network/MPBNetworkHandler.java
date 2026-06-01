@@ -11,10 +11,10 @@ public final class MPBNetworkHandler {
             NetworkRegistry.INSTANCE.newSimpleChannel(Tags.MOD_ID + ":cfg");
 
     public static void init() {
-        // Both registrations happen here so both sides know the discriminators.
-        // PacketOpenConfigGui.Handler has no @SideOnly — safe on server.
-        // The actual GUI code is injected via PacketOpenConfigGui.setGuiOpener() from ClientProxy.
-        CHANNEL.registerMessage(PacketOpenConfigGui.Handler.class, PacketOpenConfigGui.class, 0, Side.CLIENT);
-        CHANNEL.registerMessage(PacketSaveConfig.Handler.class, PacketSaveConfig.class, 1, Side.SERVER);
+        CHANNEL.registerMessage(PacketOpenConfigGui.Handler.class,  PacketOpenConfigGui.class,  0, Side.CLIENT);
+        CHANNEL.registerMessage(PacketSaveConfig.Handler.class,     PacketSaveConfig.class,     1, Side.SERVER);
+        CHANNEL.registerMessage(PacketOpenMapGui.Handler.class,     PacketOpenMapGui.class,     2, Side.CLIENT);
+        CHANNEL.registerMessage(PacketRequestPreview.Handler.class, PacketRequestPreview.class, 3, Side.SERVER);
+        CHANNEL.registerMessage(PacketNetworkPreview.Handler.class, PacketNetworkPreview.class, 4, Side.CLIENT);
     }
 }

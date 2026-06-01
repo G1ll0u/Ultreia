@@ -65,7 +65,7 @@ public final class BridgeTemplateAnalyzer {
             return CreateResult.fail("No valid nearby 3-wide slab deck was found.");
         }
 
-        if (deck.centerline.size() < 8) {
+        if (deck.centerline.size() < 5) {
             return CreateResult.fail("Template deck is too short. Minimum length is 8.");
         }
 

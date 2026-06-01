@@ -8,6 +8,7 @@ import com.jubitus.millpathbuilder.gen.newp.MPBPathProfileFeasibility;
 import com.jubitus.millpathbuilder.gen.newp.MPBRoadHalfConstraintSolver;
 import com.jubitus.millpathbuilder.gen.util.MPBPos2D;
 import com.jubitus.millpathbuilder.gen.world.MPBRoadIndexData;
+import com.jubitus.millpathbuilder.gen.world.MPBRoadNetwork;
 import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -84,6 +85,19 @@ public final class AStarPathfinder {
         private final int configStep;
         private int gx, gz;
 
+        @javax.annotation.Nullable private MPBRoadNetwork roadNetwork;
+        private RoadType roadType = RoadType.VILLAGE_MAIN;
+
+        // Multi-gate support: when set, A* can terminate at any gate in this field.
+        @javax.annotation.Nullable private VillageGateField destGates;
+        @javax.annotation.Nullable private net.minecraft.util.math.BlockPos reachedGate;
+
+        // Road-snap: for LONE_TRAIL, terminate A* as soon as we are within snapRadius of any
+        // existing road block (that we didn't place ourselves).
+        @javax.annotation.Nullable private MPBRoadIndexData snapRoadIndex = null;
+        private int snapRadius = 0;
+        private double snapMinDistSq = 0;
+
         private final Long2DoubleOpenHashMap gScore = new Long2DoubleOpenHashMap();
         private final Long2LongOpenHashMap cameFrom = new Long2LongOpenHashMap();
         private final Long2ObjectOpenHashMap<BridgeSpan> cameBridge = new Long2ObjectOpenHashMap<>();
@@ -111,6 +125,9 @@ public final class AStarPathfinder {
 
         private final ArrayList<Long> revStates = new ArrayList<>();
         private long recCur = Long.MIN_VALUE;
+
+        // Index in the reconstructed path list at which each bridge span begins (prior road points end).
+        private final ArrayList<Integer> bridgePathStartIndices = new ArrayList<>();
         private int recGuard = 0;
 
         private BridgeAwarePathResult result = new BridgeAwarePathResult(Collections.<BlockPos>emptyList(), Collections.<BridgeSpan>emptyList());
@@ -132,6 +149,10 @@ public final class AStarPathfinder {
         private int stagnationSteps = 0;
         private double lastProgressHeuristic = Double.POSITIVE_INFINITY;
         private double startHeuristic = Double.POSITIVE_INFINITY;
+
+        // Surface Y at start/goal grid nodes — used for altitude-aware stagnation detection.
+        private int startY = 0;
+        private int goalY = 0;
 
         private static final int[][] NEIGHBOR_DIRS = new int[][]{
                 { 1, 0}, {-1, 0}, {0, 1}, {0, -1},
@@ -231,9 +252,12 @@ public final class AStarPathfinder {
             TerrainSampler.Sample ss = sampler.sample(this.sx, this.sz);
             TerrainSampler.Sample gs = sampler.sample(this.gx, this.gz);
             int dyGoal = Math.abs(gs.surfaceY - ss.surfaceY);
+            this.startY = (ss != null) ? ss.surfaceY : 64;
+            this.goalY  = (gs != null) ? gs.surfaceY : 64;
 
             int m = Math.max(64, MPBConfig.PATHFINDING.searchMargin / 2);
-            int climbBoost = Math.min(256, dyGoal * 8);
+            // climbBoost scales up to corridorHalfWidthMax so the corridor covers full switchback room.
+            int climbBoost = Math.min(Math.max(256, MPBConfig.PATHFINDING.corridorHalfWidthMax), dyGoal * 8);
 
             int routeLen = (int) Math.round(Math.sqrt((double) segLenSq));
             int longRouteAllowance = Math.min(768, Math.max(128, routeLen / 3));
@@ -288,7 +312,7 @@ public final class AStarPathfinder {
             gScore.put(startState, 0.0);
             distSinceBridge.put(startState, Integer.MAX_VALUE / 4);
 
-            double h0 = heuristic(sx, sz, gx, gz);
+            double h0 = heuristic(sx, sz, gx, gz); // primary goal used until destGates is set
             bestApproxState = startState;
             bestApproxHeuristic = h0;
             bestApproxScore = h0;
@@ -296,6 +320,42 @@ public final class AStarPathfinder {
             startHeuristic = h0;
 
             open.add(new Node(sx, sz, DIR_NONE, h0));
+        }
+
+        public void setRoadNetwork(@javax.annotation.Nullable MPBRoadNetwork network) {
+            this.roadNetwork = network;
+        }
+
+        public void setRoadType(RoadType type) {
+            this.roadType = (type != null) ? type : RoadType.VILLAGE_MAIN;
+        }
+
+        /**
+         * Registers all valid gate positions for the destination village so A* can terminate
+         * at any of them rather than a single pre-selected goal point.
+         * Must be called before the first {@link #advance} invocation.
+         */
+        public void setDestinationGates(@javax.annotation.Nullable VillageGateField gf) {
+            this.destGates = (gf != null && !gf.isEmpty()) ? gf : null;
+        }
+
+        /**
+         * Enables road-snap termination: A* stops as soon as it reaches within {@code radius} blocks
+         * of any road in {@code index}. Only activates after leaving a minimum distance from the start.
+         * Intended for LONE_TRAIL routes that should graft onto the nearest existing road.
+         */
+        public void setSnapToRoad(@javax.annotation.Nullable MPBRoadIndexData index, int radius) {
+            this.snapRoadIndex = index;
+            this.snapRadius = Math.max(1, radius);
+            // Don't snap within the first ~6 A* steps to avoid immediate self-termination.
+            double minDist = step * 6.0;
+            this.snapMinDistSq = minDist * minDist;
+        }
+
+        /** Returns the gate position where A* actually terminated, or null if it reached the primary goal. */
+        @javax.annotation.Nullable
+        public net.minecraft.util.math.BlockPos getReachedGate() {
+            return reachedGate;
         }
 
         public StepResult advance(long deadlineNs) {
@@ -345,6 +405,41 @@ public final class AStarPathfinder {
                         partialResult = false;
                         partialReason = null;
                         break;
+                    }
+
+                    // Multi-gate termination: also stop when reaching any destination gate.
+                    if (destGates != null && destGates.isAtGate(cur.x, cur.z, step)) {
+                        reachedGate = destGates.nearestGate(cur.x, cur.z);
+                        foundState = ck;
+                        reconstructing = true;
+                        recCur = ck;
+                        recGuard = 0;
+                        partialResult = false;
+                        partialReason = null;
+                        break;
+                    }
+
+                    // Road-snap termination for LONE_TRAIL: stop as soon as we are adjacent to
+                    // an existing road, so the path grafts onto the network rather than continuing
+                    // all the way to the destination village.
+                    if (snapRoadIndex != null && distSq(cur.x, cur.z, sx, sz) >= snapMinDistSq) {
+                        BlockPos nearRoad = snapRoadIndex.findNearestRoad(cur.x, cur.z, snapRadius);
+                        if (nearRoad != null
+                                && !snapRoadIndex.isBridgeXZ(nearRoad.getX(), nearRoad.getZ())
+                                // The road block itself must also be far from the start so we don't
+                                // snap back onto internal building paths of the departure structure.
+                                && distSq(nearRoad.getX(), nearRoad.getZ(), sx, sz) >= snapMinDistSq) {
+                            MillPathBuilderMod.LOGGER.info(
+                                    "[MPB A*] Road-snap: ({},{}) snapped to road at ({},{})",
+                                    cur.x, cur.z, nearRoad.getX(), nearRoad.getZ());
+                            foundState = ck;
+                            reconstructing = true;
+                            recCur = ck;
+                            recGuard = 0;
+                            partialResult = false;
+                            partialReason = null;
+                            break;
+                        }
                     }
 
                     TerrainSampler.Sample cs = sampler.sample(cur.x, cur.z);
@@ -426,8 +521,9 @@ public final class AStarPathfinder {
                                 rr.getBridges(),
                                 sampler
                         );
+                        boolean clearanceOk = bridgesHaveApproachPathClearance(rr.getPath(), rr.getBridges());
 
-                        if (!fullProfileOk) {
+                        if (!fullProfileOk || !clearanceOk) {
                             long badState = foundState;
                             profileRejectionCount++;
 
@@ -446,7 +542,11 @@ public final class AStarPathfinder {
                             // Guard: after too many profile rejections, stop retrying.
                             // beginPartialReconstruction inside the reconstruction block would
                             // create an infinite silent loop (progress log is in !reconstructing).
-                            if (profileRejectionCount >= 24) {
+                            int maxRejections = Math.max(24, MPBConfig.PATHFINDING.profileRejectionLimit);
+                            if (profileRejectionCount >= maxRejections) {
+                                if (beginPartialReconstruction("non-feasible road profile after " + profileRejectionCount + " attempts")) {
+                                    return StepResult.RUNNING;
+                                }
                                 failed = true;
                                 failReason = "non-feasible road profile after " + profileRejectionCount + " attempts";
                                 flushBridgeDebugSummary();
@@ -469,7 +569,7 @@ public final class AStarPathfinder {
         }
 
         private void updateBestApprox(long state, int x, int z) {
-            double h = heuristic(x, z, gx, gz);
+            double h = heuristicToGoal(x, z);
             double g = gScore.get(state);
 
             if (state == Long.MIN_VALUE) return;
@@ -522,7 +622,7 @@ public final class AStarPathfinder {
             int bx = stateX(bestApproxState);
             int bz = stateZ(bestApproxState);
 
-            double startH = heuristic(sx, sz, gx, gz);
+            double startH = heuristicToGoal(sx, sz);
             double gain = startH - bestApproxHeuristic;
 
             if (bx == sx && bz == sz) {
@@ -543,10 +643,22 @@ public final class AStarPathfinder {
                     + " remaining=" + dist;
         }
 
+        // When destGates is set, use distance to the nearest gate as the heuristic so A*
+        // approaches the village generally and terminates at whichever gate it reaches first.
+        // Admissible: min(dist to gate) <= true cost to any reachable gate.
+        private double heuristicToGoal(int x, int z) {
+            if (destGates != null) {
+                return destGates.distToNearest(x, z);
+            }
+            return heuristic(x, z, gx, gz);
+        }
+
         private void expandNormalMoves(Node cur, long ck, TerrainSampler.Sample cs) {
             final int configMaxDy = Math.max(1, MPBConfig.PATHFINDING.maxYDeltaPerStep);
-            final boolean earthworks = MPBConfig.PATHFINDING.allowEarthworks;
-            final int allowedWorstStepDy = earthworks ? (configMaxDy + 1) : configMaxDy;
+            // LONE_TRAIL: no earthworks → path follows terrain strictly.
+            final boolean isLoneTrail = MPBConfig.ROAD_HIERARCHY.enabled && roadType == RoadType.LONE_TRAIL;
+            final boolean earthworks = MPBConfig.PATHFINDING.allowEarthworks
+                    && !(isLoneTrail && !MPBConfig.ROAD_HIERARCHY.loneTrailEarthworksEnabled);
 
             // Scale maxDy proportionally when using an adaptive (larger) step,
             // so the grade limit stays the same regardless of step size.
@@ -554,6 +666,15 @@ public final class AStarPathfinder {
             final int effectiveMaxDy = (step == configStep)
                     ? configMaxDy
                     : (int) Math.ceil((double) configMaxDy * (double) step / (double) configStep);
+
+            // LONE_TRAIL uses a higher slope multiplier to make the trail wind around hills.
+            final double slopeMultiplier = (isLoneTrail)
+                    ? Math.max(1.0, MPBConfig.ROAD_HIERARCHY.loneTrailSlopePenaltyMultiplier)
+                    : 1.0;
+
+            // Magnetism: cache radii once per call to avoid per-neighbor lookups when disabled.
+            final boolean magnetismActive = MPBConfig.ROAD_HIERARCHY.magnetismEnabled;
+            final int magRadius = magnetismActive ? Math.max(4, MPBConfig.ROAD_HIERARCHY.magnetismRadius) : 0;
 
             for (int dirIdx = 0; dirIdx < NEIGHBOR_DIRS.length; dirIdx++) {
                 int[] dir = NEIGHBOR_DIRS[dirIdx];
@@ -571,7 +692,7 @@ public final class AStarPathfinder {
                     continue;
                 }
 
-                SegmentWalkability sw = segmentWalkability(cur.x, cur.z, nx, nz, allowedWorstStepDy);
+                SegmentWalkability sw = segmentWalkability(cur.x, cur.z, nx, nz);
                 if (sw.crossesWater) {
                     skipBridge++;
                     continue;
@@ -584,9 +705,8 @@ public final class AStarPathfinder {
                 int dy = Math.abs(ns.surfaceY - cs.surfaceY);
 
                 double base = Math.sqrt((double) dx * (double) dx + (double) dz * (double) dz);
-                double slopeCost = (double) Math.min(dy, effectiveMaxDy) * MPBConfig.PATHFINDING.slopePenalty;
+                double slopeCost = (double) Math.min(dy, effectiveMaxDy) * MPBConfig.PATHFINDING.slopePenalty * slopeMultiplier;
                 double roughCost = (double) sw.roughness * MPBConfig.PATHFINDING.surfaceRoughnessPenalty;
-                double headingCost = headingCost(cur.x, cur.z, cur.dir, dirIdx, cs.surfaceY, ns.surfaceY);
                 double terrainCutCost = sw.terrainPenalty;
                 double mountainCost = mountainTraversePenalty(cur.x, cur.z, dirIdx, cs.surfaceY, ns.surfaceY);
 
@@ -605,10 +725,38 @@ public final class AStarPathfinder {
                         + base
                         + slopeCost
                         + roughCost
-                        + headingCost
                         + terrainCutCost
                         + mountainCost
                         + sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
+
+                // Direction-change penalty: produces smooth natural roads and prevents zigzagging on flat terrain.
+                // Quadratic on turn angle: nearly free for gentle curves (≤45°), significant at 90°, prohibitive for reversals.
+                if (cur.dir != DIR_NONE && cur.dir != dirIdx) {
+                    int[] fromD = NEIGHBOR_DIRS[cur.dir];
+                    int[] toD   = NEIGHBOR_DIRS[dirIdx];
+                    double dot = normalizedDot(fromD[0], fromD[1], toD[0], toD[1]);
+                    double t = (1.0 - dot) * 0.5; // 0=straight, 0.5=90°, 1=reversal
+                    tentative += t * t * MPBConfig.PATHFINDING.turnPenalty * step;
+                }
+
+                // Road magnetism: direction-aware attraction/repulsion around existing roads.
+                // Moving toward an existing road is discounted; moving away is penalised.
+                if (magnetismActive && magRadius > 0) {
+                    int distNeighbor = sampler.nearestRoadDistManhattan(nx, nz, magRadius, 2);
+                    if (distNeighbor < magRadius) {
+                        int distCurrent = sampler.nearestRoadDistManhattan(cur.x, cur.z, magRadius, 2);
+                        double scale = (double) magRadius;
+                        if (distNeighbor < distCurrent) {
+                            // Moving toward road → attraction bonus, strongest when almost on it.
+                            double frac = 1.0 - (double) distNeighbor / scale;
+                            tentative -= Math.max(0.0, MPBConfig.ROAD_HIERARCHY.magnetismAttractionBonus) * frac;
+                        } else if (distCurrent < magRadius && distNeighbor > distCurrent) {
+                            // Moving away from road while inside the attraction zone → repulsion.
+                            double frac = 1.0 - (double) distCurrent / scale;
+                            tentative += Math.max(0.0, MPBConfig.ROAD_HIERARCHY.magnetismRepulsionPenalty) * frac;
+                        }
+                    }
+                }
 
                 if (tentative < gScore.get(nk)) {
                     cameFrom.put(nk, ck);
@@ -621,7 +769,7 @@ public final class AStarPathfinder {
                             : Math.min(1000000, prevDist + (int) Math.round(base));
                     distSinceBridge.put(nk, nextDist);
 
-                    double f = tentative + heuristic(nx, nz, gx, gz);
+                    double f = tentative + heuristicToGoal(nx, nz);
                     open.add(new Node(nx, nz, dirIdx, f));
                 }
             }
@@ -652,6 +800,7 @@ public final class AStarPathfinder {
 
             int maxRiseAhead = 0;
             int maxDropAhead = 0;
+            int maxHardnessCat = 0;
 
             for (int i = 1; i <= lookahead; i++) {
                 cx += dir[0] * step;
@@ -659,13 +808,15 @@ public final class AStarPathfinder {
 
                 if (!baseXZChecks(cx, cz)) break;
 
-                // Light sample: we only need surfaceY/water/ocean for this penalty estimate.
+                // Light sample: surfaceY, water/ocean, and hardness category.
                 int lv = sampler.sampleLightIfLoaded(cx, cz);
                 if (lv == TerrainSampler.LIGHT_NOT_LOADED) break;
                 boolean sWater = (lv & TerrainSampler.LIGHT_WATER_BIT)  != 0;
                 boolean sOcean = (lv & TerrainSampler.LIGHT_OCEAN_BIT) != 0;
                 if (sWater || sOcean) break;
                 int sSurfaceY = lv & TerrainSampler.LIGHT_SURFACE_MASK;
+                int hardnessCat = (lv >> TerrainSampler.LIGHT_HARDNESS_SHIFT) & TerrainSampler.LIGHT_HARDNESS_MASK;
+                if (hardnessCat > maxHardnessCat) maxHardnessCat = hardnessCat;
 
                 int projectedRoadY = nextY + stepDy * (i - 1);
 
@@ -703,7 +854,12 @@ public final class AStarPathfinder {
 
             double penalty = 0.0;
 
-            penalty += (double) sumPredictedCut * Math.max(0.0, MPBConfig.PATHFINDING.predictedCutPenaltyPerBlock) * 0.75;
+            // Hard rock (stone, granite, etc.) multiplies cut cost — soft terrain (dirt, snow) stays at 1x.
+            double hardnessMult = (maxHardnessCat >= 2)
+                    ? Math.max(1.0, MPBConfig.PATHFINDING.hardRockCutMultiplier)
+                    : 1.0;
+
+            penalty += (double) sumPredictedCut * Math.max(0.0, MPBConfig.PATHFINDING.predictedCutPenaltyPerBlock) * 0.75 * hardnessMult;
 
             if (maxPredictedCut > allowedCut) {
                 double extra = (double) (maxPredictedCut - allowedCut);
@@ -783,6 +939,14 @@ public final class AStarPathfinder {
             return t;
         }
 
+        /** Bridge cost multiplier — LONE_TRAIL strongly discourages bridges in favour of land detours. */
+        private double bridgeCostMultiplier() {
+            if (MPBConfig.ROAD_HIERARCHY.enabled && roadType == RoadType.LONE_TRAIL) {
+                return Math.max(1.0, MPBConfig.ROAD_HIERARCHY.loneTrailBridgeCostMultiplier);
+            }
+            return 1.0;
+        }
+
         private void expandBridgeMoves(Node cur, long ck, TerrainSampler.Sample cs) {
             if (!MPBConfig.BRIDGE_AWARE_PATHFINDING.enabled) return;
             if (!MPBConfig.BRIDGES.enabled) return;
@@ -791,10 +955,17 @@ public final class AStarPathfinder {
             int distFromLastBridge = distSinceBridge.get(ck);
             if (distFromLastBridge < minSpacing) return;
 
-            // Only probe bridges near water or valley edges — avoids stadium chunk loading
-            if (!isNearWaterOrValleyEdge(cur.x, cur.z, cs)) return;
+            final double bridgeMult = bridgeCostMultiplier();
 
-            List<BridgeMove> moves = enumerateBridgeMoves(cur.x, cur.z, cur.dir, ck, cs);
+            // Offer existing bridge crossings as cheap moves before probing new ones.
+            // This prevents building parallel bridges when one already exists nearby.
+            List<BridgeMove> moves = new ArrayList<>(buildExistingBridgeMoves(cur, ck, cs));
+
+            // Only probe new bridges near water or valley edges — avoids stadium chunk loading
+            if (isNearWaterOrValleyEdge(cur.x, cur.z, cs)) {
+                moves.addAll(enumerateBridgeMoves(cur.x, cur.z, cur.dir, ck, cs));
+            }
+
             for (BridgeMove mv : moves) {
                 if (!baseXZChecks(mv.nx, mv.nz)) continue;
 
@@ -807,17 +978,58 @@ public final class AStarPathfinder {
                     continue;
                 }
 
-                double tentative = gScore.get(ck) + mv.cost + sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
+                double tentative = gScore.get(ck) + mv.cost * bridgeMult + sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
                 if (tentative < gScore.get(nk)) {
                     cameFrom.put(nk, ck);
                     cameBridge.put(nk, mv.span);
                     gScore.put(nk, tentative);
                     distSinceBridge.put(nk, 0);
 
-                    double f = tentative + heuristic(mv.nx, mv.nz, gx, gz);
+                    double f = tentative + heuristicToGoal(mv.nx, mv.nz);
                     open.add(new Node(mv.nx, mv.nz, mv.ndir, f));
                 }
             }
+        }
+
+        /**
+         * Build cheap bridge moves that route through existing bridge crossings from MPBRoadNetwork.
+         * A* will prefer these over building a new parallel bridge.
+         */
+        private List<BridgeMove> buildExistingBridgeMoves(Node cur, long ck, TerrainSampler.Sample cs) {
+            if (roadNetwork == null) return Collections.<BridgeMove>emptyList();
+
+            int reuseRadius = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeReuseSearchRadius);
+            if (reuseRadius <= 0) return Collections.<BridgeMove>emptyList();
+
+            List<MPBRoadNetwork.BridgeCrossing> crossings = roadNetwork.getBridgeCrossingsNear(cur.x, cur.z, reuseRadius);
+            if (crossings.isEmpty()) return Collections.<BridgeMove>emptyList();
+
+            double bonus = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeReuseBonus);
+            List<BridgeMove> out = new ArrayList<>();
+
+            for (MPBRoadNetwork.BridgeCrossing crossing : crossings) {
+                int endX = crossing.endX, endZ = crossing.endZ;
+                if (!baseXZChecks(endX, endZ)) continue;
+
+                TerrainSampler.Sample endSample = sampler.sampleIfLoaded(endX, endZ);
+                if (endSample == null) continue;
+                if (endSample.isOcean) continue;
+
+                // Prefer crossings that go roughly toward our goal
+                double toGoalDot = normalizedDot(endX - cur.x, endZ - cur.z, gx - cur.x, gz - cur.z);
+                if (toGoalDot < -0.3) continue; // bridge goes away from goal — skip
+
+                // Cost: walk to bridge start + bridge traversal (discounted by reuse bonus)
+                double walkToStart = Math.sqrt(distSq(cur.x, cur.z, crossing.startX, crossing.startZ));
+                double bridgeCost  = crossing.lengthBlocks * 1.0;
+                double cost = walkToStart + bridgeCost - bonus;
+
+                int ndir = nearestDirIndex(endX - cur.x, endZ - cur.z);
+                // span = null: this is an existing bridge, RoadPainter must not rebuild it
+                out.add(new BridgeMove(endX, endZ, ndir, cost, null));
+            }
+
+            return out;
         }
 
         private boolean isNearWaterOrValleyEdge(int x, int z, TerrainSampler.Sample cur) {
@@ -1298,11 +1510,51 @@ public final class AStarPathfinder {
                     continue;
                 }
 
+                // --- Narrow crossing search ---
+                // For water crossings, scan perpendicular landing offsets to find the shortest span.
+                int bestLandX = nx, bestLandZ = nz;
+                int bestLandY = ns.surfaceY;
+                int bestWaterWidth = realWaterCrossing ? measureWaterWidth(x, z, dirX, dirZ, nx, nz) : Integer.MAX_VALUE;
+
+                if (realWaterCrossing) {
+                    int lateralScan = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.narrowCrossingLateralScan);
+                    if (lateralScan > 0) {
+                        // Perpendicular unit direction (rotated 90°)
+                        int perpX = -dirZ, perpZ = dirX;
+                        double perpLen = Math.sqrt(perpX * perpX + perpZ * perpZ);
+                        if (perpLen > 0.5) {
+                            int upx = (int) Math.round(perpX / perpLen);
+                            int upz = (int) Math.round(perpZ / perpLen);
+
+                            for (int sign = -1; sign <= 1; sign += 2) {
+                                for (int off = step; off <= lateralScan; off += step) {
+                                    int candX = nx + upx * off * sign;
+                                    int candZ = nz + upz * off * sign;
+                                    if (!baseXZChecks(candX, candZ)) break;
+                                    TerrainSampler.Sample cs2 = sampler.sampleIfLoaded(candX, candZ);
+                                    if (cs2 == null) break;
+                                    if (cs2.isWater || cs2.isOcean) break;
+                                    if (sampler.forbidden(cs2, TerrainSampler.Mode.PATHFINDING)) break;
+
+                                    int w = measureWaterWidth(x, z, dirX, dirZ, candX, candZ);
+                                    if (w < bestWaterWidth) {
+                                        bestWaterWidth = w;
+                                        bestLandX = candX;
+                                        bestLandZ = candZ;
+                                        bestLandY = cs2.surfaceY;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // --- End narrow crossing search ---
+
                 BridgeSpan span = BridgeFeasibility.tryCreate(
                         world,
                         sampler,
                         new BlockPos(x, startSample.surfaceY, z),
-                        new BlockPos(nx, ns.surfaceY, nz),
+                        new BlockPos(bestLandX, bestLandY, bestLandZ),
                         false
                 );
 
@@ -1312,11 +1564,17 @@ public final class AStarPathfinder {
                     if (realWaterCrossing) {
                         cost -= 80.0;
                         cost -= Math.min(12, span.lengthBlocks()) * 2.0;
+                        // Extra discount when we found a shorter crossing
+                        int origWidth = measureWaterWidth(x, z, dirX, dirZ, nx, nz);
+                        int savedBlocks = origWidth - bestWaterWidth;
+                        if (savedBlocks > 0) {
+                            cost -= savedBlocks * Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.narrowCrossingSavingDiscountPerBlock);
+                        }
                     } else if (realValleyCrossing) {
                         cost -= 40.0;
                     }
 
-                    out.add(new BridgeMove(nx, nz, bridgeDir, cost, span));
+                    out.add(new BridgeMove(bestLandX, bestLandZ, bridgeDir, cost, span));
 
                     if (realWaterCrossing) {
                         break;
@@ -1353,79 +1611,24 @@ public final class AStarPathfinder {
             return drop >= Math.max(2, MPBConfig.VALLEY_BRIDGING.minValleyDepth);
         }
 
-        private double headingCost(int x, int z, int curDir, int nextDir, int curY, int nextY) {
-            if (!MPBConfig.PATHFINDING.headingAwareSwitchbacks) return 0.0;
-            if (curDir == DIR_NONE) return 0.0;
-            if (curDir < 0 || curDir >= NEIGHBOR_DIRS.length) return 0.0;
-            if (nextDir < 0 || nextDir >= NEIGHBOR_DIRS.length) return 0.0;
+        /**
+         * Count how many water blocks lie along the direct line from (startX,startZ)
+         * to (landX,landZ), used to prefer narrow river crossings over wide lake crossings.
+         */
+        private int measureWaterWidth(int startX, int startZ, int dirX, int dirZ, int landX, int landZ) {
+            int dx = landX - startX, dz = landZ - startZ;
+            double len = Math.sqrt(dx * dx + dz * dz);
+            if (len < 1) return 0;
 
-            int[] a = NEIGHBOR_DIRS[curDir];
-            int[] b = NEIGHBOR_DIRS[nextDir];
-
-            double dot = normalizedDot(a[0], a[1], b[0], b[1]);
-            boolean uphillNow = nextY > curY;
-
-            double cost = 0.0;
-
-            if (dot >= 0.999) {
-                cost += 0.0;
-            } else if (dot >= 0.92) {
-                cost += Math.max(0.0, MPBConfig.PATHFINDING.flatTurnPenalty) * 0.15;
-            } else if (dot >= 0.70) {
-                cost += Math.max(0.0, MPBConfig.PATHFINDING.flatTurnPenalty) * 0.45;
-            } else if (dot >= 0.35) {
-                cost += Math.max(0.0, MPBConfig.PATHFINDING.flatTurnPenalty) * 0.9;
-            } else {
-                cost += Math.max(0.0, MPBConfig.PATHFINDING.flatTurnPenalty) * 1.6;
+            int steps = Math.max(1, (int) Math.round(len));
+            int waterCount = 0;
+            for (int t = 1; t < steps; t++) {
+                int px = startX + (int) Math.round(dx * t / (double) steps);
+                int pz = startZ + (int) Math.round(dz * t / (double) steps);
+                TerrainSampler.Sample s = sampler.sampleIfLoaded(px, pz);
+                if (s != null && s.isWater && !s.isOcean) waterCount++;
             }
-
-            if (dot < -0.2) {
-                cost += 6.0;
-            }
-
-            if (dot >= 0.999 && uphillNow) {
-                int riseAhead = forwardRiseAlongHeading(x, z, nextDir, Math.max(1, MPBConfig.PATHFINDING.straightClimbLookahead));
-                if (riseAhead >= Math.max(1, MPBConfig.PATHFINDING.uphillLookaheadMinRise)) {
-                    cost += Math.max(0.0, MPBConfig.PATHFINDING.straightClimbAheadPenalty);
-                }
-            }
-
-            if (dot < 0.92 && uphillNow) {
-                int straightRise = forwardRiseAlongHeading(x, z, curDir, Math.max(1, MPBConfig.PATHFINDING.straightClimbLookahead));
-                if (straightRise >= Math.max(1, MPBConfig.PATHFINDING.uphillLookaheadMinRise)) {
-                    cost -= Math.max(0.0, MPBConfig.PATHFINDING.uphillTurnBonus);
-                }
-            }
-
-            return cost;
-        }
-
-        private int forwardRiseAlongHeading(int x, int z, int dirIdx, int lookahead) {
-            if (dirIdx < 0 || dirIdx >= NEIGHBOR_DIRS.length) return 0;
-
-            int[] dir = NEIGHBOR_DIRS[dirIdx];
-            int cx = x;
-            int cz = z;
-
-            TerrainSampler.Sample s0 = sampler.sampleIfLoaded(cx, cz);
-            if (s0 == null) return 0;
-
-            int baseY = s0.surfaceY;
-            int maxRise = 0;
-
-            for (int i = 0; i < lookahead; i++) {
-                cx += dir[0] * step;
-                cz += dir[1] * step;
-
-                TerrainSampler.Sample s = sampler.sampleIfLoaded(cx, cz);
-                if (s == null) break;
-                if (sampler.forbidden(s, TerrainSampler.Mode.PATHFINDING)) break;
-
-                int rise = s.surfaceY - baseY;
-                if (rise > maxRise) maxRise = rise;
-            }
-
-            return maxRise;
+            return waterCount;
         }
 
         private double bridgeSpanCost(BridgeSpan span) {
@@ -1485,7 +1688,7 @@ public final class AStarPathfinder {
             double cost = fixed + euclid * mult;
 
             if (waterDominant) {
-                cost += waterBridgePreferencePenalty(longestWaterRun, waterPct, meaningfulPct, euclid);
+                cost += waterBridgePreferencePenalty(longestWaterRun, waterPct, meaningfulPct, euclid, waterCells);
             } else {
                 cost -= avgDepth * valleyBonus * 0.75;
                 cost -= Math.min(deepCells, 12) * 6.0;
@@ -1514,44 +1717,13 @@ public final class AStarPathfinder {
         private double waterBridgePreferencePenalty(int longestWaterRun,
                                                     double waterPct,
                                                     double meaningfulPct,
-                                                    double euclid) {
-            double penalty = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.waterBridgeBasePenalty);
-
-            int preferAvoidBelow = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.waterBridgePreferAvoidBelowRun);
-            int justifiedRun = Math.max(preferAvoidBelow + 1, MPBConfig.BRIDGE_AWARE_PATHFINDING.waterBridgeJustifiedRun);
-
-            double shortRunPenaltyPerBlock = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.waterBridgeShortRunPenaltyPerBlock);
-            double longRunDiscountPerBlock = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.waterBridgeLongRunDiscountPerBlock);
-            double maxDiscount = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.waterBridgeMaxDiscount);
-            double weakDominancePenalty = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.waterBridgeWeakDominancePenalty);
-            int strongDominancePct = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.waterBridgeStrongDominancePercent);
-
-            if (longestWaterRun < preferAvoidBelow) {
-                penalty += (double) (preferAvoidBelow - longestWaterRun) * shortRunPenaltyPerBlock;
-            }
-
-            if (waterPct < (double) strongDominancePct) {
-                penalty += weakDominancePenalty;
-            }
-
-            if (meaningfulPct < 45.0) {
-                penalty += 90.0;
-            } else if (meaningfulPct < 60.0) {
-                penalty += 40.0;
-            }
-
-            if (longestWaterRun >= justifiedRun) {
-                double discount = (double) (longestWaterRun - justifiedRun + 1) * longRunDiscountPerBlock;
-                if (discount > maxDiscount) discount = maxDiscount;
-                penalty -= discount;
-            }
-
-            if (euclid >= 28.0) {
-                penalty -= Math.min(60.0, (euclid - 28.0) * 1.5);
-            }
-
-            if (penalty < 0.0) penalty = 0.0;
-            return penalty;
+                                                    double euclid,
+                                                    int waterCells) {
+            double base = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.waterBridgeBasePenalty);
+            double perBlock = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.waterBridgeLengthPenaltyPerBlock);
+            // Progressive penalty: longer water crossings cost proportionally more,
+            // making A* strongly prefer narrow river crossings over wide lake crossings.
+            return base + waterCells * perBlock;
         }
 
         private boolean baseXZChecks(int nx, int nz) {
@@ -1567,9 +1739,63 @@ public final class AStarPathfinder {
             return true;
         }
 
+        /**
+         * Rejects paths where a bridge deck passes over its own approach path without sufficient
+         * clearance. Only the bridge interior is checked — the first {@code step} centerline cells
+         * are skipped because they are the ramp connection to the road and will always be at road Y.
+         *
+         * A bridge over a DIFFERENT road segment (valley-cross) is fine as long as clearance ≥ min.
+         */
+        private boolean bridgesHaveApproachPathClearance(List<BlockPos> path, List<BridgeSpan> spans) {
+            if (spans.isEmpty() || bridgePathStartIndices.size() != spans.size()) return true;
+
+            int minClearance = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.underBridgeRoadMinClearanceBlocks);
+            if (minClearance <= 0) return true;
+
+            // Skip the launch-ramp zone so the bridge connection point never triggers a false reject.
+            final int startGrace = Math.max(step, 2);
+            // Tight XZ match: 1 block tolerance avoids false matches with off-axis approach nodes.
+            final int xzRadius = 1;
+
+            for (int b = 0; b < spans.size(); b++) {
+                BridgeSpan span = spans.get(b);
+                if (span.centerline == null || span.centerline.isEmpty()) continue;
+
+                int priorEnd = Math.min(bridgePathStartIndices.get(b), path.size() - 1);
+                if (priorEnd < 0) continue;
+
+                int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span, sampler);
+
+                for (int ci = startGrace; ci < span.centerline.size(); ci++) {
+                    BlockPos bridgePoint = span.centerline.get(ci);
+                    int deckSurfaceY = BridgeGeometry.surfaceYFromHalf(deckHalf[Math.min(ci, deckHalf.length - 1)]);
+
+                    for (int k = 0; k <= priorEnd; k++) {
+                        BlockPos roadPoint = path.get(k);
+                        if (Math.abs(bridgePoint.getX() - roadPoint.getX()) > xzRadius) continue;
+                        if (Math.abs(bridgePoint.getZ() - roadPoint.getZ()) > xzRadius) continue;
+
+                        int freeBlocks = deckSurfaceY - roadPoint.getY() - 1;
+                        if (freeBlocks < minClearance) {
+                            if (MPBConfig.GENERAL.printFailureBreakdown) {
+                                MillPathBuilderMod.LOGGER.info(
+                                        "[MPB Bridge] self-overlap bridge[{}]: deck Y={} at ({},{}) over approach road Y={} at ({},{}), clearance={} < {}",
+                                        b, deckSurfaceY, bridgePoint.getX(), bridgePoint.getZ(),
+                                        roadPoint.getY(), roadPoint.getX(), roadPoint.getZ(),
+                                        freeBlocks, minClearance);
+                            }
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
         private void buildResultFromReconstruction() {
             ArrayList<BlockPos> out = new ArrayList<BlockPos>();
             ArrayList<BridgeSpan> spans = new ArrayList<BridgeSpan>();
+            bridgePathStartIndices.clear();
 
             if (revStates.isEmpty()) {
                 result = new BridgeAwarePathResult(Collections.<BlockPos>emptyList(), Collections.<BridgeSpan>emptyList());
@@ -1590,6 +1816,7 @@ public final class AStarPathfinder {
                 BridgeSpan span = cameBridge.get(curK);
                 if (span != null) {
                     spans.add(span);
+                    bridgePathStartIndices.add(out.isEmpty() ? 0 : out.size() - 1);
 
                     int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span, sampler);
 
@@ -1754,7 +1981,7 @@ public final class AStarPathfinder {
             }
         }
 
-        private SegmentWalkability segmentWalkability(int x0, int z0, int x1, int z1, int allowedWorstStepDy) {
+        private SegmentWalkability segmentWalkability(int x0, int z0, int x1, int z1) {
             List<BlockPos> line = SupercoverLine.raster(x0, z0, x1, z1, 0);
             if (line == null || line.size() < 2) {
                 return new SegmentWalkability(true, false, 0, 0, 0.0, 0, 0, 0);
@@ -1864,6 +2091,10 @@ public final class AStarPathfinder {
             int maxRough = Math.max(0, MPBConfig.PATHFINDING.maxSegmentRoughness);
             int maxPredictedCutAllowed = Math.max(0, MPBConfig.PATHFINDING.predictedMaxCutDepth);
 
+            // Extra tolerance applied only during pathfinding — lets A* find routes through steeper terrain
+            // without changing what the painter actually does. Painter always uses its own earthworks limits.
+            int pfTolerance = Math.max(0, MPBConfig.PATHFINDING.pathfindingEarthworksTolerance);
+
             // Scale roughness limit proportionally with adaptive step (more raster points = higher budget).
             int baseStep = Math.max(2, MPBConfig.PATHFINDING.gridStep);
             int scaledMaxRough = (step == baseStep)
@@ -1872,10 +2103,10 @@ public final class AStarPathfinder {
 
             boolean severeEnclosedCut = longestEnclosedRun >= 2
                     && enclosedCells >= 2
-                    && maxPredictedCut > Math.max(1, maxPredictedCutAllowed);
+                    && maxPredictedCut > Math.max(1, maxPredictedCutAllowed + pfTolerance);
 
             boolean coarseTerrainOk = roughness <= (scaledMaxRough + 2)
-                    && maxPredictedCut <= (maxPredictedCutAllowed + 1)
+                    && maxPredictedCut <= (maxPredictedCutAllowed + 1 + pfTolerance)
                     && !severeEnclosedCut;
 
             if (!coarseTerrainOk) {
@@ -1886,10 +2117,10 @@ public final class AStarPathfinder {
             int endHalf = BridgeGeometry.naturalSurfaceHalfY(last.surfaceY);
 
             int cutHalf = MPBConfig.PATHFINDING.allowEarthworks
-                    ? Math.max(0, MPBConfig.PAINTING.earthworksMaxCut) * 2
+                    ? Math.max(0, MPBConfig.PAINTING.earthworksMaxCut + pfTolerance) * 2
                     : 0;
             int fillHalf = MPBConfig.PATHFINDING.allowEarthworks
-                    ? Math.max(0, MPBConfig.PAINTING.earthworksMaxFill) * 2
+                    ? Math.max(0, MPBConfig.PAINTING.earthworksMaxFill + pfTolerance) * 2
                     : 0;
             int maxStepHalf = Math.max(1, MPBConfig.PAINTING.maxRoadStepHalfPerBlock);
 
@@ -1997,6 +2228,13 @@ public final class AStarPathfinder {
                 return false;
             }
 
+            // Altitude progress: A* may be executing a switchback (lateral traversal with no XZ gain).
+            // If it has climbed/descended at least 20% of the needed altitude, don't count as stagnant.
+            if (MPBConfig.PATHFINDING.switchbackStagnationBoost && hasAltitudeProgressTowardGoal()) {
+                stagnationSteps = 0;
+                return false;
+            }
+
             stagnationSteps++;
 
             int routeLen = (int) Math.round(startHeuristic);
@@ -2014,6 +2252,16 @@ public final class AStarPathfinder {
 
             threshold = Math.min(threshold, Math.max(4000, maxIt / 12));
 
+            // On steep mountain routes, switchbacks require more lateral exploration before making XZ progress.
+            // Multiply the stagnation threshold so A* doesn't abort mid-switchback.
+            if (MPBConfig.PATHFINDING.switchbackStagnationBoost) {
+                int totalDY = Math.abs(goalY - startY);
+                if (totalDY >= 12) {
+                    int boostFactor = Math.min(4, 1 + totalDY / 16);
+                    threshold = Math.min(threshold * boostFactor, maxIt / 4);
+                }
+            }
+
             if (open.isEmpty()) {
                 return true;
             }
@@ -2023,7 +2271,7 @@ public final class AStarPathfinder {
                 return true;
             }
 
-            double bestOpenH = heuristic(bestOpen.x, bestOpen.z, gx, gz);
+            double bestOpenH = heuristicToGoal(bestOpen.x, bestOpen.z);
 
             boolean frontierStillPromising = bestOpenH + (double) (step * 2) < bestApproxHeuristic;
             if (frontierStillPromising) {
@@ -2031,6 +2279,20 @@ public final class AStarPathfinder {
             }
 
             return stagnationSteps >= threshold;
+        }
+
+        private boolean hasAltitudeProgressTowardGoal() {
+            int totalDY = Math.abs(goalY - startY);
+            if (totalDY < 8) return false;
+            if (bestApproxState == Long.MIN_VALUE) return false;
+
+            int bx = stateX(bestApproxState);
+            int bz = stateZ(bestApproxState);
+            TerrainSampler.Sample bs = sampler.sampleIfLoaded(bx, bz);
+            if (bs == null) return false;
+
+            int progressY = Math.abs(bs.surfaceY - startY);
+            return (double) progressY / (double) totalDY >= 0.20;
         }
         private void debugBridge(String msg) {
             if (!MPBConfig.GENERAL.printFailureBreakdown) return;
@@ -2076,7 +2338,7 @@ public final class AStarPathfinder {
     private static long stateKey(int x, int z, int dir) {
         int px = packCoord26(x);
         int pz = packCoord26(z);
-        long ud = ((long) dir) & 0xfL;
+        long ud = ((long) dir) & 0x1fL; // 5 bits: covers directions 0-15 and DIR_NONE=16
 
         return (((long) px) << (STATE_COORD_BITS + STATE_DIR_BITS))
                 | (((long) pz) << STATE_DIR_BITS)
@@ -2094,7 +2356,7 @@ public final class AStarPathfinder {
     }
 
     private static int stateDir(long key) {
-        return (int) (key & 0xfL);
+        return (int) (key & 0x1fL); // 5 bits to match stateKey encoding
     }
 
     private static int packCoord26(int v) {

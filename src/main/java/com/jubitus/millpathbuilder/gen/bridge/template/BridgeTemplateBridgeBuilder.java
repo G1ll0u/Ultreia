@@ -14,12 +14,16 @@ import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.material.Material;
+import net.minecraft.block.properties.IProperty;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemSlab;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
+import net.minecraftforge.fml.common.registry.ForgeRegistries;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,7 +55,7 @@ public final class BridgeTemplateBridgeBuilder {
         BridgeTemplatePlacementContext placeCtx = BridgeTemplatePlacementContext.of(template, span);
 
         int len = span.lengthBlocks();
-        int maxLen = Math.max(8, MPBConfig.BRIDGES.maxBridgeLenBlocks);
+        int maxLen = Math.max(5, MPBConfig.BRIDGES.maxBridgeLenBlocks);
         if (len > maxLen) return false;
 
         int[] deckHalfY = BridgeGeometry.buildDeckHalfProfile(span, sampler,
@@ -113,6 +117,10 @@ public final class BridgeTemplateBridgeBuilder {
 
                 placeTemplateBlockOnce(world, wp, placeState, placedBlocks, dryRun);
 
+                if (b.relY == -1 && sp.top) {
+                    fillTopSlabGap(world, wp.up(), deckBaseState, dryRun);
+                }
+
                 if (i + 1 < span.centerline.size()) {
                     int nextSlice = (slice + 1) % template.segmentLength;
                     BridgeTemplate.BlockEntry nextLocal = blockLookupBySlice.get(nextSlice).get(localRibbonKey(b.lateral, b.relY));
@@ -125,14 +133,28 @@ public final class BridgeTemplateBridgeBuilder {
 
                         if (sameState(placeState, nextState)) {
                             BlockPos nextWp = transform(span.centerline, deckHalfY, i + 1, nextLocal.lateral, nextLocal.relY);
-                            BlockPos centerA = span.centerline.get(i);
-                            BlockPos centerB = span.centerline.get(i + 1);
 
-                            sweepDecorativeRibbon(world, wp, nextWp, centerA, centerB, placeState, placedBlocks, dryRun);
+                            // Fill both diagonal corners only when the block is flanked on both
+                            // lateral sides at the same relY (structural fill), not when it is a
+                            // standalone 1-block-wide element like a barrier or railing (zigzag).
+                            boolean flankedCurrent =
+                                    blockLookupBySlice.get(slice).containsKey(localRibbonKey(b.lateral - 1, b.relY)) &&
+                                    blockLookupBySlice.get(slice).containsKey(localRibbonKey(b.lateral + 1, b.relY));
+                            boolean flankedNext =
+                                    blockLookupBySlice.get(nextSlice).containsKey(localRibbonKey(nextLocal.lateral - 1, nextLocal.relY)) &&
+                                    blockLookupBySlice.get(nextSlice).containsKey(localRibbonKey(nextLocal.lateral + 1, nextLocal.relY));
+                            boolean fillBothCorners = flankedCurrent || flankedNext;
+
+                            sweepDecorativeRibbon(world, wp, nextWp, placeState, placedBlocks, dryRun, fillBothCorners);
                         }
                     }
                 }
             }
+
+            // On diagonal bridges the perp vector is itself diagonal, so adjacent lateral
+            // blocks within the same slice are diagonally adjacent in world space — fill both
+            // corner cells so arches and piers have no checkerboard gaps.
+            fillLateralDiagonalGaps(world, span.centerline, deckHalfY, i, sliceBlocks, placeCtx, placedBlocks, dryRun);
 
             List<BridgeTemplate.SupportSeed> sliceSeeds = seedsBySlice.get(slice);
             for (BridgeTemplate.SupportSeed s : sliceSeeds) {
@@ -299,6 +321,9 @@ public final class BridgeTemplateBridgeBuilder {
         if (!prepareDeckCell(world, deckPos)) return;
 
         world.setBlockState(deckPos, slab, 3);
+        if (sp.top) {
+            fillTopSlabGap(world, deckPos, slab, false);
+        }
         clearBridgeWalkVolume(world, x, z, sp.blockY + 1, sp.blockY + 3);
     }
 
@@ -371,18 +396,35 @@ public final class BridgeTemplateBridgeBuilder {
                                       boolean dryRun) {
         if (dryRun) return;
 
+        int sinkBlocks = Math.max(0, MPBConfig.BRIDGES.supportGroundSinkBlocks);
+        int groundSinkLeft = sinkBlocks;
+
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
-        for (int d = 1; d <= maxDepth; d++) {
+        for (int d = 1; d <= maxDepth + sinkBlocks; d++) {
             int yy = y - d;
             if (yy <= 1) break;
 
             p.setPos(x, yy, z);
             IBlockState st = world.getBlockState(p);
 
-            if (isSolidGroundStop(st)) break;
             if (world.getTileEntity(p) != null) break;
-            if (!prepareTemplateCell(world, p, st)) break;
 
+            // Tree/vegetation: replace with support and keep descending to actual ground
+            if (isTreeBlock(world, p, st)) {
+                world.setBlockState(p, state, 3);
+                continue;
+            }
+
+            if (isSolidGroundStop(st)) {
+                if (groundSinkLeft <= 0) break;
+                Block b = st.getBlock();
+                if (b == Blocks.BEDROCK || b == Blocks.BARRIER) break;
+                groundSinkLeft--;
+                world.setBlockState(p, state, 3);
+                continue;
+            }
+
+            if (!prepareTemplateCell(world, p, st)) break;
             world.setBlockState(p, state, 3);
         }
     }
@@ -391,6 +433,15 @@ public final class BridgeTemplateBridgeBuilder {
         if (st == null) return true;
         Material m = st.getMaterial();
         return m.isSolid() && m != Material.WATER && m != Material.ICE;
+    }
+
+    private static boolean isTreeBlock(World world, BlockPos pos, IBlockState st) {
+        if (st == null) return false;
+        Block b = st.getBlock();
+        Material m = st.getMaterial();
+        if (b.isLeaves(st, world, pos) || m == Material.LEAVES) return true;
+        if (b.isWood(world, pos) || m == Material.WOOD) return true;
+        return false;
     }
 
     private static boolean hasRoadUnderDeckTooClose(WorldServer world, int x, int z, int deckBlockY) {
@@ -491,14 +542,13 @@ public final class BridgeTemplateBridgeBuilder {
     private static void sweepDecorativeRibbon(WorldServer world,
                                               BlockPos start,
                                               BlockPos end,
-                                              BlockPos centerA,
-                                              BlockPos centerB,
                                               IBlockState state,
                                               LongOpenHashSet placedBlocks,
-                                              boolean dryRun) {
+                                              boolean dryRun,
+                                              boolean fillBothCorners) {
         if (start == null || end == null || state == null) return;
 
-        List<BlockPos> line = buildThinRibbonPath(start, end, centerA, centerB);
+        List<BlockPos> line = buildThinRibbonPath(start, end, fillBothCorners);
 
         if (line == null || line.isEmpty()) {
             placeTemplateBlockOnce(world, start, state, placedBlocks, dryRun);
@@ -520,10 +570,7 @@ public final class BridgeTemplateBridgeBuilder {
             placeTemplateBlockOnce(world, wp, state, placedBlocks, dryRun);
         }
     }
-    private static List<BlockPos> buildThinRibbonPath(BlockPos start,
-                                                      BlockPos end,
-                                                      BlockPos centerA,
-                                                      BlockPos centerB) {
+    private static List<BlockPos> buildThinRibbonPath(BlockPos start, BlockPos end, boolean fillBoth) {
         int dx = end.getX() - start.getX();
         int dz = end.getZ() - start.getZ();
 
@@ -535,9 +582,13 @@ public final class BridgeTemplateBridgeBuilder {
         }
 
         if (Math.abs(dx) == 1 && Math.abs(dz) == 1) {
-            BlockPos elbow = chooseInnerDiagonalElbow(start, end, centerA, centerB);
-            if (elbow != null) {
-                out.add(new BlockPos(elbow.getX(), 0, elbow.getZ()));
+            if (fillBoth) {
+                // Structural element (flanked on both sides): fill both corners for solid coverage.
+                out.add(new BlockPos(start.getX() + dx, 0, start.getZ()));
+                out.add(new BlockPos(start.getX(), 0, start.getZ() + dz));
+            } else {
+                // Thin decorative element (barrier, railing): single-corner zigzag stays 1 block wide.
+                out.add(new BlockPos(start.getX() + dx, 0, start.getZ()));
             }
             out.add(new BlockPos(end.getX(), 0, end.getZ()));
             return dedupXZ(out);
@@ -555,76 +606,6 @@ public final class BridgeTemplateBridgeBuilder {
 
         return dedupXZ(thin);
     }
-
-
-    private static BlockPos chooseInnerDiagonalElbow(BlockPos start,
-                                                     BlockPos end,
-                                                     BlockPos centerA,
-                                                     BlockPos centerB) {
-        BlockPos cand1 = new BlockPos(end.getX(), 0, start.getZ());
-        BlockPos cand2 = new BlockPos(start.getX(), 0, end.getZ());
-
-        double score1 = inwardScore(cand1, centerA, centerB);
-        double score2 = inwardScore(cand2, centerA, centerB);
-
-        if (score1 < score2) return cand1;
-        if (score2 < score1) return cand2;
-
-        double d1a = distSqXZ(cand1, centerA);
-        double d1b = distSqXZ(cand1, centerB);
-        double d2a = distSqXZ(cand2, centerA);
-        double d2b = distSqXZ(cand2, centerB);
-
-        double sum1 = d1a + d1b;
-        double sum2 = d2a + d2b;
-
-        if (sum1 <= sum2) return cand1;
-        return cand2;
-    }
-    private static double inwardScore(BlockPos p, BlockPos centerA, BlockPos centerB) {
-        if (p == null) return Double.POSITIVE_INFINITY;
-        if (centerA == null && centerB == null) return 0.0;
-        if (centerA == null) return distSqXZ(p, centerB);
-        if (centerB == null) return distSqXZ(p, centerA);
-
-        return pointToSegmentDistSqXZ(
-                p.getX(), p.getZ(),
-                centerA.getX(), centerA.getZ(),
-                centerB.getX(), centerB.getZ()
-        );
-    }
-    private static double distSqXZ(BlockPos a, BlockPos b) {
-        long dx = (long) a.getX() - (long) b.getX();
-        long dz = (long) a.getZ() - (long) b.getZ();
-        return (double) dx * (double) dx + (double) dz * (double) dz;
-    }
-    private static double pointToSegmentDistSqXZ(int px, int pz,
-                                                 int ax, int az,
-                                                 int bx, int bz) {
-        long dx = (long) bx - (long) ax;
-        long dz = (long) bz - (long) az;
-        long lenSq = dx * dx + dz * dz;
-
-        if (lenSq <= 0L) {
-            long ex = (long) px - (long) ax;
-            long ez = (long) pz - (long) az;
-            return (double) ex * (double) ex + (double) ez * (double) ez;
-        }
-
-        long apx = (long) px - (long) ax;
-        long apz = (long) pz - (long) az;
-
-        double t = (double) (apx * dx + apz * dz) / (double) lenSq;
-        if (t < 0.0) t = 0.0;
-        else if (t > 1.0) t = 1.0;
-
-        double cx = (double) ax + t * (double) dx;
-        double cz = (double) az + t * (double) dz;
-
-        double ddx = (double) px - cx;
-        double ddz = (double) pz - cz;
-        return ddx * ddx + ddz * ddz;
-    }
     private static List<BlockPos> dedupXZ(List<BlockPos> in) {
         ArrayList<BlockPos> out = new ArrayList<BlockPos>(in.size());
         BlockPos last = null;
@@ -638,5 +619,203 @@ public final class BridgeTemplateBridgeBuilder {
         }
 
         return out;
+    }
+
+    // Fills diagonal gaps between adjacent lateral positions within the same template slice.
+    // On a diagonal bridge the perp vector is itself diagonal, so lateral=L and lateral=L+1 land
+    // at diagonally-adjacent world cells, leaving two corner cells.
+    //
+    // Rule: for the pair (ba, bb), we get corner c1 (step X toward bb) and c2 (step Z, keeps ba's X).
+    //   - Don't fill c1 if bb is the outermost block in its direction (no block further beyond bb).
+    //     Filling c1 would extend the outer edge outward in X.
+    //   - Don't fill c2 if ba is the outermost block in its direction (no block further beyond ba).
+    //     Filling c2 would extend the outer edge outward in Z.
+    // This keeps outer walls/railings/roofs at their designed 1-block width while filling interior
+    // arch and pier cross-sections solid.
+    private static void fillLateralDiagonalGaps(WorldServer world,
+                                                 List<BlockPos> centerline,
+                                                 int[] deckHalfY,
+                                                 int idx,
+                                                 List<BridgeTemplate.BlockEntry> sliceBlocks,
+                                                 BridgeTemplatePlacementContext placeCtx,
+                                                 LongOpenHashSet placedBlocks,
+                                                 boolean dryRun) {
+        if (dryRun) return;
+        BridgeGeometry.Dir2 dir = BridgeGeometry.localDir(centerline, idx);
+        if (dir.dx == 0 || dir.dz == 0) return; // axis-aligned: no diagonal gap within a stripe
+
+        java.util.Set<Long> present = new java.util.HashSet<>();
+        for (BridgeTemplate.BlockEntry be : sliceBlocks) {
+            present.add(lateralRelYKey(be.lateral, be.relY));
+        }
+
+        int n = sliceBlocks.size();
+        for (int a = 0; a < n - 1; a++) {
+            BridgeTemplate.BlockEntry ba = sliceBlocks.get(a);
+            for (int b = a + 1; b < n; b++) {
+                BridgeTemplate.BlockEntry bb = sliceBlocks.get(b);
+                if (bb.relY != ba.relY || Math.abs(bb.lateral - ba.lateral) != 1) continue;
+
+                BlockPos pa = transform(centerline, deckHalfY, idx, ba.lateral, ba.relY);
+                BlockPos pb = transform(centerline, deckHalfY, idx, bb.lateral, bb.relY);
+
+                int gdx = pb.getX() - pa.getX();
+                int gdz = pb.getZ() - pa.getZ();
+                if (Math.abs(gdx) != 1 || Math.abs(gdz) != 1) continue;
+
+                int lateralDir = bb.lateral - ba.lateral; // +1 or -1, direction ba→bb
+
+                // ba is outermost if no block exists further away from bb (in the -lateralDir direction)
+                boolean baIsOutermost = !present.contains(lateralRelYKey(ba.lateral - lateralDir, ba.relY));
+                // bb is outermost if no block exists further away from ba (in the +lateralDir direction)
+                boolean bbIsOutermost = !present.contains(lateralRelYKey(bb.lateral + lateralDir, bb.relY));
+
+                BridgeTemplate.BlockEntry inner = Math.abs(ba.lateral) <= Math.abs(bb.lateral) ? ba : bb;
+                IBlockState fill = BridgeBlockStateRotation.rotateForPlacement(inner.state.toState(), placeCtx);
+
+                // c1 steps pa in X toward pb — skip when bb is the outermost edge
+                if (!bbIsOutermost) {
+                    placeTemplateBlockOnce(world, new BlockPos(pa.getX() + gdx, pa.getY(), pa.getZ()), fill, placedBlocks, dryRun);
+                }
+                // c2 steps pa in Z toward pb, keeping pa's X — skip when ba is the outermost edge
+                if (!baIsOutermost) {
+                    placeTemplateBlockOnce(world, new BlockPos(pa.getX(), pa.getY(), pa.getZ() + gdz), fill, placedBlocks, dryRun);
+                }
+            }
+        }
+    }
+
+    private static long lateralRelYKey(int lateral, int relY) {
+        return (((long) lateral) << 32) | (relY & 0xffffffffL);
+    }
+
+    // ---- gap fill between foundation/terrain and top-slab deck ----
+    //
+    // When sp.top=true the deck slab occupies only the upper half of sp.blockY, leaving a
+    // 0.5-block air gap against any solid block directly below. We replace the top slab with
+    // a filler block so the gap disappears without changing the walkable surface height.
+    //
+    // Priority: vanilla slab → matching full block (planks, stone…)
+    //           modded slab  → double slab of the same mod/type (via ItemSlab reflection)
+
+    private static void fillTopSlabGap(WorldServer world, BlockPos deckPos, IBlockState deckBaseState, boolean dryRun) {
+        if (dryRun) return;
+
+        IBlockState existing = world.getBlockState(deckPos);
+        Block block = existing.getBlock();
+        if (block != deckBaseState.getBlock()) return;
+        if (!(block instanceof BlockSlab)) return;
+        if (((BlockSlab) block).isDouble()) return;
+
+        BlockSlab.EnumBlockHalf half;
+        try {
+            half = existing.getValue(BlockSlab.HALF);
+        } catch (Exception e) {
+            return;
+        }
+        if (half != BlockSlab.EnumBlockHalf.TOP) return;
+
+        if (!world.getBlockState(deckPos.down()).getMaterial().isSolid()) return;
+
+        IBlockState filler = fillerForSlab(block, existing);
+        if (filler == null) return;
+
+        world.setBlockState(deckPos, filler, 3);
+    }
+
+    // Vanilla slabs → full block; modded slabs → double slab of the same type.
+    private static IBlockState fillerForSlab(Block slab, IBlockState slabState) {
+        IBlockState full = vanillaFullBlock(slab, slabState);
+        if (full != null) return full;
+        return moddedDoubleSlab(slab, slabState);
+    }
+
+    // Static lookup for all vanilla slab → full-block pairings.
+    // Metadata is masked with 0x7 to strip the top/bottom half bit.
+    private static IBlockState vanillaFullBlock(Block slab, IBlockState slabState) {
+        if (slab == Blocks.WOODEN_SLAB) {
+            // wooden slab meta 0-5 matches planks meta 0-5 (oak/spruce/birch/jungle/acacia/dark_oak)
+            return Blocks.PLANKS.getStateFromMeta(slab.getMetaFromState(slabState) & 0x7);
+        }
+        if (slab == Blocks.STONE_SLAB) {
+            switch (slab.getMetaFromState(slabState) & 0x7) {
+                case 0: return Blocks.STONE.getDefaultState();
+                case 1: return Blocks.SANDSTONE.getDefaultState();
+                case 2: return Blocks.PLANKS.getDefaultState();
+                case 3: return Blocks.COBBLESTONE.getDefaultState();
+                case 4: return Blocks.BRICK_BLOCK.getDefaultState();
+                case 5: return Blocks.STONEBRICK.getDefaultState();
+                case 6: return Blocks.NETHER_BRICK.getDefaultState();
+                case 7: return Blocks.QUARTZ_BLOCK.getDefaultState();
+            }
+        }
+        if (slab == Blocks.STONE_SLAB2) return Blocks.RED_SANDSTONE.getDefaultState();
+        if (slab == Blocks.PURPUR_SLAB)  return Blocks.PURPUR_BLOCK.getDefaultState();
+        return null;
+    }
+
+    // For modded slabs: finds the double-slab variant via ItemSlab field reflection.
+    // Discovery is type-based (looks for BlockSlab fields), not name-based, so it works in
+    // both the MCP-mapped dev environment and the obfuscated production environment.
+    private static IBlockState moddedDoubleSlab(Block slab, IBlockState slabState) {
+        Block doubleBlock = getDoubleSlabFor(slab);
+        if (doubleBlock == null) return null;
+        return buildDoubleSlabState(doubleBlock, slabState, (BlockSlab) slab);
+    }
+
+    private static final java.util.HashMap<Block, Block> DOUBLE_SLAB_CACHE = new java.util.HashMap<>();
+    private static volatile boolean doubleSlabCacheReady = false;
+
+    private static Block getDoubleSlabFor(Block single) {
+        if (!doubleSlabCacheReady) buildDoubleSlabCache();
+        return DOUBLE_SLAB_CACHE.get(single);
+    }
+
+    private static synchronized void buildDoubleSlabCache() {
+        if (doubleSlabCacheReady) return;
+        for (Item item : ForgeRegistries.ITEMS) {
+            if (!(item instanceof ItemSlab)) continue;
+            Block single = null;
+            Block doubleBlock = null;
+            for (java.lang.reflect.Field f : ItemSlab.class.getDeclaredFields()) {
+                if (!BlockSlab.class.isAssignableFrom(f.getType())) continue;
+                try {
+                    f.setAccessible(true);
+                    Object val = f.get(item);
+                    if (!(val instanceof BlockSlab)) continue;
+                    if (((BlockSlab) val).isDouble()) doubleBlock = (Block) val;
+                    else single = (Block) val;
+                } catch (Exception ignored) {}
+            }
+            if (single != null && doubleBlock != null) {
+                DOUBLE_SLAB_CACHE.put(single, doubleBlock);
+            }
+        }
+        doubleSlabCacheReady = true;
+    }
+
+    private static IBlockState buildDoubleSlabState(Block doubleBlock, IBlockState singleState, BlockSlab singleSlab) {
+        try {
+            IProperty<?> variantProp = singleSlab.getVariantProperty();
+            IBlockState base = doubleBlock.getDefaultState();
+            if (variantProp == null) return base;
+            Comparable<?> val = singleState.getValue(variantProp);
+            IProperty<?> doubleVariant = ((BlockSlab) doubleBlock).getVariantProperty();
+            if (doubleVariant != null && doubleVariant.getName().equals(variantProp.getName())) {
+                base = applyVariant(base, doubleVariant, val);
+            }
+            return base;
+        } catch (Exception e) {
+            return doubleBlock.getDefaultState();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Comparable<T>> IBlockState applyVariant(IBlockState state, IProperty<T> prop, Comparable<?> raw) {
+        try {
+            return state.withProperty(prop, (T) raw);
+        } catch (Exception e) {
+            return state;
+        }
     }
 }

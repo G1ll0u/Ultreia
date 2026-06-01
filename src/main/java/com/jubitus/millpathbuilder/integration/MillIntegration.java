@@ -1,6 +1,7 @@
 package com.jubitus.millpathbuilder.integration;
 
 import com.jubitus.millpathbuilder.MillPathBuilderMod;
+import com.jubitus.millpathbuilder.MillPresence;
 import com.jubitus.millpathbuilder.config.MPBConfig;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -85,6 +86,8 @@ public final class MillIntegration {
     }
 
     public static List<BlockPos> getAllNodePositions(World world) {
+        if (!MillPresence.isPresent()) return new ArrayList<>();
+
         List<BlockPos> out = new ArrayList<>();
 
         MillWorldData data = get(world);
@@ -116,6 +119,10 @@ public final class MillIntegration {
     }
 
     public static void logNodeSummary(World world) {
+        if (!MillPresence.isPresent()) {
+            MillPathBuilderMod.LOGGER.info("Millenaire not installed — no village nodes available for /mpb generate.");
+            return;
+        }
         MillWorldData data = get(world);
         if (data == null) {
             MillPathBuilderMod.LOGGER.warn("MillWorldData not found for this world/dimension.");

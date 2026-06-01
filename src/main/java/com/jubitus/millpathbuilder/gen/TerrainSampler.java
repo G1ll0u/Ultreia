@@ -3,6 +3,7 @@ package com.jubitus.millpathbuilder.gen;
 import com.jubitus.millpathbuilder.config.MPBConfig;
 import com.jubitus.millpathbuilder.gen.mill.MPBMillPathPalette;
 import com.jubitus.millpathbuilder.gen.newp.MPBTreeCompat;
+import com.jubitus.millpathbuilder.gen.MPBGround;
 import com.jubitus.millpathbuilder.gen.world.MPBRoadIndexData;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -43,12 +44,15 @@ public class TerrainSampler {
     private static final int MAX_SAMPLE_CACHE  = 500_000;
     private static final int MAX_LIGHT_CACHE   = 400_000;
 
-    // Light-sample packed int: bits 0-8 = surfaceY (0-255+), bit 9 = isWater, bit 10 = isOcean.
+    // Light-sample packed int: bits 0-8 = surfaceY (0-255+), bit 9 = isWater, bit 10 = isOcean,
+    // bits 11-12 = surface hardness category (0=soft/dirt, 1=medium/sandstone, 2=hard/stone, 3=veryhard).
     // Integer.MIN_VALUE = not loaded / not in cache.
-    public static final int LIGHT_NOT_LOADED  = Integer.MIN_VALUE;
-    public static final int LIGHT_SURFACE_MASK = 0x1FF;
-    public static final int LIGHT_WATER_BIT   = 1 << 9;
-    public static final int LIGHT_OCEAN_BIT   = 1 << 10;
+    public static final int LIGHT_NOT_LOADED    = Integer.MIN_VALUE;
+    public static final int LIGHT_SURFACE_MASK  = 0x1FF;
+    public static final int LIGHT_WATER_BIT     = 1 << 9;
+    public static final int LIGHT_OCEAN_BIT     = 1 << 10;
+    public static final int LIGHT_HARDNESS_SHIFT = 11;
+    public static final int LIGHT_HARDNESS_MASK  = 0x3;
 
     public enum BlockedDetail {
         NONE,
@@ -73,15 +77,28 @@ public class TerrainSampler {
         public final Biome biome;
         public final boolean smallWater;
         public final boolean nearWaterLike;
-        /** True when a tree trunk/branch is present at surfaceY+1 or surfaceY+2. */
+        /**
+         * True when a tree trunk/branch is present near this cell.
+         * For DynamicTrees, this includes trunks within dtTreeProximityCheckRadius blocks.
+         */
         public final boolean hasTreeTrunk;
+        /**
+         * DynamicTrees branch radius of the largest trunk found near this cell (1-8).
+         * 0 = no DT trunk detected. 9 = vanilla/unknown tree.
+         * Combined with hasTreeTrunk to scale the A* avoidance penalty.
+         */
+        public final int trunkRadius;
+        /** True when the surface block at this cell is farmland (vanilla or modded). */
+        public final boolean hasFarmland;
+        /** Surface block hardness category: 0=soft (dirt/snow), 1=medium (sandstone), 2=hard (stone), 3=veryhard. */
+        public final int surfaceHardnessCategory;
 
         public final BlockedDetail blockedPathDetail;
         public final BlockedDetail blockedPaintDetail;
 
         public Sample(int x, int z, int surfaceY, boolean isWater, boolean isOcean, boolean isBlacklisted,
                       boolean blockedPath, boolean blockedPaint, boolean smallWater, boolean nearWaterLike,
-                      boolean hasTreeTrunk,
+                      boolean hasTreeTrunk, int trunkRadius, boolean hasFarmland, int surfaceHardnessCategory,
                       BlockedDetail blockedPathDetail, BlockedDetail blockedPaintDetail, Biome biome) {
             this.x = x;
             this.z = z;
@@ -94,6 +111,9 @@ public class TerrainSampler {
             this.smallWater = smallWater;
             this.nearWaterLike = nearWaterLike;
             this.hasTreeTrunk = hasTreeTrunk;
+            this.trunkRadius = trunkRadius;
+            this.hasFarmland = hasFarmland;
+            this.surfaceHardnessCategory = surfaceHardnessCategory;
             this.blockedPathDetail = blockedPathDetail;
             this.blockedPaintDetail = blockedPaintDetail;
             this.biome = biome;
@@ -136,6 +156,17 @@ public class TerrainSampler {
         roadDistCache.clear();
     }
 
+    /** Cached manhattan distance to nearest road, or Integer.MAX_VALUE if none within maxRadius. */
+    public int nearestRoadDistManhattan(int x, int z, int maxRadius, int scanStep) {
+        if (roadIndex == null) return Integer.MAX_VALUE;
+        long k = key(x, z);
+        int cached = roadDistCache.get(k);
+        if (cached != Integer.MIN_VALUE) return cached;
+        int dist = roadIndex.approxNearestRoadDistManhattan(x, z, maxRadius, scanStep);
+        roadDistCache.put(k, dist);
+        return dist;
+    }
+
     public void clearCache() {
         cache.clear();
         lightCache.clear();
@@ -170,12 +201,12 @@ public class TerrainSampler {
         if (!world.isBlockLoaded(pos)) {
             if (MPBConfig.GENERAL.allowChunkLoading && chunkManager != null) {
                 if (!chunkManager.ensureLoaded(world, x, z)) {
-                    Sample out = new Sample(x, z, 1, false, false, false, true, true, false, false, false,
+                    Sample out = new Sample(x, z, 1, false, false, false, true, true, false, false, false, 0, false, 0,
                             BlockedDetail.NON_WALKABLE_GROUND, BlockedDetail.NON_PAINTABLE_GROUND, world.getBiome(pos));
                     return cachePut(k, out);
                 }
             } else {
-                Sample out = new Sample(x, z, 1, false, false, false, true, true, false, false, false,
+                Sample out = new Sample(x, z, 1, false, false, false, true, true, false, false, false, 0, false, 0,
                         BlockedDetail.NON_WALKABLE_GROUND, BlockedDetail.NON_PAINTABLE_GROUND, world.getBiome(pos));
                 return cachePut(k, out);
             }
@@ -307,21 +338,29 @@ public class TerrainSampler {
         }
 
         boolean hasTreeTrunk = false;
+        int trunkRadius = 0;
         if (!isWater && MPBConfig.PAINTING.clearTrees) {
-            BlockPos.MutableBlockPos tp = new BlockPos.MutableBlockPos();
-            for (int dy = 1; dy <= 2; dy++) {
-                tp.setPos(x, surfaceY + dy, z);
-                IBlockState tst = world.getBlockState(tp);
-                if (tst != null && (MPBTreeCompat.isTreeWoodLike(world, tp, tst) || isLikelyTreeWood(tst, tp))) {
-                    hasTreeTrunk = true;
-                    break;
-                }
-            }
+            trunkRadius = detectTrunkRadius(x, surfaceY, z);
+            hasTreeTrunk = trunkRadius > 0;
+        }
+
+        // Farmland detection: check the surface block (crops are skipped by the surface scan,
+        // so surfaceY lands on the farmland itself).
+        boolean hasFarmland = false;
+        int surfaceHardnessCategory = 0;
+        if (!isWater) {
+            BlockPos.MutableBlockPos fp = new BlockPos.MutableBlockPos(x, surfaceY, z);
+            IBlockState fst = world.getBlockState(fp);
+            hasFarmland = MPBGround.isFarmland(fst);
+            try {
+                float h = fst.getBlockHardness(world, fp);
+                surfaceHardnessCategory = hardnessCategoryFromFloat(h);
+            } catch (Throwable ignored) {}
         }
 
         Sample out = new Sample(x, z, surfaceY, isWater, isOcean, isBlacklisted,
-                blockedPath, blockedPaint, smallWater, nearWaterLike, hasTreeTrunk,
-                blockedPathDetail, blockedPaintDetail, biome);
+                blockedPath, blockedPaint, smallWater, nearWaterLike, hasTreeTrunk, trunkRadius, hasFarmland,
+                surfaceHardnessCategory, blockedPathDetail, blockedPaintDetail, biome);
         return cachePut(k, out);
     }
 
@@ -392,7 +431,8 @@ public class TerrainSampler {
         if (full != null) {
             return (full.isOcean ? LIGHT_OCEAN_BIT : 0)
                     | (full.isWater ? LIGHT_WATER_BIT : 0)
-                    | (full.surfaceY & LIGHT_SURFACE_MASK);
+                    | (full.surfaceY & LIGHT_SURFACE_MASK)
+                    | (full.surfaceHardnessCategory << LIGHT_HARDNESS_SHIFT);
         }
 
         // Check light cache.
@@ -435,10 +475,29 @@ public class TerrainSampler {
                     || (biomeId != null && biomeId.getPath().contains("ocean"));
         }
 
-        int packed = (isOcean ? LIGHT_OCEAN_BIT : 0) | (isWater ? LIGHT_WATER_BIT : 0) | (y & LIGHT_SURFACE_MASK);
+        int hardnessCat = 0;
+        if (!isWater) {
+            try {
+                // pos still points to (x, y, z) = the surface block
+                IBlockState surfSt = world.getBlockState(pos);
+                float h = surfSt.getBlockHardness(world, pos);
+                hardnessCat = hardnessCategoryFromFloat(h);
+            } catch (Throwable ignored) {}
+        }
+
+        int packed = (isOcean ? LIGHT_OCEAN_BIT : 0) | (isWater ? LIGHT_WATER_BIT : 0) | (y & LIGHT_SURFACE_MASK)
+                | (hardnessCat << LIGHT_HARDNESS_SHIFT);
         if (lightCache.size() >= MAX_LIGHT_CACHE) lightCache.clear();
         lightCache.put(k, packed);
         return packed;
+    }
+
+    private static int hardnessCategoryFromFloat(float h) {
+        if (h < 0) return 3;     // unbreakable
+        if (h <= 0.6f) return 0; // soft: dirt, grass, sand, snow, gravel, clay
+        if (h <= 1.1f) return 1; // medium: sandstone, etc.
+        if (h <= 2.5f) return 2; // hard: stone, cobblestone, granite
+        return 3;                // very hard: obsidian, modded hard blocks
     }
 
     @Nullable
@@ -490,25 +549,34 @@ public class TerrainSampler {
             cost += (double) protectedAreas.penaltyAt(s.x, s.z);
         }
 
-        if (mode == Mode.PATHFINDING && MPBConfig.PATHFINDING.avoidParallelToExistingRoads && roadIndex != null) {
-            int maxR = Math.max(1, MPBConfig.PATHFINDING.parallelRoadAvoidRadius);
-            int step = Math.max(1, MPBConfig.PATHFINDING.parallelRoadAvoidScanStep);
+        if (mode == Mode.PATHFINDING && roadIndex != null && roadIndex.isBridgeVolumeXZ(s.x, s.z)) {
+            cost += Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.existingBridgeVolumeAvoidanceCost);
+        }
 
-            long kk = key(s.x, s.z);
-            int dist = roadDistCache.get(kk);
+        if (mode == Mode.PATHFINDING && roadIndex != null) {
+            boolean onRoad = roadIndex.isRoadXZ(s.x, s.z);
+            if (onRoad && MPBConfig.PATHFINDING.preferExistingRoads) {
+                cost -= Math.max(0.0, MPBConfig.PATHFINDING.existingRoadBonus);
+            } else if (!onRoad && MPBConfig.PATHFINDING.avoidParallelToExistingRoads) {
+                int maxR = Math.max(1, MPBConfig.PATHFINDING.parallelRoadAvoidRadius);
+                int step = Math.max(1, MPBConfig.PATHFINDING.parallelRoadAvoidScanStep);
 
-            if (dist == Integer.MIN_VALUE) {
-                dist = roadIndex.approxNearestRoadDistManhattan(s.x, s.z, maxR, step);
-                roadDistCache.put(kk, dist);
-            }
+                long kk = key(s.x, s.z);
+                int dist = roadDistCache.get(kk);
 
-            if (dist > 1 && dist != Integer.MAX_VALUE) {
-                double t = (double) (maxR - dist + 1);
-                if (t > 0.0) {
-                    double base = MPBConfig.PATHFINDING.parallelRoadPenalty;
-                    double p = MPBConfig.PATHFINDING.parallelRoadPenaltyPower;
-                    if (p < 1.0) p = 1.0;
-                    cost += base * Math.pow(t, p);
+                if (dist == Integer.MIN_VALUE) {
+                    dist = roadIndex.approxNearestRoadDistManhattan(s.x, s.z, maxR, step);
+                    roadDistCache.put(kk, dist);
+                }
+
+                if (dist > 1 && dist != Integer.MAX_VALUE) {
+                    double t = (double) (maxR - dist + 1);
+                    if (t > 0.0) {
+                        double base = MPBConfig.PATHFINDING.parallelRoadPenalty;
+                        double p = MPBConfig.PATHFINDING.parallelRoadPenaltyPower;
+                        if (p < 1.0) p = 1.0;
+                        cost += base * Math.pow(t, p);
+                    }
                 }
             }
         }
@@ -517,8 +585,14 @@ public class TerrainSampler {
             cost += 35.0 * (double) r;
         }
         if (mode == Mode.PATHFINDING && s.hasTreeTrunk && MPBConfig.PAINTING.clearTrees) {
-            cost += MPBConfig.PATHFINDING.treePenalty;
+            double mult = treePenaltyMultiplier(s.trunkRadius);
+            cost += MPBConfig.PATHFINDING.treePenalty * mult;
         }
+
+        if (mode == Mode.PATHFINDING && s.hasFarmland) {
+            cost += MPBConfig.PATHFINDING.farmlandPenalty;
+        }
+
         return cost;
     }
 
@@ -594,6 +668,107 @@ public class TerrainSampler {
         }
 
         return false;
+    }
+
+    /**
+     * Detects the "effective trunk radius" at (x, surfaceY, z).
+     *
+     * Steps:
+     * 1. Check directly above (surfaceY+1 to +4) for DT branches or vanilla trunks.
+     * 2. If rootydirt is AT surfaceY, read the trunk radius from surfaceY+1.
+     * 3. Proximity scan: within dtTreeProximityCheckRadius blocks check for large DT trunks.
+     *    This ensures the cost is applied even when the path is NEXT TO a thick trunk,
+     *    covering the full road width.
+     *
+     * Returns 0 if no trunk found, 1-8 for DT radius, 9 for vanilla/unknown trunk.
+     */
+    private int detectTrunkRadius(int x, int surfaceY, int z) {
+        BlockPos.MutableBlockPos tp = new BlockPos.MutableBlockPos();
+        int best = 0;
+
+        // --- Direct column scan above this cell ---
+        for (int dy = 1; dy <= 4 && best == 0; dy++) {
+            int yy = surfaceY + dy;
+            if (yy > 255) break;
+            tp.setPos(x, yy, z);
+            IBlockState tst = world.getBlockState(tp);
+            if (tst == null) continue;
+            int r = probeBlockTrunkRadius(tst, tp);
+            if (r > best) best = r;
+        }
+
+        // --- Check if rootydirt is at the surface (tree planted exactly here) ---
+        if (best == 0) {
+            tp.setPos(x, surfaceY, z);
+            IBlockState surfSt = world.getBlockState(tp);
+            if (MPBTreeCompat.isDTRootyBlock(surfSt)) {
+                // Trunk starts one block above the rootydirt
+                tp.setPos(x, surfaceY + 1, z);
+                IBlockState trunkSt = world.getBlockState(tp);
+                int r = probeBlockTrunkRadius(trunkSt, tp);
+                best = (r > 0) ? r : 1;
+            }
+        }
+
+        // --- Proximity scan for large DT trunks nearby ---
+        // If a thick trunk is within the road footprint, apply the penalty to this centerline cell.
+        int proximityR = MPBConfig.PATHFINDING.dtTreeProximityCheckRadius;
+        if (proximityR > 0) {
+            int largeThreshold = MPBConfig.PATHFINDING.dtLargeTreeRadiusThreshold;
+            outer:
+            for (int dx = -proximityR; dx <= proximityR; dx++) {
+                for (int dz = -proximityR; dz <= proximityR; dz++) {
+                    if (dx == 0 && dz == 0) continue;
+                    int nx = x + dx;
+                    int nz = z + dz;
+                    for (int dy = 1; dy <= 6; dy++) {
+                        int yy = surfaceY + dy;
+                        if (yy > 255) break;
+                        tp.setPos(nx, yy, nz);
+                        IBlockState tst = world.getBlockState(tp);
+                        if (tst == null || tst.getMaterial() == net.minecraft.block.material.Material.AIR) continue;
+                        if (MPBTreeCompat.isDynamicTreesBranch(tst)) {
+                            int r = MPBTreeCompat.getDTBranchRadius(tst);
+                            if (r >= largeThreshold && r > best) {
+                                best = r;
+                                break outer; // Found a large trunk nearby — no need to keep scanning
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return best;
+    }
+
+    /** Returns the trunk radius for a single block: 1-8 for DT branches, 9 for vanilla wood, 0 otherwise. */
+    private int probeBlockTrunkRadius(IBlockState st, BlockPos pos) {
+        if (st == null) return 0;
+        if (MPBTreeCompat.isDynamicTreesBranch(st)) {
+            int r = MPBTreeCompat.getDTBranchRadius(st);
+            return (r > 0) ? r : 1;
+        }
+        if (MPBTreeCompat.isDynamicTreesTrunkShell(st)) return 4; // Trunk shell = thick trunk
+        if (isLikelyTreeWood(st, pos) || st.getBlock().isWood(world, pos) || st.getMaterial() == Material.WOOD) {
+            return 9; // Vanilla/unknown tree
+        }
+        return 0;
+    }
+
+    /**
+     * Returns the A* cost multiplier for a tree based on its trunk radius.
+     * DT large trees (radius >= threshold) get a configurable multiplier.
+     * Vanilla trees (radius 9) get base 1.0 — the treePenalty is already calibrated for them.
+     */
+    private static double treePenaltyMultiplier(int radius) {
+        if (radius <= 0) return 1.0;
+        if (radius == 9) return 1.0; // vanilla tree
+        int threshold = MPBConfig.PATHFINDING.dtLargeTreeRadiusThreshold;
+        if (radius >= threshold) {
+            return MPBConfig.PATHFINDING.dtLargeTreePenaltyMultiplier;
+        }
+        return 1.0;
     }
 
     private boolean isLikelyTreeWood(IBlockState st, BlockPos pos) {

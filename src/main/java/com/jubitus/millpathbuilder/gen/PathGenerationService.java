@@ -21,7 +21,7 @@ public final class PathGenerationService {
     public static void generate(WorldServer world, ICommandSender sender, boolean force, boolean dryRun) {
         MPBGenerationManager.start(world, sender, force, dryRun);
     }
-    public static void generateCustom(WorldServer world, ICommandSender sender, BlockPos start, BlockPos goal, boolean dryRun) {
-        MPBGenerationManager.startCustom(world, sender, start, goal, dryRun);
+    public static void generateCustom(WorldServer world, ICommandSender sender, BlockPos start, BlockPos goal, boolean dryRun, RoadType roadType) {
+        MPBGenerationManager.startCustom(world, sender, start, goal, dryRun, roadType);
     }
 }

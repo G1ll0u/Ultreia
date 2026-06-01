@@ -1,6 +1,7 @@
 {
   "package": "com.jubitus.millpathbuilder.mixin",
-  "required": true,
+  "required": false,
+  "plugin": "com.jubitus.millpathbuilder.mixin.MPBMixinPlugin",
   "refmap": "mixins.millpathbuilder.refmap.json",
   "target": "@env(DEFAULT)",
   "minVersion": "0.8.5",

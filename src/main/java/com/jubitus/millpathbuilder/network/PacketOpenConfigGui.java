@@ -9,7 +9,7 @@ import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public final class PacketOpenConfigGui implements IMessage {
+public final class Et implements IMessage {
 
     // Set by ClientProxy on client side only — null on dedicated server
     private static GuiOpener guiOpener;

@@ -90,7 +90,7 @@ public final class BridgeGeometry {
     public static int[] buildDeckHalfProfile(int startHalf, int endHalf, List<BlockPos> line, TerrainSampler sampler) {
         int crown = Math.max(0, MPBConfig.BRIDGES.bridgeCrownHalfBlocks);
         if (crown > 0 && MPBConfig.BRIDGES.extraWaterBridgeCrown && hasMeaningfulWaterInterior(line, sampler)) {
-            crown += 1;
+            crown += 2;
         }
         return computeDeckProfile(startHalf, endHalf, line, crown, MPBConfig.BRIDGES.bridgeCrownMinLenBlocks);
     }
@@ -121,46 +121,56 @@ public final class BridgeGeometry {
                 crown, crownMin);
     }
 
+    // Returns the max allowed endpoint height delta (in half-blocks) for a given bridge length.
+    public static int maxBridgeDeltaHalfForLen(int lenBlocks) {
+        double slopeTan = Math.tan(Math.toRadians(Math.max(0.5, MPBConfig.BRIDGES.maxBridgeSlopeDegrees)));
+        return (int) Math.round(lenBlocks * slopeTan * 2.0);
+    }
+
     private static int[] computeDeckProfile(int startHalf, int endHalf, List<BlockPos> line,
                                             int crown, int crownMinLen) {
         int n = line.size();
-        int[] ideal = new int[n];
+        if (n == 0) return new int[0];
+        if (n == 1) return new int[]{startHalf};
 
-        for (int i = 0; i < n; i++) {
-            double t = (n <= 1) ? 0.0 : ((double) i / (double) (n - 1));
-            ideal[i] = (int) Math.round((1.0 - t) * (double) startHalf + t * (double) endHalf);
-        }
+        int maxStepHalf = Math.max(1, MPBConfig.BRIDGES.maxDeckDeltaHalfPerBlock);
+        int len = n - 1;
 
-        int len = Math.max(0, n - 1);
+        // Cap crown so the sine arch slope never exceeds the step budget at the endpoints.
+        // Sine arch slope near t=0 or t=1 is approximately crown*π/len (in half-blocks per step).
+        // Combined with the linear baseline slope |endHalf-startHalf|/len, both must fit in maxStepHalf.
+        int effectiveCrown = 0;
         if (crown > 0 && len >= Math.max(2, crownMinLen) && n >= 3) {
-            for (int i = 1; i < n - 1; i++) {
-                double t = (double) i / (double) (n - 1);
-                double arch = 1.0 - Math.abs(2.0 * t - 1.0);
-                ideal[i] += (int) Math.round((double) crown * arch);
-            }
+            double budget = (double) maxStepHalf * len - Math.abs(endHalf - startHalf);
+            if (budget > 0.0) effectiveCrown = Math.min(crown, (int) Math.floor(budget / Math.PI));
         }
-
-        int maxStepHalf = Math.max(0, MPBConfig.BRIDGES.maxDeckDeltaHalfPerBlock);
-        if (maxStepHalf <= 0) return ideal;
 
         int[] out = new int[n];
-        out[0] = ideal[0];
-        for (int i = 1; i < n; i++) {
-            int want = ideal[i];
-            int prev = out[i - 1];
-            int d = want - prev;
-            if (d > maxStepHalf) want = prev + maxStepHalf;
-            else if (d < -maxStepHalf) want = prev - maxStepHalf;
-            out[i] = want;
+        for (int i = 0; i < n; i++) {
+            double t = (double) i / (double) len;
+            double base = (1.0 - t) * startHalf + t * endHalf;
+            double arch = effectiveCrown > 0 ? effectiveCrown * Math.sin(Math.PI * t) : 0.0;
+            out[i] = (int) Math.round(base + arch);
         }
-        for (int i = n - 2; i >= 0; i--) {
-            int want = out[i];
-            int next = out[i + 1];
-            int d = want - next;
-            if (d > maxStepHalf) want = next + maxStepHalf;
-            else if (d < -maxStepHalf) want = next - maxStepHalf;
-            out[i] = want;
+        // Lock endpoints exactly — rounding must not drift them.
+        out[0] = startHalf;
+        out[n - 1] = endHalf;
+
+        // Interior-only clamping: endpoints stay pinned so road-bridge junctions are always exact.
+        if (n >= 3) {
+            for (int i = 1; i < n - 1; i++) {
+                int d = out[i] - out[i - 1];
+                if (d > maxStepHalf) out[i] = out[i - 1] + maxStepHalf;
+                else if (d < -maxStepHalf) out[i] = out[i - 1] - maxStepHalf;
+            }
+            for (int i = n - 2; i >= 1; i--) {
+                int d = out[i] - out[i + 1];
+                if (d > maxStepHalf) out[i] = out[i + 1] + maxStepHalf;
+                else if (d < -maxStepHalf) out[i] = out[i + 1] - maxStepHalf;
+            }
         }
+        out[0] = startHalf;
+        out[n - 1] = endHalf;
 
         return out;
     }

@@ -6,6 +6,7 @@ import com.jubitus.millpathbuilder.gen.bridge.BridgeSpan;
 import com.jubitus.millpathbuilder.gen.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.millpathbuilder.gen.util.MPBPos2D;
 import com.jubitus.millpathbuilder.gen.world.MPBRoadIndexData;
+import com.jubitus.millpathbuilder.gen.world.MPBRoadNetwork;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.math.BlockPos;
@@ -20,6 +21,7 @@ public final class MPBCustomPathGenerationJob implements MPBAsyncJob {
     private final WorldServer world;
     private final WeakReference<ICommandSender> senderRef;
     private final boolean dryRun;
+    private final RoadType roadType;
 
     private final BlockPos requestedStart;
     private final BlockPos requestedGoal;
@@ -28,6 +30,7 @@ public final class MPBCustomPathGenerationJob implements MPBAsyncJob {
     private final TerrainSampler sampler;
     private final MPBProtectedAreas protectedAreas;
     private final MPBRoadIndexData roadIndex;
+    private final MPBRoadNetwork roadNetwork;
     private final AStarPathfinder astar = new AStarPathfinder();
 
     private BlockPos resolvedStart;
@@ -40,10 +43,11 @@ public final class MPBCustomPathGenerationJob implements MPBAsyncJob {
     private boolean done = false;
     private boolean failed = false;
 
-    public MPBCustomPathGenerationJob(WorldServer world, ICommandSender sender, BlockPos start, BlockPos goal, boolean dryRun) {
+    public MPBCustomPathGenerationJob(WorldServer world, ICommandSender sender, BlockPos start, BlockPos goal, boolean dryRun, RoadType roadType) {
         this.world = world;
         this.senderRef = new WeakReference<>(sender);
         this.dryRun = dryRun;
+        this.roadType = (roadType != null) ? roadType : RoadType.VILLAGE_MAIN;
         this.requestedStart = start;
         this.requestedGoal = goal;
 
@@ -56,6 +60,7 @@ public final class MPBCustomPathGenerationJob implements MPBAsyncJob {
         this.roadIndex = MPBRoadIndexData.get(world);
         this.roadIndex.attachChunkManager(this.chunkManager);
         this.sampler.setRoadIndex(this.roadIndex);
+        this.roadNetwork = MPBRoadNetwork.get(world);
 
         this.protectedAreas = MPBGenerationJob.buildProtectedAreas(world, sampler);
         this.sampler.setProtectedAreas(this.protectedAreas);
@@ -123,6 +128,8 @@ public final class MPBCustomPathGenerationJob implements MPBAsyncJob {
 
                 msg("Manual pathfinding: (" + resolvedStart.getX() + "," + resolvedStart.getZ() + ") -> (" + resolvedGoal.getX() + "," + resolvedGoal.getZ() + ")");
                 curSession = astar.startSession(world, resolvedStart, resolvedGoal, sampler);
+                curSession.setRoadType(roadType);
+                curSession.setRoadNetwork(roadNetwork);
                 continue;
             }
 
@@ -150,11 +157,12 @@ public final class MPBCustomPathGenerationJob implements MPBAsyncJob {
                     }
 
                     boolean allowEarlyMerge = true;
-                    curPainter = RoadPainter.start(world, coarse, bridges, sampler, protectedAreas, roadIndex, dryRun, allowEarlyMerge);
+                    chunkManager.releaseEdge(world);
+                    sampler.clearCache();
 
-                    if (MPBConfig.GENERAL.unloadChunksAfterEachEdge) {
-                        chunkManager.releaseAll(world);
-                    }
+                    curPainter = RoadPainter.start(world, coarse, bridges, sampler, protectedAreas, roadIndex, dryRun, allowEarlyMerge);
+                    curPainter.setRoadType(roadType);
+                    curPainter.setRoadNetwork(roadNetwork, null, null);
                     continue;
                 }
 
@@ -173,9 +181,7 @@ public final class MPBCustomPathGenerationJob implements MPBAsyncJob {
                     msg("Manual path OK.");
                     curPainter = null;
                     sampler.clearCache();
-                    if (MPBConfig.GENERAL.unloadChunksAfterEachEdge) {
-                        chunkManager.releaseAll(world);
-                    }
+                    chunkManager.releaseEdge(world);
                     done = true;
                     return;
                 }
@@ -212,9 +218,7 @@ public final class MPBCustomPathGenerationJob implements MPBAsyncJob {
         done = true;
         msg(message);
         sampler.clearCache();
-        if (MPBConfig.GENERAL.unloadChunksAfterEachEdge) {
-            chunkManager.releaseAll(world);
-        }
+        chunkManager.releaseEdge(world);
     }
 
     private void msg(String s) {

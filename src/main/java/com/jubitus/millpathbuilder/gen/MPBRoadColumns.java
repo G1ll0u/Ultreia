@@ -1,5 +1,6 @@
 package com.jubitus.millpathbuilder.gen;
 
+import com.jubitus.millpathbuilder.MillPathBuilderMod;
 import com.jubitus.millpathbuilder.config.MPBConfig;
 import com.jubitus.millpathbuilder.gen.mill.MPBMillPathPalette;
 import com.jubitus.millpathbuilder.gen.newp.MPBTreeCompat;
@@ -82,6 +83,78 @@ public final class MPBRoadColumns {
                 setAir(world, p);
             }
         }
+    }
+
+    /**
+     * Scans upward from {@code base.up(startDy)} and removes tree blocks that block the road corridor.
+     *
+     * Behaviour:
+     * - DT branch radius >= dtWholeTreeRemovalThreshold: removes the ENTIRE tree via BFS (rootydirt
+     *   converted to dirt, branches removed, leaves decay naturally).
+     * - DT branch radius < threshold or DT foliage: calls destroyBlock so DT's own physics can
+     *   collapse orphaned sub-branches. The rest of the tree stays standing.
+     * - Vanilla/non-DT wood: setBlockState to AIR.
+     * - Stops at y=255, after 64 blocks, or at the first non-tree block.
+     *
+     * @return the rootydirt position (now plain dirt) if a whole DT tree was removed,
+     *         so the caller can paint a road block there. Null otherwise.
+     */
+    @javax.annotation.Nullable
+    public static BlockPos clearTreesAbove(World world, BlockPos base, int startDy, boolean dryRun) {
+        if (dryRun) return null;
+        BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
+        for (int dy = startDy; dy <= startDy + 64; dy++) {
+            int y = base.getY() + dy;
+            if (y > 255) break;
+            p.setPos(base.getX(), y, base.getZ());
+            IBlockState st = world.getBlockState(p);
+            if (st.getMaterial() == Material.AIR) break;
+            boolean isWood = MPBTreeCompat.isTreeWoodLike(world, p, st);
+            boolean isFoliage = !isWood && MPBTreeCompat.isTreeFoliageLike(world, p, st);
+            if (!isWood && !isFoliage) break;
+            if (hasTile(world, p)) continue;
+            if (isAlwaysKeep(st)) break;
+            if (wouldCauseWaterFlow(world, p)) continue;
+
+            if (isWood && MPBTreeCompat.isDynamicTreesBranch(st)) {
+                int radius = MPBTreeCompat.getDTBranchRadius(st);
+                int threshold = MPBConfig.PAINTING.dtWholeTreeRemovalThreshold;
+                if (MPBConfig.PAINTING.dtRemoveWholeTree && radius >= threshold) {
+                    if (MPBConfig.DEBUG.logDTTreeRemoval) {
+                        MillPathBuilderMod.LOGGER.info(
+                                "[MPB] DT whole-tree removal at ({},{},{}) radius={}",
+                                p.getX(), p.getY(), p.getZ(), radius);
+                    }
+                    // Returns the rootydirt pos (now plain dirt) so the caller can paint road over it.
+                    return MPBTreeCompat.removeDTTreeCompletely(world, p.toImmutable());
+                } else {
+                    // Small branch → destroyBlock triggers DT cascade on orphaned sub-branches.
+                    world.destroyBlock(p.toImmutable(), false);
+                }
+            } else if (isWood && MPBTreeCompat.isDynamicTreesTrunkShell(st)) {
+                if (MPBConfig.PAINTING.dtRemoveWholeTree) {
+                    BlockPos seed = findAdjacentDTBranch(world, p.toImmutable());
+                    return MPBTreeCompat.removeDTTreeCompletely(world, seed);
+                }
+                world.setBlockState(p, Blocks.AIR.getDefaultState(), 3);
+            } else {
+                world.setBlockState(p, Blocks.AIR.getDefaultState(), 3);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Finds a DT branch block adjacent to the given trunk-shell position.
+     * Returns the shell position itself as fallback (BFS gracefully exits if no branch is adjacent).
+     */
+    private static BlockPos findAdjacentDTBranch(World world, BlockPos shellPos) {
+        for (EnumFacing face : EnumFacing.values()) {
+            BlockPos adj = shellPos.offset(face);
+            IBlockState st = world.getBlockState(adj);
+            if (MPBTreeCompat.isDynamicTreesBranch(st)) return adj;
+        }
+        return shellPos;
     }
 
     public static boolean isSoftClearable(World world, BlockPos pos, IBlockState st) {

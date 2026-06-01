@@ -1,0 +1,191 @@
+{
+  "formatVersion": 1,
+  "name": "sand",
+  "deckWidth": 3,
+  "segmentLength": 8,
+  "canonicalForward": "east",
+  "deckSlab": {
+    "block": "minecraft:stone_slab",
+    "meta": 1
+  },
+  "blocks": [
+    {
+      "forward": 3,
+      "lateral": -1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 0,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": -1,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 2
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": -1,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 2
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": -1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 2
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": 0,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": 0,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": 0,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 2
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": 1,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 2
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": 1,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 2
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": 1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 2
+      }
+    },
+    {
+      "forward": 5,
+      "lateral": -1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 5,
+      "lateral": 0,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 5,
+      "lateral": 1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 0
+      }
+    }
+  ],
+  "supportSeeds": [
+    {
+      "forward": 4,
+      "lateral": -1,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 2
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": 0,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": 1,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:sandstone",
+        "meta": 2
+      }
+    }
+  ],
+  "minLateral": -1,
+  "maxLateral": 1,
+  "minRelY": -3,
+  "maxRelY": -1,
+  "createdAt": 1777196683603,
+  "biomes": null,
+  "biomeTemperatureCategories": null,
+  "biomeDictionaryTypes": ["SANDY"],
+  "waterOnly": "BOTH",
+  "minLength": null,
+  "maxLength": null,
+  "bridgeCrownHalfBlocks": null,
+  "bridgeCrownMinLenBlocks": null,
+  "maxSupportDepth": null
+}

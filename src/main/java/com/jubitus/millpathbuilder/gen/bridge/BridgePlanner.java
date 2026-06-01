@@ -121,7 +121,8 @@ public final class BridgePlanner {
                                 TerrainSampler.Sample sExit = sampler.sample(exit.getX(), exit.getZ());
                                 if (sEntry != null && sExit != null) {
                                     int dy = Math.abs(sExit.surfaceY - sEntry.surfaceY);
-                                    if (dy > Math.max(2, MPBConfig.BRIDGES.maxBridgeDeltaY)) {
+                                    int approxLen = Math.max(1, Math.max(Math.abs(exit.getX() - entry.getX()), Math.abs(exit.getZ() - entry.getZ())));
+                                    if (dy * 2 > BridgeGeometry.maxBridgeDeltaHalfForLen(approxLen)) {
                                         stableRun = 0;
                                         candidateExitJ = -1;
                                     } else {
@@ -199,7 +200,6 @@ public final class BridgePlanner {
             if (sb.isWater) continue; // valley bridges are not for "water crossing" (simple gap bridge handles that)
 
             int dyEnds = Math.abs(sb.surfaceY - baseY);
-            if (dyEnds > MPBConfig.BRIDGES.maxBridgeDeltaY) continue;
 
             List<BlockPos> line = MPBConfig.BRIDGE_GEOMETRY.useRaster8ForBridges
                     ? RasterLine8.raster(a.getX(), a.getZ(), b.getX(), b.getZ(), 0)
@@ -208,6 +208,7 @@ public final class BridgePlanner {
             int len = Math.max(0, line.size() - 1);
             if (len < minLen) continue;
             if (len > MPBConfig.BRIDGES.maxBridgeLenBlocks) continue;
+            if (dyEnds * 2 > BridgeGeometry.maxBridgeDeltaHalfForLen(len)) continue;
 
             if (!pathStaysNearLine(path, idx, j, a, b, maxDev)) continue;
 

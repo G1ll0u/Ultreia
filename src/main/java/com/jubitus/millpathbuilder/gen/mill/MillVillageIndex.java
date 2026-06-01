@@ -538,6 +538,12 @@ public final class MillVillageIndex {
         } catch (Throwable ignored) {
         }
 
+        BlockPos townHallCenter = null;
+        try {
+            org.millenaire.common.utilities.Point thp = b.getTownHallPos();
+            if (thp != null) townHallCenter = new BlockPos(thp.getiX(), thp.getiY(), thp.getiZ());
+        } catch (Throwable ignored) {}
+
         return new BuildingInfo(
                 chestPos,
                 isTownhall,
@@ -545,7 +551,8 @@ public final class MillVillageIndex {
                 cultureKey,
                 displayName,
                 tags,
-                loc
+                loc,
+                townHallCenter
         );
     }
 
@@ -560,25 +567,47 @@ public final class MillVillageIndex {
         return out;
     }
 
+    static boolean isGatePlanKey(String planKey) {
+        if (planKey == null) return false;
+        return planKey.contains("borderpost_gate")
+            || planKey.contains("full_wall_gateway")
+            || planKey.contains("full_wall_slope_right")
+            || planKey.contains("full_wall_slope_left");
+    }
+
+    /**
+     * Returns BuildingInfo for all gate-type buildings belonging to the village at approxTH.
+     * Gate types: borderpost_gate, full_wall_gateway, full_wall_slope_right, full_wall_slope_left.
+     * Buildings whose townHallCenter is too far from the village center are filtered out to
+     * prevent gates from neighbouring villages being included.
+     */
+    public static List<BuildingInfo> getVillageGateInfos(World world, BlockPos approxTH, int radiusXZ, int radiusY) {
+        List<BuildingInfo> all = listBuildingsAroundVillageCached(world, approxTH, radiusXZ, radiusY);
+
+        VillageInfo vi = findExact(world, approxTH);
+        if (vi == null) vi = findNearest3D(world, approxTH, radiusXZ);
+        if (vi == null) vi = findNearest2D(world, approxTH, radiusXZ);
+        BlockPos center = (vi != null) ? vi.center : approxTH;
+        List<BuildingInfo> out = new ArrayList<>();
+        for (BuildingInfo bi : all) {
+            if (!isGatePlanKey(bi.planKey)) continue;
+            if (bi.townHallCenter != null) {
+                long dx = bi.townHallCenter.getX() - center.getX();
+                long dz = bi.townHallCenter.getZ() - center.getZ();
+                if (dx * dx + dz * dz > 256L * 256L) continue; // belongs to a different village
+            }
+            out.add(bi);
+        }
+        return out;
+    }
+
     public static List<BlockPos> getVillageGates(World world,
                                                  BlockPos approxTH,
                                                  int radiusXZ,
                                                  int radiusY) {
-
-        List<BuildingInfo> infos = listBuildingsAroundVillageCached(world, approxTH, radiusXZ, radiusY);
-        List<BlockPos> out = new ArrayList<>();
-
-        for (BuildingInfo bi : infos) {
-            // Identify gates:
-            //  - planKey starts with "full_wall_gateway"
-            //  - OR tags contain "borderpostsign"
-            boolean isGatewayPlan = bi.planKey != null && bi.planKey.startsWith("borderpost_gate");
-            boolean hasBorderTag = bi.tags != null && bi.tags.contains("borderpostsign");
-
-            if (isGatewayPlan) {
-                out.add(bi.chestPos);
-            }
-        }
+        List<BuildingInfo> infos = getVillageGateInfos(world, approxTH, radiusXZ, radiusY);
+        List<BlockPos> out = new ArrayList<>(infos.size());
+        for (BuildingInfo bi : infos) out.add(bi.chestPos);
         return out;
     }
 
@@ -668,86 +697,6 @@ public final class MillVillageIndex {
         return wd.getBuilding(p);
     }
 
-    /**
-     * Picks a culture id for a travellers spawn based on nearby Millénaire mill.
-     * Returns null if no suitable village/culture is found (caller should then fall
-     * back to existing biome-based logic in onInitialSpawn).
-     * <p>
-     * The selection is weighted by:
-     * - distance (closer mill get more weight)
-     * - optionally village population (bigger mill = more weight)
-     */
-
-
-    public static Map<VillageInfo, Integer> countVillagersPerVillage(World world) {
-        MillWorldData wd = getWD(world);
-        Map<VillageInfo, Integer> result = new java.util.LinkedHashMap<>();
-
-        if (wd == null || wd.villagesList == null || wd.villagesList.pos == null) {
-            return result;
-        }
-
-        // 1) Build a Building -> count map from all known villagers
-        Map<Building, Integer> countsByTH = new java.util.IdentityHashMap<>();
-
-        for (MillVillager v : wd.getAllKnownVillagers()) {
-            if (v == null) continue;
-            Building th = v.getTownHall();
-            if (th == null) continue;
-
-            countsByTH.merge(th, 1, Integer::sum);
-        }
-
-        // 2) For every registered village center, turn it into VillageInfo
-        //    and look up its building's count.
-        for (int i = 0; i < wd.villagesList.pos.size(); i++) {
-            Point p = wd.villagesList.pos.get(i);
-            if (p == null) continue;
-
-            Building th = wd.getBuilding(p);
-            if (th == null) {
-                // Town Hall not loaded / missing – treat as zero population
-                BlockPos center = new BlockPos(p.getiX(), p.getiY(), p.getiZ());
-                VillageInfo vi = new VillageInfo(
-                        center,
-                        true,
-                        safeString(wd.villagesList.names, i, ""),
-                        safeString(wd.villagesList.types, i, ""),
-                        safeString(wd.villagesList.cultures, i, "")
-                );
-                result.put(vi, 0);
-                continue;
-            }
-
-            int count = countsByTH.getOrDefault(th, 0);
-
-            BlockPos center = new BlockPos(p.getiX(), p.getiY(), p.getiZ());
-            VillageInfo vi = new VillageInfo(
-                    center,
-                    true,
-                    safeString(wd.villagesList.names, i, ""),
-                    safeString(wd.villagesList.types, i, ""),
-                    safeString(wd.villagesList.cultures, i, "")
-            );
-
-            result.put(vi, count);
-        }
-
-        return result;
-    }
-
-
-
-    /**
-     * Find any Town Hall building within a horizontal radius of the given center.
-     * Uses MillWorldData for the current dimension.
-     */
-    @Nullable
-    public static Building findAnyTownHallNear(World world, BlockPos center, int radiusXZ) {
-        MillWorldData wd = MillVillageIndex.getWD(world);
-        if (wd == null) return null;
-        return findAnyTownHallNear(wd, center, radiusXZ);
-    }
 
     /**
      * Same as above but takes an already-resolved MillWorldData.
@@ -876,6 +825,12 @@ public final class MillVillageIndex {
          * Raw Millénaire location object, if you need min/max bounds, etc.
          */
         public final BuildingLocation location;
+        /**
+         * Position of the Town Hall this building belongs to. Used to disambiguate
+         * buildings from neighbouring villages when search radii overlap.
+         */
+        @javax.annotation.Nullable
+        public final BlockPos townHallCenter;
 
         public BuildingInfo(BlockPos chestPos,
                             boolean isTownhall,
@@ -884,6 +839,17 @@ public final class MillVillageIndex {
                             String displayName,
                             List<String> tags,
                             @Nullable BuildingLocation location) {
+            this(chestPos, isTownhall, planKey, cultureKey, displayName, tags, location, null);
+        }
+
+        public BuildingInfo(BlockPos chestPos,
+                            boolean isTownhall,
+                            String planKey,
+                            String cultureKey,
+                            String displayName,
+                            List<String> tags,
+                            @Nullable BuildingLocation location,
+                            @Nullable BlockPos townHallCenter) {
             this.chestPos = chestPos;
             this.isTownhall = isTownhall;
             this.planKey = planKey;
@@ -891,6 +857,7 @@ public final class MillVillageIndex {
             this.displayName = displayName;
             this.tags = tags;
             this.location = location;
+            this.townHallCenter = townHallCenter;
         }
 
         @Override
