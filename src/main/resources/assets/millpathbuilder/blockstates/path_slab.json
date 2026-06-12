@@ -1,0 +1,6 @@
+{
+  "variants": {
+    "half=bottom": { "model": "millpathbuilder:path_slab_bottom" },
+    "half=top":    { "model": "millpathbuilder:path_slab_top" }
+  }
+}

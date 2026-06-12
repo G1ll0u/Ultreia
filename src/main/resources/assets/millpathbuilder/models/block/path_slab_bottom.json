@@ -1,0 +1,8 @@
+{
+  "parent": "block/half_slab",
+  "textures": {
+    "bottom": "millpathbuilder:blocks/path_slab",
+    "top":    "millpathbuilder:blocks/path_slab",
+    "side":   "millpathbuilder:blocks/path_slab"
+  }
+}

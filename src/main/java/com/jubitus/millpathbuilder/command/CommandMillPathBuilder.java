@@ -1,7 +1,6 @@
 package com.jubitus.millpathbuilder.command;
 
-import com.jubitus.millpathbuilder.config.ConfigEntry;
-import com.jubitus.millpathbuilder.config.MPBConfigReflector;
+import com.jubitus.jubiconfig.network.MsgOpenConfigGui;
 import com.jubitus.millpathbuilder.gen.*;
 import com.jubitus.millpathbuilder.gen.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.millpathbuilder.gen.util.MPBPos2D;
@@ -9,8 +8,8 @@ import com.jubitus.millpathbuilder.gen.world.MPBRoadNetwork;
 import com.jubitus.millpathbuilder.gen.world.RoadSegment;
 import com.jubitus.millpathbuilder.gen.world.RoadWaypoint;
 import com.jubitus.millpathbuilder.integration.MillIntegration;
+import com.jubitus.millpathbuilder.Tags;
 import com.jubitus.millpathbuilder.network.MPBNetworkHandler;
-import com.jubitus.millpathbuilder.network.PacketOpenConfigGui;
 import com.jubitus.millpathbuilder.network.PacketOpenMapGui;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
@@ -191,15 +190,8 @@ public final class CommandMillPathBuilder extends CommandBase {
                 sender.sendMessage(new TextComponentString("MillPathBuilder: config GUI can only be opened by a player."));
                 return;
             }
-            try {
-                List<ConfigEntry> entries = MPBConfigReflector.buildEntries();
-                Map<String, String> values = MPBConfigReflector.toMap(entries);
-                MPBNetworkHandler.CHANNEL.sendTo(new PacketOpenConfigGui(values), player);
-                sender.sendMessage(new TextComponentString("§7[MPB] Sending config to client..."));
-            } catch (Exception e) {
-                com.jubitus.millpathbuilder.MillPathBuilderMod.LOGGER.error("[MPBConfig] Failed to send config GUI packet", e);
-                sender.sendMessage(new TextComponentString("§c[MPB] Error sending config (check server log)."));
-            }
+            boolean isOp = server.getPlayerList().canSendCommands(player.getGameProfile());
+            MPBNetworkHandler.CHANNEL.sendTo(MsgOpenConfigGui.forMod(Tags.MOD_ID, isOp), player);
             return;
         }
 

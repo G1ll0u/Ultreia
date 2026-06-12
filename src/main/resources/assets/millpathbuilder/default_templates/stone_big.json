@@ -1,6 +1,6 @@
 {
   "formatVersion": 1,
-  "name": "stone_big",
+  "name": "stone_big_temp",
   "deckWidth": 3,
   "segmentLength": 12,
   "canonicalForward": "east",
@@ -491,8 +491,8 @@
       "lateral": -1,
       "relY": -1,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -518,8 +518,8 @@
       "lateral": 0,
       "relY": -1,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -545,8 +545,8 @@
       "lateral": 1,
       "relY": -1,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -689,8 +689,8 @@
       "lateral": -1,
       "relY": -2,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -698,8 +698,8 @@
       "lateral": -1,
       "relY": -1,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -734,8 +734,8 @@
       "lateral": 0,
       "relY": -2,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -743,8 +743,8 @@
       "lateral": 0,
       "relY": -1,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -779,8 +779,8 @@
       "lateral": 1,
       "relY": -2,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -788,8 +788,8 @@
       "lateral": 1,
       "relY": -1,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -950,8 +950,8 @@
       "lateral": -1,
       "relY": -2,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -959,8 +959,8 @@
       "lateral": -1,
       "relY": -1,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -995,8 +995,8 @@
       "lateral": 0,
       "relY": -2,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -1004,8 +1004,8 @@
       "lateral": 0,
       "relY": -1,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -1040,8 +1040,8 @@
       "lateral": 1,
       "relY": -2,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -1049,8 +1049,8 @@
       "lateral": 1,
       "relY": -1,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -1184,8 +1184,8 @@
       "lateral": -1,
       "relY": -1,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -1211,8 +1211,8 @@
       "lateral": 0,
       "relY": -1,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -1238,8 +1238,8 @@
       "lateral": 1,
       "relY": -1,
       "state": {
-        "block": "minecraft:log",
-        "meta": 9
+        "block": "minecraft:cobblestone",
+        "meta": 0
       }
     },
     {
@@ -1337,7 +1337,7 @@
       "lateral": -1,
       "relY": -1,
       "state": {
-        "block": "minecraft:stonebrick",
+        "block": "minecraft:cobblestone",
         "meta": 0
       }
     },
@@ -1355,7 +1355,7 @@
       "lateral": 0,
       "relY": -1,
       "state": {
-        "block": "minecraft:stonebrick",
+        "block": "minecraft:cobblestone",
         "meta": 0
       }
     },
@@ -1373,7 +1373,7 @@
       "lateral": 1,
       "relY": -1,
       "state": {
-        "block": "minecraft:stonebrick",
+        "block": "minecraft:cobblestone",
         "meta": 0
       }
     },
@@ -1463,7 +1463,7 @@
       "lateral": -1,
       "relY": -1,
       "state": {
-        "block": "minecraft:stonebrick",
+        "block": "minecraft:cobblestone",
         "meta": 0
       }
     },
@@ -1481,7 +1481,7 @@
       "lateral": 0,
       "relY": -1,
       "state": {
-        "block": "minecraft:stonebrick",
+        "block": "minecraft:cobblestone",
         "meta": 0
       }
     },
@@ -1499,7 +1499,7 @@
       "lateral": 1,
       "relY": -1,
       "state": {
-        "block": "minecraft:stonebrick",
+        "block": "minecraft:cobblestone",
         "meta": 0
       }
     },

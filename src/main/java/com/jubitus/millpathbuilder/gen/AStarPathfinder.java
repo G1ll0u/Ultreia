@@ -168,7 +168,7 @@ public final class AStarPathfinder {
                 { 1, 2}, { 1,-2}, {-1, 2}, {-1,-2}
         };
 
-        private static final int BRIDGE_DEBUG_LIMIT = 80;
+        private static final int BRIDGE_DEBUG_LIMIT = 16;
         private int bridgeDebugPrinted = 0;
         private int bridgeDebugSuppressed = 0;
 
@@ -525,6 +525,7 @@ public final class AStarPathfinder {
 
                         if (!fullProfileOk || !clearanceOk) {
                             long badState = foundState;
+                            boolean wasPartial = partialResult;
                             profileRejectionCount++;
 
                             reconstructing = false;
@@ -539,9 +540,19 @@ public final class AStarPathfinder {
                                     Collections.<BridgeSpan>emptyList()
                             );
 
-                            // Guard: after too many profile rejections, stop retrying.
-                            // beginPartialReconstruction inside the reconstruction block would
-                            // create an infinite silent loop (progress log is in !reconstructing).
+                            // If the partial fallback itself fails profile, bestApproxState hasn't
+                            // changed (search never ran since reconstructing=true the whole time),
+                            // so calling beginPartialReconstruction again would loop forever silently.
+                            if (wasPartial) {
+                                failed = true;
+                                failReason = "partial fallback also failed profile feasibility (" + profileRejectionCount + " total rejections)";
+                                flushBridgeDebugSummary();
+                                return StepResult.FAILED;
+                            }
+
+                            // Guard: after too many full-path rejections, try a partial fallback.
+                            // Note: beginPartialReconstruction must only be called here (not from
+                            // inside a partial reconstruction) or it would loop silently.
                             int maxRejections = Math.max(24, MPBConfig.PATHFINDING.profileRejectionLimit);
                             if (profileRejectionCount >= maxRejections) {
                                 if (beginPartialReconstruction("non-feasible road profile after " + profileRejectionCount + " attempts")) {
@@ -859,7 +870,14 @@ public final class AStarPathfinder {
                     ? Math.max(1.0, MPBConfig.PATHFINDING.hardRockCutMultiplier)
                     : 1.0;
 
-            penalty += (double) sumPredictedCut * Math.max(0.0, MPBConfig.PATHFINDING.predictedCutPenaltyPerBlock) * 0.75 * hardnessMult;
+            // Open hillside cuts (terrain only on one side = natural embankment/talus) look realistic
+            // and are much cheaper than enclosed trench cuts (terrain on both sides = saw-effect through a ridge).
+            // Scale base cut penalty 0.3x when fully open, linearly up to 1.0x when fully enclosed.
+            double enclosedFraction = (enclosedAhead > 0 && lookahead > 0)
+                    ? Math.min(1.0, (double) enclosedAhead / (double) lookahead)
+                    : 0.0;
+            double openHillsideFactor = 0.3 + 0.7 * enclosedFraction;
+            penalty += (double) sumPredictedCut * Math.max(0.0, MPBConfig.PATHFINDING.predictedCutPenaltyPerBlock) * 0.75 * hardnessMult * openHillsideFactor;
 
             if (maxPredictedCut > allowedCut) {
                 double extra = (double) (maxPredictedCut - allowedCut);
@@ -2057,8 +2075,13 @@ public final class AStarPathfinder {
 
                     int roadY = (int) Math.round((1.0 - t) * (double) first.surfaceY + t * (double) last.surfaceY);
                     int predictedCut = Math.max(0, pSurfaceY - roadY);
+                    int predictedFill = Math.max(0, roadY - pSurfaceY);
 
                     if (predictedCut > maxPredictedCut) maxPredictedCut = predictedCut;
+
+                    if (predictedFill > 0) {
+                        terrainPenalty += (double) predictedFill * Math.max(0.0, MPBConfig.PATHFINDING.predictedFillPenaltyPerBlock);
+                    }
 
                     if (predictedCut > 0) {
                         terrainPenalty += (double) predictedCut * Math.max(0.0, MPBConfig.PATHFINDING.predictedCutPenaltyPerBlock);

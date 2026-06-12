@@ -103,6 +103,8 @@ public final class RoadPainter {
 
         private final it.unimi.dsi.fastutil.longs.LongOpenHashSet forcePaint = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
 
+        private boolean talusPassDone = false;
+
         // Elbow fill cells for 1-wide paths: painted directly after the main loop (cursor never reaches them).
         private List<int[]> elbowFillList = null;
         private boolean elbowFillsPainted = false;
@@ -120,6 +122,13 @@ public final class RoadPainter {
         private boolean mergeConnectorPainted = false;
 
         private boolean[] gapByIdx = null;
+
+        // Gap boundary info: (pathIdx, roadX, roadZ) tuples used in junctionReinforcement
+        // to force-paint connectors between the new path and the existing road at each gap edge.
+        private int[] gapBoundaryPathIdx = null;
+        private int[] gapBoundaryRoadX = null;
+        private int[] gapBoundaryRoadZ = null;
+        private int gapBoundaryCount = 0;
 
         private final boolean allowEarlyMerge;
 
@@ -235,6 +244,10 @@ public final class RoadPainter {
                         elbowFillsPainted = true;
                         paintElbowFillsDirect();
                     }
+                    if (!talusPassDone) {
+                        talusPassDone = true;
+                        applyTalusPass();
+                    }
                     registerRoadSegment();
                     return PaintResult.OK;
                 }
@@ -252,6 +265,10 @@ public final class RoadPainter {
                     if (!elbowFillsPainted) {
                         elbowFillsPainted = true;
                         paintElbowFillsDirect();
+                    }
+                    if (!talusPassDone) {
+                        talusPassDone = true;
+                        applyTalusPass();
                     }
                     registerRoadSegment();
                     return PaintResult.OK;
@@ -478,6 +495,134 @@ public final class RoadPainter {
                         "[MPB] Early merge: path index {}/{} -> road ({}, {}), stopping paint here",
                         idx, path.size() - 1, near.getX(), near.getZ());
                 return;
+            }
+
+            // After the end-merge scan: detect mid-path sections that run parallel to existing roads.
+            detectParallelGaps(absoluteMin, exitBlocks);
+        }
+
+        /**
+         * Scans the full (non-merged) path for sections running within road-width of an existing road.
+         * Marks those sections in {@code gapByIdx} so the painter skips them. Records gap boundary
+         * path indices in {@code gapBoundary*} arrays so {@link #junctionReinforcement()} can
+         * force-paint physical connectors at each entry/exit.
+         */
+        private void detectParallelGaps(int absoluteMin, int exitBlocks) {
+            if (!MPBConfig.PAINTING.suppressParallelPainting) return;
+            if (roadIndex == null) return;
+
+            // Proximity radius: fire when any existing road block is this close to our path center.
+            int overlapRadius = Math.max(2, baseR + 2);
+            // Suppress only runs longer than this to avoid spurious single-block skips.
+            int minGapLen = Math.max(3, baseR * 2 + 2);
+
+            // Stop before the end-merge region (if armed) and leave a clean tail.
+            int scanEnd = mergeActive
+                    ? mergeHitIndex - 1
+                    : (path.size() - 1 - Math.max(6, baseR + 3));
+            if (scanEnd < absoluteMin + minGapLen) return;
+
+            // Bridge-protection buffer: don't gap into or out of any forced bridge span.
+            int bridgeBuffer = Math.max(0, exitBlocks + 2);
+
+            BlockPos origin = path.get(0);
+            int startMinDistSq = 16 * 16;
+
+            // Per-index overlap state.
+            boolean[] inOverlap = new boolean[path.size()];
+            int[] nearX = new int[path.size()];
+            int[] nearZ = new int[path.size()];
+
+            for (int idx = absoluteMin; idx <= scanEnd; idx++) {
+                // Skip bridge-protected indices.
+                boolean inBridge = false;
+                for (ForcedBridgeRef ref : forcedByStartKey.values()) {
+                    if (idx >= ref.startIdx - bridgeBuffer && idx <= ref.endIdx + bridgeBuffer) {
+                        inBridge = true;
+                        break;
+                    }
+                }
+                if (inBridge) continue;
+
+                BlockPos p = path.get(idx);
+                BlockPos near = roadIndex.findNearestRoad(p.getX(), p.getZ(), overlapRadius);
+                if (near == null) continue;
+
+                long nk = xzKey(near.getX(), near.getZ());
+                if (newlyPlaced.contains(nk)) continue;
+                if (roadIndex.isBridgeXZ(near.getX(), near.getZ())) continue;
+                if (protectedAreas != null && protectedAreas.contains(near.getX(), near.getZ())) continue;
+
+                int odx = near.getX() - origin.getX();
+                int odz = near.getZ() - origin.getZ();
+                if (odx * odx + odz * odz < startMinDistSq) continue;
+
+                inOverlap[idx] = true;
+                nearX[idx] = near.getX();
+                nearZ[idx] = near.getZ();
+            }
+
+            // Collect gap runs and mark gapByIdx.
+            boolean[] gaps = new boolean[path.size()];
+            // Temporary boundary storage: up to (runs * 2) entries; 64 should be more than enough.
+            int maxBoundaries = 64;
+            int[] bPathIdx = new int[maxBoundaries];
+            int[] bRoadX   = new int[maxBoundaries];
+            int[] bRoadZ   = new int[maxBoundaries];
+            int bCount = 0;
+
+            boolean anyGap = false;
+            int runStart = -1;
+
+            for (int idx = absoluteMin; idx <= scanEnd + 1; idx++) {
+                boolean overlapping = idx <= scanEnd && inOverlap[idx];
+
+                if (overlapping && runStart < 0) {
+                    runStart = idx;
+                } else if (!overlapping && runStart >= 0) {
+                    int runEnd = idx - 1;
+                    int runLen = runEnd - runStart + 1;
+
+                    if (runLen >= minGapLen) {
+                        for (int gi = runStart; gi <= runEnd; gi++) {
+                            gaps[gi] = true;
+                            anyGap = true;
+                        }
+
+                        // Entry boundary: last painted waypoint before gap → road.
+                        if (runStart > absoluteMin && bCount < maxBoundaries - 1) {
+                            bPathIdx[bCount] = runStart - 1;
+                            bRoadX[bCount]   = nearX[runStart];
+                            bRoadZ[bCount]   = nearZ[runStart];
+                            bCount++;
+                        }
+
+                        // Exit boundary: road → first painted waypoint after gap.
+                        if (runEnd + 1 < path.size() && bCount < maxBoundaries - 1) {
+                            bPathIdx[bCount] = runEnd + 1;
+                            bRoadX[bCount]   = nearX[runEnd];
+                            bRoadZ[bCount]   = nearZ[runEnd];
+                            bCount++;
+                        }
+
+                        if (MPBConfig.DEBUG.debugRoadPainting) {
+                            MillPathBuilderMod.LOGGER.debug(
+                                    "[MPB] Parallel gap suppressed: path[{}..{}] len={} near=({},{})",
+                                    runStart, runEnd, runLen, nearX[runStart], nearZ[runStart]);
+                        }
+                    }
+                    runStart = -1;
+                }
+            }
+
+            if (!anyGap) return;
+
+            gapByIdx = gaps;
+            if (bCount > 0) {
+                gapBoundaryPathIdx = java.util.Arrays.copyOf(bPathIdx, bCount);
+                gapBoundaryRoadX   = java.util.Arrays.copyOf(bRoadX, bCount);
+                gapBoundaryRoadZ   = java.util.Arrays.copyOf(bRoadZ, bCount);
+                gapBoundaryCount   = bCount;
             }
         }
 
@@ -1144,6 +1289,19 @@ public final class RoadPainter {
                 fillDiskForced(x, z, reinR);
             }
 
+            // Gap boundary connectors: force-paint a line + disk at each gap entry/exit so the
+            // new path is physically connected to the existing road across the suppressed section.
+            if (gapBoundaryCount > 0) {
+                for (int gi = 0; gi < gapBoundaryCount; gi++) {
+                    int pi = gapBoundaryPathIdx[gi];
+                    if (pi < 0 || pi >= path.size()) continue;
+                    int lx = centerXAt(pi);
+                    int lz = centerZAt(pi);
+                    fillDiskForced(gapBoundaryRoadX[gi], gapBoundaryRoadZ[gi], reinR);
+                    fillLineForced(lx, lz, gapBoundaryRoadX[gi], gapBoundaryRoadZ[gi]);
+                }
+            }
+
             if (mergeActive) {
                 fillDiskForced(mergeTargetX, mergeTargetZ, reinR);
                 if (mergeHitIndex >= 0 && mergeHitIndex < path.size()) {
@@ -1540,6 +1698,116 @@ public final class RoadPainter {
                     && !MPBConfig.ROAD_HIERARCHY.loneTrailEarthworksEnabled) return false;
             return gradeY != null && i >= 0 && i < gradeY.length;
         }
+
+        private double effectiveSlopeRatio() {
+            boolean isLoneTrail = roadType == RoadType.LONE_TRAIL && MPBConfig.ROAD_HIERARCHY.enabled;
+            double ltr = MPBConfig.PAINTING.earthworksSlopeRatioLoneTrail;
+            if (isLoneTrail && ltr > 0.0) return ltr;
+            return MPBConfig.PAINTING.earthworksSlopeRatio;
+        }
+
+        /**
+         * Post-painting pass: extends sloped talus outside the road surface.
+         * For each newly-placed road cell, BFS outward to talusRadius and cut/fill
+         * terrain to a natural slope rather than leaving vertical walls.
+         */
+        private void applyTalusPass() {
+            if (dryRun) return;
+            if (!MPBConfig.PATHFINDING.allowEarthworks) return;
+            if (newlyPlaced.isEmpty()) return;
+
+            double slopeRatio = effectiveSlopeRatio();
+            int maxCut = Math.max(0, MPBConfig.PAINTING.earthworksMaxCut);
+            int maxFill = Math.max(0, MPBConfig.PAINTING.earthworksMaxFill);
+            if (slopeRatio <= 0.0 || (maxCut == 0 && maxFill == 0)) return;
+
+            int talusRadius = (int) Math.ceil(Math.max(maxCut, maxFill) * slopeRatio) + 1;
+            if (talusRadius <= 0) return;
+
+            // Build road surface Y lookup for newly placed cells.
+            it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap roadSurfaceY =
+                    new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap(newlyPlaced.size());
+            roadSurfaceY.defaultReturnValue(Integer.MIN_VALUE);
+
+            for (it.unimi.dsi.fastutil.longs.LongIterator rit = newlyPlaced.iterator(); rit.hasNext(); ) {
+                long k = rit.nextLong();
+                int rx = keyX(k);
+                int rz = keyZ(k);
+                TerrainSampler.Sample s = sampler.sample(rx, rz);
+                if (s != null) roadSurfaceY.put(k, s.surfaceY);
+            }
+
+            // BFS: propagate distance and nearest-road-cell from all newly placed cells.
+            it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap distMap =
+                    new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
+            distMap.defaultReturnValue(-1);
+            it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap nearestRoad =
+                    new it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap();
+            nearestRoad.defaultReturnValue(Long.MIN_VALUE);
+
+            java.util.ArrayDeque<Long> queue = new java.util.ArrayDeque<>(newlyPlaced.size() * 4);
+
+            for (it.unimi.dsi.fastutil.longs.LongIterator rit = newlyPlaced.iterator(); rit.hasNext(); ) {
+                long k = rit.nextLong();
+                distMap.put(k, 0);
+                nearestRoad.put(k, k);
+                queue.add(k);
+            }
+
+            while (!queue.isEmpty()) {
+                long k = queue.poll();
+                int d = distMap.get(k);
+                if (d >= talusRadius) continue;
+                long nr = nearestRoad.get(k);
+                int cx = keyX(k);
+                int cz = keyZ(k);
+                long[] neighbors = {
+                    xzKey(cx + 1, cz), xzKey(cx - 1, cz),
+                    xzKey(cx, cz + 1), xzKey(cx, cz - 1)
+                };
+                for (long nk : neighbors) {
+                    if (distMap.containsKey(nk)) continue;
+                    distMap.put(nk, d + 1);
+                    nearestRoad.put(nk, nr);
+                    queue.add(nk);
+                }
+            }
+
+            // Apply talus to non-road cells in the BFS zone.
+            long[] talusCells = distMap.keySet().toLongArray();
+            for (long k : talusCells) {
+                int d = distMap.get(k);
+                if (d <= 0) continue;                // road cell itself
+                if (newlyPlaced.contains(k)) continue;
+
+                int tx = keyX(k);
+                int tz = keyZ(k);
+
+                if (protectedAreas != null && protectedAreas.contains(tx, tz)) continue;
+                if (roadIndex != null && roadIndex.isRoadXZ(tx, tz)) continue;
+                if (roadIndex != null && roadIndex.isBridgeVolumeXZ(tx, tz)) continue;
+
+                long nr = nearestRoad.get(k);
+                if (nr == Long.MIN_VALUE) continue;
+                int roadY = roadSurfaceY.get(nr);
+                if (roadY == Integer.MIN_VALUE) continue;
+
+                int rx = keyX(nr);
+                int rz = keyZ(nr);
+                double lateralDist = Math.sqrt((double)(tx - rx) * (tx - rx) + (double)(tz - rz) * (tz - rz));
+
+                Earthworks.applyTalusAt(world, sampler, tx, tz, roadY,
+                        lateralDist, slopeRatio, maxCut, maxFill, dryRun);
+            }
+
+            if (MPBConfig.DEBUG.debugRoadPainting) {
+                MillPathBuilderMod.LOGGER.info("[MPB] Talus pass: {} road cells, talusRadius={}, slopeRatio={}",
+                        newlyPlaced.size(), talusRadius, slopeRatio);
+            }
+        }
+
+        private static int keyX(long k) { return (int) (k >> 32); }
+        private static int keyZ(long k) { return (int) k; }
 
         private int[] buildGradeProfile() {
             int n = path.size();

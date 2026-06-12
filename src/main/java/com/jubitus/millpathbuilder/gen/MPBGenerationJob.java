@@ -306,9 +306,6 @@ public final class MPBGenerationJob implements MPBAsyncJob {
                 if (curRoadType == RoadType.LONE_TRAIL && MPBConfig.ROAD_HIERARCHY.enabled && roadIndex != null) {
                     curSession.setSnapToRoad(roadIndex, MPBConfig.ROAD_HIERARCHY.loneTrailMergeSearchRadius);
                 }
-                if (MPBConfig.ROAD_HIERARCHY.enabled && roadIndex != null) {
-                    curSession.setSnapToRoad(roadIndex, MPBConfig.ROAD_HIERARCHY.loneTrailMergeSearchRadius);
-                }
             }
 
             if (curSession != null) {

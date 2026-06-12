@@ -1,7 +1,8 @@
 package com.jubitus.millpathbuilder;
 
+import com.jubitus.jubiconfig.JubiConfig;
 import com.jubitus.millpathbuilder.command.CommandMillPathBuilder;
-import com.jubitus.millpathbuilder.config.MPBConfigPersistence;
+import com.jubitus.millpathbuilder.config.MPBConfig;
 import com.jubitus.millpathbuilder.gen.MPBGenerationManager;
 import com.jubitus.millpathbuilder.gen.world.MPBChunkLoadingCallback;
 import com.jubitus.millpathbuilder.network.MPBNetworkHandler;
@@ -17,12 +18,15 @@ import net.minecraftforge.fml.common.event.FMLServerStoppingEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.File;
+
 @Mod(
         modid = Tags.MOD_ID,
         name = Tags.MOD_NAME,
         version = Tags.VERSION,
         acceptableRemoteVersions = "*",
-        dependencies = "after:millenaire"
+        dependencies = "after:millenaire",
+        guiFactory = "com.jubitus.millpathbuilder.gui.MPBGuiFactory"
 )
 public class MillPathBuilderMod {
 
@@ -40,9 +44,19 @@ public class MillPathBuilderMod {
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         ForgeChunkManager.setForcedChunkLoadingCallback(MillPathBuilderMod.INSTANCE, new MPBChunkLoadingCallback());
-
         MinecraftForge.EVENT_BUS.register(new MPBGenerationManager());
         MinecraftForge.EVENT_BUS.register(new MPBSpeedBoostHandler());
+
+        File configDir = new File(event.getModConfigurationDirectory(), "millpathbuilder");
+        JubiConfig.register(
+                Tags.MOD_ID, Tags.MOD_NAME, "mpbconfig",
+                MPBConfig.class, MPBNetworkHandler.CHANNEL,
+                () -> {}, // no additional post-save actions needed
+                configDir, 1
+        );
+        JubiConfig.applyOnStartup(Tags.MOD_ID);
+        JubiConfig.loadHistory(Tags.MOD_ID);
+
         MPBNetworkHandler.init();
         proxy.registerClientPackets();
         LOGGER.info("MillPathBuilder loaded.");
@@ -51,12 +65,10 @@ public class MillPathBuilderMod {
     @Mod.EventHandler
     public void serverStarting(FMLServerStartingEvent event) {
         event.registerServerCommand(new CommandMillPathBuilder());
-        MPBConfigPersistence.applyOnStartup();
     }
 
     @Mod.EventHandler
     public void serverStopping(FMLServerStoppingEvent event) {
-        // Flush checkpoint for any in-progress jobs before the world saves and unloads.
         MPBGenerationManager.onServerStopping();
     }
 }

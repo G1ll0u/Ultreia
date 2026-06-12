@@ -12,12 +12,6 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.material.Material;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.init.Blocks;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.WorldServer;
 public final class Earthworks {
 
     private Earthworks() {}
@@ -158,5 +152,127 @@ public final class Earthworks {
             if (n != null && n.getMaterial() == Material.WATER) return true;
         }
         return false;
+    }
+
+    // -----------------------------------------------------------------------
+    // Talus side-slope pass
+    // -----------------------------------------------------------------------
+
+    /**
+     * Applies a sloped talus at one non-road cell (x, z).
+     *
+     * roadEdgeY:   surface Y of the nearest road cell
+     * lateralDist: Euclidean distance from (x,z) to that road cell
+     * slopeRatio:  lateral blocks per vertical block (1.0 = 45°, higher = gentler)
+     */
+    public static void applyTalusAt(WorldServer world, TerrainSampler sampler,
+                                    int x, int z, int roadEdgeY,
+                                    double lateralDist, double slopeRatio,
+                                    int maxCut, int maxFill, boolean dryRun) {
+        TerrainSampler.Sample sm = sampler.sample(x, z);
+        if (sm == null || sm.isOcean || sm.isWater) return;
+
+        int naturalY = sm.surfaceY;
+        int delta = naturalY - roadEdgeY;
+        if (delta == 0) return;
+
+        int slopeRise = (int) Math.ceil(lateralDist / slopeRatio);
+
+        if (delta > 0) {
+            // CUT side: terrain is above road. Slope rises from road edge upward.
+            int talusTargetY = roadEdgeY + slopeRise;
+            if (talusTargetY >= naturalY) return;
+            int cut = naturalY - talusTargetY;
+            if (cut > maxCut) return;
+            if (dryRun) return;
+            // Clear snow, plants, and any non-solid above the natural surface first.
+            // Using flag 3 (NOTIFY_NEIGHBORS | SEND_TO_CLIENT) breaks double-plant upper halves, etc.
+            clearAboveSurface(world, x, z, naturalY);
+            if (!talusCutDown(world, x, z, naturalY, talusTargetY)) return;
+            restoreCutSurface(world, x, z, talusTargetY);
+        } else {
+            // FILL side: terrain is below road. Slope descends from road edge downward.
+            int talusTargetY = roadEdgeY - slopeRise;
+            if (talusTargetY <= naturalY) return;
+            int fill = talusTargetY - naturalY;
+            if (fill > maxFill) return;
+            if (dryRun) return;
+            if (!talusFillUp(world, x, z, naturalY, talusTargetY)) return;
+            placeFillSurface(world, x, z, talusTargetY);
+        }
+
+        sampler.invalidateAround(x, z, 1);
+    }
+
+    /**
+     * Clears non-solid blocks above the surface block (snow, plants, double-plants, leaves, vines).
+     * Uses flag 3 so that block updates propagate — upper halves of double plants break naturally.
+     */
+    private static void clearAboveSurface(WorldServer world, int x, int z, int surfaceY) {
+        for (int dy = 1; dy <= 4; dy++) {
+            BlockPos p = new BlockPos(x, surfaceY + dy, z);
+            IBlockState st = world.getBlockState(p);
+            Material m = st.getMaterial();
+            if (m == Material.AIR) break;
+            if (m.isSolid() && m != Material.LEAVES && !st.getBlock().isLeaves(st, world, p)) break;
+            // flag 3 = NOTIFY_NEIGHBORS | SEND_TO_CLIENT — propagates updates to upper double-plant halves etc.
+            world.setBlockState(p, Blocks.AIR.getDefaultState(), 3);
+        }
+    }
+
+    private static boolean talusCutDown(WorldServer world, int x, int z, int fromY, int toY) {
+        for (int y = fromY; y > toY; y--) {
+            BlockPos p = new BlockPos(x, y, z);
+            IBlockState st = world.getBlockState(p);
+            Material m = st.getMaterial();
+            if (m == Material.AIR) continue;
+            if (m == Material.WATER) return false;
+            if (world.getTileEntity(p) != null) return false;
+            if (wouldCauseWaterFlow(world, p)) return false;
+            try {
+                if (st.getBlockHardness(world, p) < 0.0f) return false;
+            } catch (Throwable t) {
+                // ignore
+            }
+        }
+        for (int y = fromY; y > toY; y--) {
+            BlockPos p = new BlockPos(x, y, z);
+            if (world.getBlockState(p).getMaterial() != Material.AIR) {
+                world.setBlockState(p, Blocks.AIR.getDefaultState(), 3);
+            }
+        }
+        return true;
+    }
+
+    private static boolean talusFillUp(WorldServer world, int x, int z, int fromY, int toY) {
+        for (int y = fromY + 1; y <= toY; y++) {
+            BlockPos p = new BlockPos(x, y, z);
+            IBlockState st = world.getBlockState(p);
+            Material m = st.getMaterial();
+            if (m == Material.AIR || m.isReplaceable() || m == Material.PLANTS || m == Material.VINE
+                    || st.getBlock().isLeaves(st, world, p) || m == Material.LEAVES) continue;
+            return false;
+        }
+        for (int y = fromY + 1; y < toY; y++) {
+            world.setBlockState(new BlockPos(x, y, z), Blocks.DIRT.getDefaultState(), 2);
+        }
+        return true;
+    }
+
+    private static void restoreCutSurface(WorldServer world, int x, int z, int y) {
+        BlockPos pos = new BlockPos(x, y, z);
+        IBlockState st = world.getBlockState(pos);
+        Block b = st.getBlock();
+        Material m = st.getMaterial();
+        if (m == Material.ROCK) return; // stone/rock — leave natural
+        if (b == Blocks.SAND || b == Blocks.GRAVEL) return; // natural sandy/gravel surface
+        if (b == Blocks.DIRT || m == Material.AIR || m.isReplaceable()
+                || m == Material.PLANTS || m == Material.VINE || b.isLeaves(st, world, pos)) {
+            world.setBlockState(pos, Blocks.GRASS.getDefaultState(), 2);
+        }
+    }
+
+    private static void placeFillSurface(WorldServer world, int x, int z, int y) {
+        world.setBlockState(new BlockPos(x, y, z), Blocks.GRASS.getDefaultState(), 2);
     }
 }

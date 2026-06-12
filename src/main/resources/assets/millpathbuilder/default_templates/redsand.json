@@ -181,7 +181,7 @@
   "createdAt": 1777196902412,
   "biomes": null,
   "biomeTemperatureCategories": null,
-  "biomeDictionaryTypes": ["MESA"],
+  "biomeDictionaryTypes": ["SANDY", "SAVANNA"],
   "waterOnly": "BOTH",
   "minLength": null,
   "maxLength": null,

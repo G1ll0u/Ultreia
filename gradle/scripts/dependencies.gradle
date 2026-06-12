@@ -33,6 +33,7 @@ dependencies {
     runtimeOnly 'com.cleanroommc:strip-latest-forge-requirements:1.0'
     // Include OSXNarratorBlocker by default for the dev env, for M1+ Macs
     runtimeOnly 'com.cleanroommc:osxnarratorblocker:1.0'
+    embed files('libs/jubiconfig-1.0.0.jar')
     compileOnly files('libs/millenaire-8.1.2.jar')
     implementation("curse.maven:dramatictrees-637540:5496154")
     // Example - Dependency descriptor:

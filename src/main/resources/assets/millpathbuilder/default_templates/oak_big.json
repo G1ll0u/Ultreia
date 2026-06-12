@@ -1,0 +1,866 @@
+{
+  "formatVersion": 1,
+  "name": "oak_big",
+  "deckWidth": 3,
+  "segmentLength": 7,
+  "canonicalForward": "east",
+  "deckSlab": {
+    "block": "minecraft:wooden_slab",
+    "meta": 0
+  },
+  "blocks": [
+    {
+      "forward": 0,
+      "lateral": -2,
+      "relY": 0,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 0,
+      "lateral": -2,
+      "relY": 1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 0,
+      "lateral": -1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 4
+      }
+    },
+    {
+      "forward": 0,
+      "lateral": 0,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 0,
+      "lateral": 1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 4
+      }
+    },
+    {
+      "forward": 0,
+      "lateral": 2,
+      "relY": 0,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 0,
+      "lateral": 2,
+      "relY": 1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 1,
+      "lateral": -2,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 8
+      }
+    },
+    {
+      "forward": 1,
+      "lateral": -2,
+      "relY": 0,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 1,
+      "lateral": -2,
+      "relY": 1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 1,
+      "lateral": -1,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 1,
+      "lateral": -1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 8
+      }
+    },
+    {
+      "forward": 1,
+      "lateral": 0,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 1,
+      "lateral": 0,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 8
+      }
+    },
+    {
+      "forward": 1,
+      "lateral": 1,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 1,
+      "lateral": 1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 8
+      }
+    },
+    {
+      "forward": 1,
+      "lateral": 2,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 8
+      }
+    },
+    {
+      "forward": 1,
+      "lateral": 2,
+      "relY": 0,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 1,
+      "lateral": 2,
+      "relY": 1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": -2,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": -2,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": -2,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": -2,
+      "relY": 0,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": -2,
+      "relY": 1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": -1,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": -1,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": -1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": 0,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": 0,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": 0,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": 1,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": 1,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": 1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": 2,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": 2,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": 2,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": 2,
+      "relY": 0,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": 2,
+      "relY": 1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": -2,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": -2,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": -2,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": -2,
+      "relY": 0,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": -2,
+      "relY": 1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": -1,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": -1,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": -1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 0,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 0,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 0,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 1,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 1,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 2,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 2,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 2,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 2,
+      "relY": 0,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 2,
+      "relY": 1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": -2,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 8
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": -2,
+      "relY": 0,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": -2,
+      "relY": 1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": -1,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": -1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 8
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": 0,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": 0,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 8
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": 1,
+      "relY": -2,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": 1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 8
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": 2,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 8
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": 2,
+      "relY": 0,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 4,
+      "lateral": 2,
+      "relY": 1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 5,
+      "lateral": -2,
+      "relY": 0,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 5,
+      "lateral": -2,
+      "relY": 1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 5,
+      "lateral": -1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 4
+      }
+    },
+    {
+      "forward": 5,
+      "lateral": 0,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 5,
+      "lateral": 1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 4
+      }
+    },
+    {
+      "forward": 5,
+      "lateral": 2,
+      "relY": 0,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 5,
+      "lateral": 2,
+      "relY": 1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 6,
+      "lateral": -2,
+      "relY": 0,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 6,
+      "lateral": -2,
+      "relY": 1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 6,
+      "lateral": -1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 4
+      }
+    },
+    {
+      "forward": 6,
+      "lateral": 0,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 6,
+      "lateral": 1,
+      "relY": -1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 4
+      }
+    },
+    {
+      "forward": 6,
+      "lateral": 2,
+      "relY": 0,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 6,
+      "lateral": 2,
+      "relY": 1,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    }
+  ],
+  "supportSeeds": [
+    {
+      "forward": 2,
+      "lateral": -2,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": -1,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": 0,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": 1,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 2,
+      "lateral": 2,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": -2,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": -1,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 0,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 1,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:planks",
+        "meta": 0
+      }
+    },
+    {
+      "forward": 3,
+      "lateral": 2,
+      "relY": -3,
+      "state": {
+        "block": "minecraft:log",
+        "meta": 0
+      }
+    }
+  ],
+  "minLateral": -2,
+  "maxLateral": 2,
+  "minRelY": -3,
+  "maxRelY": 1,
+  "createdAt": 1777358087851,
+  "biomes": null,
+  "biomeTemperatureCategories": null,
+  "biomeDictionaryTypes": ["FOREST"],
+  "waterOnly": "BOTH",
+  "minLength": 36,
+  "maxLength": null,
+  "bridgeCrownHalfBlocks": null,
+  "bridgeCrownMinLenBlocks": null,
+  "maxSupportDepth": null
+}

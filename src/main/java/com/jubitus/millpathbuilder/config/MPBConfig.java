@@ -156,15 +156,15 @@ public class MPBConfig {
 
     public static class Pathfinding {
 
-        @Config.Comment("Grid step in blocks. Higher = faster, less detailed. Recommended: 4..8")
+        @Config.Comment("Grid step in blocks. Higher = faster, less detailed. Recommended: 4..8. Default 4: 4x fewer states than 2, critical for mountain routes.")
         public int gridStep = 2;
 
         @Config.Comment("Max iterations for A* expansions per edge.")
-        public int maxIterations = 1_500_000;
+        public int maxIterations = 4_500_000;
 
-        @Config.Comment("Wall-clock timeout in seconds per path. A* gives up and uses best partial path after this time. Default 90s.")
+        @Config.Comment("Wall-clock timeout in seconds per path. A* gives up and uses best partial path after this time. Mountain routes need more time.")
         @Config.RangeInt(min = 10, max = 600)
-        public int maxWallTimeSeconds = 90;
+        public int maxWallTimeSeconds = 320;
 
         @Config.Comment("Max vertical delta allowed between neighbor grid nodes.")
         public int maxYDeltaPerStep = 2;
@@ -175,8 +175,8 @@ public class MPBConfig {
         @Config.Comment("Extra cost per unit of local terrain roughness along a segment.")
         public double surfaceRoughnessPenalty = 3.0;
 
-        @Config.Comment("Hard cap for cumulative roughness along one neighbor segment.")
-        public int maxSegmentRoughness = 3;
+        @Config.Comment("Hard cap for cumulative roughness along one neighbor segment. Increased for mountain terrain.")
+        public int maxSegmentRoughness = 4;
 
         @Config.Comment("Additional cost if stepping on water (non-ocean).")
         public double waterPenalty = 24.0;
@@ -202,7 +202,7 @@ public class MPBConfig {
                 "Radius 1-2 = small branches, 4+ = substantial trunk, 8 = max. Default: 4."
         })
         @Config.RangeInt(min = 1, max = 8)
-        public int dtLargeTreeRadiusThreshold = 4;
+        public int dtLargeTreeRadiusThreshold = 1;
 
         @Config.Comment({
                 "Multiplier applied to treePenalty when a large DynamicTrees trunk is nearby.",
@@ -246,25 +246,33 @@ public class MPBConfig {
                 "elevation changes, the auto-computed corridor includes a climb-boost that",
                 "can reach 300+ blocks; this cap must be large enough to allow switchbacks.",
                 "A 40-block climb needs ~370 blocks of lateral room for switchbacks.",
-                "Reduce to 192 for flat/open terrain, keep at 384+ for mountain worlds.",
-                "Default: 384."
+                "Reduce to 192 for flat/open terrain, keep at 512+ for mountain worlds.",
+                "Default: 512."
         })
         @Config.RangeInt(min = 64, max = 1024)
-        public int corridorHalfWidthMax = 384;
+        public int corridorHalfWidthMax = 512;
 
         @Config.Comment("Minimum total rise within lookahead before a straight uphill is considered 'direct climb'.")
         @Config.RangeInt(min = 1, max = 16)
         public int uphillLookaheadMinRise = 3;
 
-        @Config.Comment("Predicted maximum cut depth pathfinding treats as normal terrain shaping on one move.")
+        @Config.Comment("Predicted maximum cut depth pathfinding treats as normal terrain shaping on one move. 4 blocks allows mountain passes without over-penalising.")
         @Config.RangeInt(min = 0, max = 12)
-        public int predictedMaxCutDepth = 2;
+        public int predictedMaxCutDepth = 4;
 
         @Config.Comment({
                 "Penalty per block of predicted cut depth when a move cuts into terrain.",
-                "Higher values force the pathfinder to wind around obstacles rather than cut through them."
+                "The openHillsideFactor in code applies a 0.3x discount for open hillside cuts,",
+                "so the effective rate for natural embankments is ~15/block vs 50/block for enclosed trenches."
         })
-        public double predictedCutPenaltyPerBlock = 150.0;
+        public double predictedCutPenaltyPerBlock = 50.0;
+
+        @Config.Comment({
+                "Penalty per block of fill required along a segment. Higher values push the path to prefer",
+                "cutting through terrain rather than building fill embankments on the opposite side.",
+                "Set to 0 to treat fill same as cut. Default 120 (~2.4× the cut penalty)."
+        })
+        public double predictedFillPenaltyPerBlock = 120.0;
 
         @Config.Comment("Lateral scan radius used to detect enclosed mountain cutting.")
         @Config.RangeInt(min = 1, max = 8)
@@ -274,38 +282,38 @@ public class MPBConfig {
         @Config.RangeInt(min = 1, max = 8)
         public int enclosedWallMinHeight = 2;
 
-        @Config.Comment("Penalty added when a move enters enclosed cutting on both sides.")
-        public double enclosedCutPenalty = 400.0;
+        @Config.Comment("Penalty added when a move enters enclosed cutting on both sides (trench/saw-through-ridge). Keep high to prevent unnatural trenches.")
+        public double enclosedCutPenalty = 150.0;
 
-        @Config.Comment("Extra penalty per additional enclosed cell in a sustained enclosed cut run.")
-        public double sustainedEnclosedCutPenalty = 220.0;
+        @Config.Comment("Extra penalty per additional enclosed cell in a sustained enclosed cut run. Discourages long saw-like trenches through ridges.")
+        public double sustainedEnclosedCutPenalty = 100.0;
 
         @Config.Comment("Forward lookahead used to discourage direct enclosed mountain ascent.")
         @Config.RangeInt(min = 1, max = 16)
         public int mountainAscentLookahead = 4;
 
-        @Config.Comment("Penalty for continuing into a sustained enclosed uphill push.")
-        public double mountainAscentPenalty = 130.0;
+        @Config.Comment("Penalty for continuing into a sustained enclosed uphill push. Reduced to allow mountain passes.")
+        public double mountainAscentPenalty = 50.0;
 
         @Config.Comment({
                 "Cut cost multiplier applied when the terrain being cut is hard rock (stone, granite, etc.).",
                 "Soft terrain (dirt, snow, sand) uses 1.0x. Hard rock (stone+) uses this multiplier.",
-                "Default 2.5 makes mountain cuts 2.5x more expensive, encouraging the path to wind around."
+                "1.5 still favours softer terrain while not making rock-cutting prohibitively expensive."
         })
         @Config.RangeDouble(min = 1.0, max = 8.0)
-        public double hardRockCutMultiplier = 2.5;
+        public double hardRockCutMultiplier = 1.5;
 
-        @Config.Comment("If true, when the goal cannot be reached exactly, return a path to the best reached point near the goal instead of failing.")
-        public boolean allowPartialPathFallback = false;
+        @Config.Comment("If true, when the goal cannot be reached exactly, return a path to the best reached point near the goal instead of failing. Recommended true for mountain worlds to at least partially connect isolated villages.")
+        public boolean allowPartialPathFallback = true;
 
         @Config.Comment({
                 "Maximum number of full-path profile rejections before A* gives up.",
                 "Each rejection marks the endpoint as closed and A* retries with an alternate path.",
                 "Increase for complex mountain terrain where many candidate paths fail the profile check.",
-                "Default: 80."
+                "Default: 150."
         })
         @Config.RangeInt(min = 8, max = 500)
-        public int profileRejectionLimit = 80;
+        public int profileRejectionLimit = 150;
 
         @Config.Comment({
                 "If true, multiply the stagnation-abort threshold when the route has a large elevation change.",
@@ -320,10 +328,10 @@ public class MPBConfig {
                 "Lets A* find routes through steeper terrain without changing what the painter actually does.",
                 "The painter still uses earthworksMaxCut/Fill from the Painting section — only the path search is relaxed.",
                 "Increase if paths fail in mountainous worlds; decrease to 0 to match painter limits exactly.",
-                "Default: 2."
+                "Default: 4 — lets A* find routes through mountain terrain that the painter smooths with earthworks."
         })
         @Config.RangeInt(min = 0, max = 8)
-        public int pathfindingEarthworksTolerance = 2;
+        public int pathfindingEarthworksTolerance = 4;
 
         @Config.Comment({
                 "Penalty multiplier for direction changes. Applied quadratically: almost free for gentle curves,",
@@ -341,7 +349,7 @@ public class MPBConfig {
                 "Routes > 600 blocks use step*2, routes > 1000 blocks use step*3 (capped at 12).",
                 "Disable if you notice roads being too coarse on long segments."
         })
-        public boolean adaptiveGridStep = true;
+        public boolean adaptiveGridStep = false;
 
         @Config.Comment("If true, give a cost bonus when the A* pathfinder moves onto an existing road block, promoting road sharing over parallel construction.")
         public boolean preferExistingRoads = false;
@@ -397,7 +405,7 @@ public class MPBConfig {
                 "Default: 3."
         })
         @Config.RangeInt(min = 1, max = 8)
-        public int dtWholeTreeRemovalThreshold = 3;
+        public int dtWholeTreeRemovalThreshold = 1;
 
         @Config.Comment({
                 "Maximum number of blocks trimmed from one edge of the road to create organic width variation.",
@@ -416,6 +424,13 @@ public class MPBConfig {
         @Config.RangeInt(min = 2, max = 40)
         public int roadEdgeVariationPeriod = 8;
 
+        @Config.Comment({
+                "If true, the painter skips waypoints that run within road-width of an already-painted road,",
+                "then resumes when the paths diverge. Physical connectors are force-painted at each",
+                "entry/exit boundary so the two roads remain physically connected."
+        })
+        public boolean suppressParallelPainting = true;
+
         @Config.Comment("Extra penalty for crossing small water patches (puddles/marsh). Helps avoid tiny bridges.")
         public double smallWaterPenalty = 260.0;
 
@@ -433,17 +448,32 @@ public class MPBConfig {
         @Config.RangeInt(min = 1, max = 4)
         public int maxRoadStepHalfPerBlock = 1;
 
-        @Config.Comment("Maximum cut depth for road earthworks.")
+        @Config.Comment("Maximum cut depth for road earthworks. 5 blocks allows mountain-pass talus cuts without looking like a canyon.")
         @Config.RangeInt(min = 0, max = 16)
-        public int earthworksMaxCut = 3;
+        public int earthworksMaxCut = 5;
 
-        @Config.Comment("Maximum fill height for road earthworks.")
+        @Config.Comment("Maximum fill height for road earthworks. 3 blocks for valley approaches.")
         @Config.RangeInt(min = 0, max = 16)
-        public int earthworksMaxFill = 2;
+        public int earthworksMaxFill = 3;
 
-        @Config.Comment("Shoulder width used to taper earthworks away from the road surface.")
+        @Config.Comment("Shoulder width used to taper earthworks away from the road surface. 3 blocks produces a wider, more natural-looking talus in mountains.")
         @Config.RangeInt(min = 0, max = 8)
-        public int earthworksShoulder = 2;
+        public int earthworksShoulder = 3;
+
+        @Config.Comment({
+                "Talus slope ratio for earthworks side-slopes (blocks of lateral spread per block of height difference).",
+                "1.0 = 45° (1 block out per block up/down). 1.5 = gentler (~34°). 0.7 = steeper (~55°).",
+                "Controls the side-slopes created outside the road surface after cut or fill."
+        })
+        @Config.RangeDouble(min = 0.3, max = 4.0)
+        public double earthworksSlopeRatio = 1.0;
+
+        @Config.Comment({
+                "Talus slope ratio for LONE_TRAIL paths. A narrower trail looks more natural with a slightly",
+                "steeper talus. 0.7 = steeper slope (~55°). Set to -1 to use earthworksSlopeRatio for all roads."
+        })
+        @Config.RangeDouble(min = -1.0, max = 4.0)
+        public double earthworksSlopeRatioLoneTrail = 0.7;
     }
 
     @Config.Name("Bridges")
@@ -555,9 +585,9 @@ public class MPBConfig {
         @Config.RangeInt(min = 8, max = 128)
         public int minSpanLen = 14;
 
-        @Config.Comment("Bridge if the terrain drops at least this many blocks below entry/exit baseline.")
+        @Config.Comment("Bridge if the terrain drops at least this many blocks below entry/exit baseline. 6 blocks catches more mountain valleys and gorges.")
         @Config.RangeInt(min = 2, max = 48)
-        public int minValleyDepth = 10;
+        public int minValleyDepth = 6;
 
         @Config.Comment("How tolerant we are to path curvature when deciding a straight bridge. Higher = more bridges.")
         @Config.RangeInt(min = 1, max = 16)
