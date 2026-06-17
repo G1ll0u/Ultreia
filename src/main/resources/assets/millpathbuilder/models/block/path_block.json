@@ -1,6 +1,6 @@
 {
   "parent": "block/cube_all",
   "textures": {
-    "all": "millpathbuilder:blocks/path_block"
+    "all": "ultreia:blocks/path_block"
   }
 }

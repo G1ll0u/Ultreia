@@ -1,6 +1,6 @@
 {
   "variants": {
-    "half=bottom": { "model": "millpathbuilder:path_slab_bottom" },
-    "half=top":    { "model": "millpathbuilder:path_slab_top" }
+    "half=bottom": { "model": "ultreia:path_slab_bottom" },
+    "half=top":    { "model": "ultreia:path_slab_top" }
   }
 }
