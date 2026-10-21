@@ -16,6 +16,9 @@ public final class MPBGround {
     public static boolean isRoadReplaceableGround(IBlockState st) {
         if (st == null) return false;
 
+        // Rootydirt is plain dirt anchoring a DT tree — valid painting surface once the tree is cleared.
+        if (MPBTreeCompat.isDTRootyBlock(st)) return true;
+        // Other DT structural blocks (branches, trunkshell, saplings) are never ground.
         if (MPBTreeCompat.isDynamicTreesBlock(st)) return false;
         Block b = st.getBlock();
         if (b == Blocks.AIR) return false;

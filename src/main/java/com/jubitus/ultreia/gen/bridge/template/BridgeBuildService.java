@@ -11,7 +11,6 @@ public final class BridgeBuildService {
     public static boolean build(WorldServer world,
                                 TerrainSampler sampler,
                                 BridgeSpan span,
-                                int roadWidth,
                                 boolean dryRun) {
         BridgeTemplate template = BridgeTemplateSelector.select(world, span);
         return BridgeTemplateBridgeBuilder.build(world, sampler, span, template, dryRun);

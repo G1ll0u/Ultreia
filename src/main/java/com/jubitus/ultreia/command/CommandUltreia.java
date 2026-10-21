@@ -8,7 +8,6 @@ import com.jubitus.ultreia.gen.world.MPBRoadNetwork;
 import com.jubitus.ultreia.gen.world.RoadSegment;
 import com.jubitus.ultreia.gen.world.RoadWaypoint;
 import com.jubitus.ultreia.integration.MillIntegration;
-import com.jubitus.ultreia.Tags;
 import com.jubitus.ultreia.network.MPBNetworkHandler;
 import com.jubitus.ultreia.network.PacketOpenMapGui;
 import net.minecraft.command.CommandBase;
@@ -190,8 +189,7 @@ public final class CommandUltreia extends CommandBase {
                 sender.sendMessage(new TextComponentString("Ultreïa: config GUI can only be opened by a player."));
                 return;
             }
-            boolean isOp = server.getPlayerList().canSendCommands(player.getGameProfile());
-            MPBNetworkHandler.CHANNEL.sendTo(MsgOpenConfigGui.forMod(Tags.MOD_ID, isOp), player);
+            MsgOpenConfigGui.open(player, false);
             return;
         }
 

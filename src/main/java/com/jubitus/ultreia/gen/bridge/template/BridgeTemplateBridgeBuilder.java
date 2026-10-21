@@ -78,7 +78,7 @@ public final class BridgeTemplateBridgeBuilder {
 
             boolean interior = i > 0 && i < span.centerline.size() - 1;
 
-            placeStripe(world, c.getX(), c.getZ(), perp, 1, sp, deckState, dryRun, sampler, deckXZ, interior);
+            placeStripe(world, c.getX(), c.getZ(), perp, BridgeGeometry.DECK_WIDTH_BLOCKS / 2, sp, deckState, dryRun, sampler, deckXZ, interior);
 
             if (i > 0) {
                 BlockPos p = span.centerline.get(i - 1);
@@ -87,7 +87,7 @@ public final class BridgeTemplateBridgeBuilder {
 
                 if (stepX != 0 && stepZ != 0) {
                     boolean interiorDiag = i > 1 && i < span.centerline.size() - 1;
-                    fillDiagonalGap(world, p.getX(), p.getZ(), c.getX(), c.getZ(), perp, 1, sp, deckState, dryRun, sampler, deckXZ, interiorDiag);
+                    fillDiagonalGap(world, p.getX(), p.getZ(), c.getX(), c.getZ(), perp, BridgeGeometry.DECK_WIDTH_BLOCKS / 2, sp, deckState, dryRun, sampler, deckXZ, interiorDiag);
                 }
             }
         }

@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.gen.world;
 
+import com.jubitus.ultreia.gen.MPBWorldData;
+import com.jubitus.ultreia.gen.RoadType;
 import com.jubitus.ultreia.gen.bridge.BridgeGeometry;
 import com.jubitus.ultreia.gen.bridge.BridgeSpan;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -17,6 +19,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 
 /**
@@ -50,8 +53,14 @@ public final class MPBRoadNetwork extends WorldSavedData {
         }
     }
 
+    /** Global so a reloaded network never repeats a revision seen before. */
+    private static final AtomicLong REVISION_SEQ = new AtomicLong();
+
     private final List<RoadSegment> segments = new ArrayList<>();
     private int nextId = 0;
+    private long revision = REVISION_SEQ.incrementAndGet();
+    /** True when segments loaded without a saved type/width await inference from the logical network. */
+    private boolean legacyPending = false;
 
     // Spatial index: chunk key → set of segment IDs whose waypoints cross that chunk
     private final Long2ObjectOpenHashMap<IntArrayList> chunkIndex = new Long2ObjectOpenHashMap<>();
@@ -78,7 +87,19 @@ public final class MPBRoadNetwork extends WorldSavedData {
             data = new MPBRoadNetwork();
             storage.setData(NAME, data);
         }
+        if (data.legacyPending) data.inferLegacySegments(MPBWorldData.get(world));
         return data;
+    }
+
+    /** Changes whenever the set of segments changes. Not persisted. */
+    public long getRevision() {
+        return revision;
+    }
+
+    @Override
+    public void markDirty() {
+        revision = REVISION_SEQ.incrementAndGet();
+        super.markDirty();
     }
 
     // --- Segment registration ---
@@ -91,7 +112,9 @@ public final class MPBRoadNetwork extends WorldSavedData {
     public int addRoadSegment(List<BlockPos> path,
                               MPBRoadIndexData roadIndex,
                               @Nullable BlockPos fromVillage,
-                              @Nullable BlockPos toVillage) {
+                              @Nullable BlockPos toVillage,
+                              RoadType roadType,
+                              int widthBlocks) {
         if (path == null || path.isEmpty()) return -1;
 
         List<RoadWaypoint> waypoints = new ArrayList<>();
@@ -108,7 +131,7 @@ public final class MPBRoadNetwork extends WorldSavedData {
             if (roadIndex != null) roadIndex.markRoad(last.getX(), last.getY(), last.getZ());
         }
 
-        return registerSegment(waypoints, false, fromVillage, toVillage);
+        return registerSegment(waypoints, false, fromVillage, toVillage, roadType, widthBlocks);
     }
 
     /**
@@ -119,7 +142,8 @@ public final class MPBRoadNetwork extends WorldSavedData {
                                 int[] deckHalfY,
                                 MPBRoadIndexData roadIndex,
                                 @Nullable BlockPos fromVillage,
-                                @Nullable BlockPos toVillage) {
+                                @Nullable BlockPos toVillage,
+                                RoadType roadType) {
         if (span == null || span.centerline == null || span.centerline.isEmpty()) return -1;
 
         List<RoadWaypoint> waypoints = new ArrayList<>();
@@ -129,9 +153,11 @@ public final class MPBRoadNetwork extends WorldSavedData {
                     ? BridgeGeometry.surfaceYFromHalf(deckHalfY[i])
                     : c.getY();
 
-            if (i % SAMPLE_STEP == 0 || i == span.centerline.size() - 1) {
-                waypoints.add(new RoadWaypoint(c.getX(), deckY, c.getZ(), true));
-            }
+            // Bridges are stored at full resolution (every centerline block), unlike regular road
+            // segments: reused-bridge stitching (AStarPathfinder) needs the exact per-block deck
+            // profile so it can splice this segment back into a reconstructed path without drifting
+            // off the deck centerline via straight-line rasterization between sparse waypoints.
+            waypoints.add(new RoadWaypoint(c.getX(), deckY, c.getZ(), true));
 
             if (roadIndex != null) {
                 roadIndex.markBridgeDeck(c.getX(), deckY, c.getZ());
@@ -151,7 +177,7 @@ public final class MPBRoadNetwork extends WorldSavedData {
             }
         }
 
-        int segId = registerSegment(waypoints, true, fromVillage, toVillage);
+        int segId = registerSegment(waypoints, true, fromVillage, toVillage, roadType, BridgeGeometry.DECK_WIDTH_BLOCKS);
 
         // Index all centerline XZ columns for fast bridge lookup
         for (BlockPos c : span.centerline) {
@@ -234,6 +260,13 @@ public final class MPBRoadNetwork extends WorldSavedData {
         return Collections.unmodifiableList(segments);
     }
 
+    /** Fetch a segment by id, e.g. from a {@link BridgeCrossing#segmentId}. Null if not found. */
+    @Nullable
+    public RoadSegment getSegment(int id) {
+        if (id < 0 || id >= segments.size()) return null;
+        return segments.get(id);
+    }
+
     // --- NBT serialization ---
 
     @Override
@@ -242,6 +275,8 @@ public final class MPBRoadNetwork extends WorldSavedData {
         chunkIndex.clear();
         bridgeDeckIndex.clear();
         nextId = 0;
+        legacyPending = false;
+        revision = REVISION_SEQ.incrementAndGet();
 
         if (!nbt.hasKey("segs")) return;
 
@@ -262,7 +297,13 @@ public final class MPBRoadNetwork extends WorldSavedData {
             }
             if (waypoints.isEmpty()) continue;
 
-            RoadSegment seg = new RoadSegment(id, waypoints, isBridge, fromV, toV);
+            // Saves from before type/width were stored lack these keys; inferred on first get(world).
+            boolean hasMeta = sc.hasKey("rt") && sc.hasKey("wd");
+            if (!hasMeta) legacyPending = true;
+            RoadType type = (hasMeta && sc.getByte("rt") == 1) ? RoadType.LONE_TRAIL : RoadType.VILLAGE_MAIN;
+            int width = hasMeta ? sc.getInteger("wd") : 0;
+
+            RoadSegment seg = new RoadSegment(id, waypoints, isBridge, fromV, toV, type, width);
             while (segments.size() <= id) segments.add(null);
             segments.set(id, seg);
             if (id >= nextId) nextId = id + 1;
@@ -286,6 +327,8 @@ public final class MPBRoadNetwork extends WorldSavedData {
             NBTTagCompound sc = new NBTTagCompound();
             sc.setInteger("id", seg.id);
             sc.setBoolean("br", seg.isBridge);
+            sc.setByte("rt", (byte) (seg.roadType == RoadType.LONE_TRAIL ? 1 : 0));
+            sc.setInteger("wd", seg.widthBlocks);
             if (seg.fromVillage != null) {
                 sc.setInteger("fvx", seg.fromVillage.getX());
                 sc.setInteger("fvz", seg.fromVillage.getZ());
@@ -312,12 +355,49 @@ public final class MPBRoadNetwork extends WorldSavedData {
 
     // --- Internal helpers ---
 
+    /**
+     * Fills type and width of segments saved before they were stored. The planned network keeps
+     * the same village pair as each segment's from/to, so a segment matches its edge by endpoints
+     * (either order). No match (manual paths, missing data) means a village road.
+     */
+    private void inferLegacySegments(MPBWorldData worldData) {
+        legacyPending = false;
+        List<LogicalEdge> edges = worldData.getLogicalNetwork();
+        for (int i = 0; i < segments.size(); i++) {
+            RoadSegment seg = segments.get(i);
+            if (seg == null || seg.widthBlocks > 0) continue;
+
+            RoadType type = RoadType.VILLAGE_MAIN;
+            if (seg.fromVillage != null && seg.toVillage != null) {
+                for (LogicalEdge e : edges) {
+                    if (matchesEdge(seg, e)) {
+                        if (e.isLoneTrail) type = RoadType.LONE_TRAIL;
+                        break;
+                    }
+                }
+            }
+            int width = seg.isBridge ? BridgeGeometry.DECK_WIDTH_BLOCKS : type.roadWidthBlocks();
+            segments.set(i, new RoadSegment(seg.id, seg.waypoints, seg.isBridge, seg.fromVillage, seg.toVillage, type, width));
+        }
+        markDirty();
+    }
+
+    private static boolean matchesEdge(RoadSegment seg, LogicalEdge e) {
+        int fx = seg.fromVillage.getX(), fz = seg.fromVillage.getZ();
+        int tx = seg.toVillage.getX(), tz = seg.toVillage.getZ();
+        return (fx == e.x1 && fz == e.z1 && tx == e.x2 && tz == e.z2)
+                || (fx == e.x2 && fz == e.z2 && tx == e.x1 && tz == e.z1);
+    }
+
     private int registerSegment(List<RoadWaypoint> waypoints,
                                 boolean isBridge,
                                 @Nullable BlockPos fromVillage,
-                                @Nullable BlockPos toVillage) {
+                                @Nullable BlockPos toVillage,
+                                RoadType roadType,
+                                int widthBlocks) {
         int id = nextId++;
-        RoadSegment seg = new RoadSegment(id, Collections.unmodifiableList(waypoints), isBridge, fromVillage, toVillage);
+        RoadSegment seg = new RoadSegment(id, Collections.unmodifiableList(waypoints), isBridge, fromVillage, toVillage,
+                roadType != null ? roadType : RoadType.VILLAGE_MAIN, widthBlocks);
         while (segments.size() <= id) segments.add(null);
         segments.set(id, seg);
         indexSegment(seg);

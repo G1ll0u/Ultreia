@@ -165,11 +165,8 @@ public final class RoadPainter {
 
             this.bridgePlanner = new BridgePlanner(world, sampler);
 
-            int w = Math.max(1, MPBConfig.PAINTING.roadWidth);
-            if ((w % 2) == 0) w++;
-
-            this.baseR = w / 2;
-            this.r = w / 2;
+            this.baseR = roadType.roadWidthBlocks() / 2;
+            this.r = baseR;
 
             this.coarse = coarsePath == null ? Collections.<BlockPos>emptyList() : coarsePath;
 
@@ -360,12 +357,12 @@ public final class RoadPainter {
          */
         public void setRoadType(RoadType type) {
             this.roadType = (type != null) ? type : RoadType.VILLAGE_MAIN;
-            if (this.roadType == RoadType.LONE_TRAIL && MPBConfig.ROAD_HIERARCHY.enabled) {
-                // LONE_TRAIL is always 1 half-step narrower: baseR 1→0 gives 3-wide vs 5-wide.
-                int loneR = Math.max(0, this.baseR - 1);
-                this.baseR = loneR;
-                this.r = loneR;
-            }
+            this.baseR = this.roadType.roadWidthBlocks() / 2;
+            this.r = this.baseR;
+        }
+
+        private int paintedWidthBlocks() {
+            return baseR * 2 + 1;
         }
 
         private void indexForcedBridges() {
@@ -1924,7 +1921,7 @@ public final class RoadPainter {
 
         private void registerRoadSegment() {
             if (roadNetwork == null || dryRun || path.isEmpty()) return;
-            roadNetwork.addRoadSegment(path, roadIndex, fromVillage, toVillage);
+            roadNetwork.addRoadSegment(path, roadIndex, fromVillage, toVillage, roadType, paintedWidthBlocks());
         }
 
         private boolean isBridgeAlreadyAt(BridgeSpan span) {
@@ -1944,27 +1941,24 @@ public final class RoadPainter {
                 if (!dryRun) {
                     if (roadNetwork != null) {
                         int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span, sampler);
-                        roadNetwork.addBridgeSegment(span, deckHalf, roadIndex, fromVillage, toVillage);
+                        roadNetwork.addBridgeSegment(span, deckHalf, roadIndex, fromVillage, toVillage, roadType);
                     }
                     if (roadIndex != null) markBridgeVolumeInIndex(span, roadIndex);
                 }
                 return true;
             }
 
-            int roadW = Math.max(1, MPBConfig.PAINTING.roadWidth);
-            if ((roadW % 2) == 0) roadW++;
-
             if (protectedAreas != null) {
                 if (protectedAreas.contains(span.start.getX(), span.start.getZ())) return false;
                 if (protectedAreas.contains(span.end.getX(), span.end.getZ())) return false;
             }
 
-            boolean built = BridgeBuildService.build(world, sampler, span, roadW, dryRun);
+            boolean built = BridgeBuildService.build(world, sampler, span, dryRun);
 
             if (built && !dryRun && (roadIndex != null || roadNetwork != null)) {
                 int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span, sampler);
                 if (roadNetwork != null) {
-                    roadNetwork.addBridgeSegment(span, deckHalf, roadIndex, fromVillage, toVillage);
+                    roadNetwork.addBridgeSegment(span, deckHalf, roadIndex, fromVillage, toVillage, roadType);
                 } else if (roadIndex != null) {
                     // roadNetwork absent: at least mark bridge decks in the index
                     for (int i = 0; i < span.centerline.size(); i++) {

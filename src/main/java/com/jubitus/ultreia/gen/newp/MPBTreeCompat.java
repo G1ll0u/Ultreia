@@ -22,6 +22,7 @@ public final class MPBTreeCompat {
     private static volatile Class<?> DT_BRANCH_CLASS;
     private static volatile Class<?> DT_TRUNK_SHELL_CLASS;
     private static volatile Class<?> DT_ROOTY_CLASS;
+    private static volatile Class<?> DT_SAPLING_CLASS;
     private static volatile boolean DT_CHECKED = false;
 
     private static void initDTClasses() {
@@ -37,6 +38,10 @@ public final class MPBTreeCompat {
         }
         try {
             DT_ROOTY_CLASS = Class.forName("com.ferreusveritas.dynamictrees.blocks.BlockRooty");
+        } catch (Throwable ignored) {
+        }
+        try {
+            DT_SAPLING_CLASS = Class.forName("com.ferreusveritas.dynamictrees.blocks.BlockDynamicSapling");
         } catch (Throwable ignored) {
         }
     }
@@ -97,9 +102,34 @@ public final class MPBTreeCompat {
         return false;
     }
 
-    /** True for BlockBranch, BlockTrunkShell, or BlockRooty variants. */
+    /**
+     * True for a DynamicTrees BlockDynamicSapling — the single-block plant that stores
+     * its species in a TileEntity. These must be cleared like vegetation, not skipped
+     * because of their TileEntity.
+     */
+    public static boolean isDTSapling(IBlockState st) {
+        if (st == null) return false;
+        Block b = st.getBlock();
+        if (b == null) return false;
+        initDTClasses();
+        if (DT_SAPLING_CLASS != null && DT_SAPLING_CLASS.isInstance(b)) return true;
+        for (Class<?> c = b.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            String cn = c.getName().toLowerCase();
+            if (cn.contains("dynamicsapling") && (cn.contains("dynamictrees") || cn.contains("dynamictree"))) {
+                return true;
+            }
+        }
+        ResourceLocation id = b.getRegistryName();
+        if (id != null) {
+            String s = id.toString().toLowerCase();
+            if ((s.contains("dynamictrees") || s.contains("dynamictree")) && s.contains("sapling")) return true;
+        }
+        return false;
+    }
+
+    /** True for BlockBranch, BlockTrunkShell, BlockRooty, or BlockDynamicSapling variants. */
     public static boolean isDynamicTreesBlock(IBlockState st) {
-        return isDynamicTreesBranch(st) || isDynamicTreesTrunkShell(st) || isDTRootyBlock(st);
+        return isDynamicTreesBranch(st) || isDynamicTreesTrunkShell(st) || isDTRootyBlock(st) || isDTSapling(st);
     }
 
     /**

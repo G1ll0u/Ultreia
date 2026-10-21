@@ -28,12 +28,20 @@ repositories {
     mavenLocal() // Must be last for caching to work
 }
 
+configurations {
+    shade
+    implementation.extendsFrom shade
+}
+
 dependencies {
     // Include StripLatestForgeRequirements by default for the dev env, saves everyone a hassle
     runtimeOnly 'com.cleanroommc:strip-latest-forge-requirements:1.0'
     // Include OSXNarratorBlocker by default for the dev env, for M1+ Macs
     runtimeOnly 'com.cleanroommc:osxnarratorblocker:1.0'
-    embed files('libs/jubiconfig-1.0.0.jar')
+    // Shaded (not embed'd) so it can be package-relocated below — see the relocate comment further
+    // down. Each mod embedding jubiconfig this way can independently use its own jubiconfig
+    // version with zero risk of classloader collisions with another mod's copy.
+    shade files('libs/jubiconfig-2.6.5.jar')
     compileOnly files('libs/millenaire-8.1.2.jar')
     implementation("curse.maven:dramatictrees-637540:5496154")
     // Example - Dependency descriptor:
@@ -67,4 +75,21 @@ dependencies {
     // implementation ('com.google.code.gson:gson:2.8.6') {
     //     transitive = false
     // }
+}
+
+// Need reobfJar to use uber jars, so dependencies that are shaded in are present
+if (!configurations.shade.dependencies.empty) {
+    tasks.named('reobfJar').configure {
+        inputJar.set(tasks.named('shadowJar').flatMap({ it.archiveFile }))
+    }
+}
+
+tasks.shadowJar {
+    enabled = !project.configurations.shade.dependencies.empty
+    archiveClassifier = 'uberdev'
+    configurations = [ project.configurations.shade ]
+    // Relocated into a package unique to this mod so this mod's jubiconfig version can never
+    // collide/conflict with another mod's own (possibly different) embedded jubiconfig version —
+    // each mod's copy is fully private. Keep this relocate target unique per mod.
+    relocate 'com.jubitus.jubiconfig', 'com.jubitus.ultreia.shadow.jubiconfig'
 }

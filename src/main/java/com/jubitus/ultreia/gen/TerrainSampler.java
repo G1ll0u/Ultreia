@@ -300,12 +300,13 @@ public class TerrainSampler {
                 boolean headroomPaint = isClearableOrAir(world.getBlockState(up1), up1, Mode.PAINTING)
                         && isClearableOrAir(world.getBlockState(up2), up2, Mode.PAINTING);
 
-                blockedPath = !walkable || !headroomPath;
-                if (!walkable) blockedPathDetail = BlockedDetail.NON_WALKABLE_GROUND;
-                else if (!headroomPath) blockedPathDetail = BlockedDetail.BAD_HEADROOM;
-
                 boolean manmade = hasManmadeNearby(x, surfaceY, z);
                 boolean tile = hasTileEntityNearby(x, surfaceY, z);
+
+                blockedPath = !walkable || !headroomPath || tile;
+                if (!walkable) blockedPathDetail = BlockedDetail.NON_WALKABLE_GROUND;
+                else if (!headroomPath) blockedPathDetail = BlockedDetail.BAD_HEADROOM;
+                else if (tile) blockedPathDetail = BlockedDetail.TILE_NEARBY;
 
                 blockedPaint = !paintable || !headroomPaint || manmade || tile;
                 if (!paintable) blockedPaintDetail = BlockedDetail.NON_PAINTABLE_GROUND;
@@ -601,7 +602,12 @@ public class TerrainSampler {
             for (int dz = -1; dz <= 1; dz++) {
                 for (int dy = 0; dy <= 2; dy++) {
                     BlockPos p = new BlockPos(x + dx, y + dy, z + dz);
-                    if (world.getTileEntity(p) != null) return true;
+                    if (world.getTileEntity(p) == null) continue;
+                    // DT blocks (saplings, rootydirt) carry TEs for species metadata only —
+                    // they are safe to clear and must not trigger path/paint blocking.
+                    IBlockState st = world.getBlockState(p);
+                    if (MPBTreeCompat.isDynamicTreesBlock(st)) continue;
+                    return true;
                 }
             }
         }
@@ -694,6 +700,8 @@ public class TerrainSampler {
             IBlockState tst = world.getBlockState(tp);
             if (tst == null) continue;
             int r = probeBlockTrunkRadius(tst, tp);
+            // DT saplings (Tier-1) are not branches — treat as radius-1 obstacle so A* prefers routing around them.
+            if (r == 0 && MPBTreeCompat.isDTSapling(tst)) r = 1;
             if (r > best) best = r;
         }
 

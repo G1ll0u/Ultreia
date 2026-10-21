@@ -41,7 +41,7 @@ public class MPBConfig {
         public boolean includeLoneBuildings = true;
 
         @Config.Comment("Treat ocean/sea as forbidden. Prevents 'roads ending at sea'.")
-        public boolean forbidOcean = false;
+        public boolean forbidOcean = true;
 
         @Config.Comment("If true, blacklisted biomes are forbidden (hard block). If false, they are just very expensive.")
         public boolean hardBlockBlacklistedBiomes = false;
@@ -61,15 +61,12 @@ public class MPBConfig {
         public boolean debugLogChunkLifecycle = false;
 
         @Config.Comment("Biome registry names to avoid, e.g. minecraft:desert, minecraft:mesa, biomesoplenty:coral_reef")
-        public String[] biomeBlacklist = new String[] {
-                "minecraft:ocean",
-                "minecraft:deep_ocean"
-        };
+        public String[] biomeBlacklist = new String[]{"minecraft:ocean", "minecraft:deep_ocean"};
 
 
 
         @Config.Comment("Time budget per server tick for generation (ms).")
-        public int tickBudgetMs = 256;
+        public int tickBudgetMs = 365;
 
         @Config.Comment("Do not paint/clear inside this radius (blocks) around Millenaire village nodes.")
         public int villageNoPaintRadius = 2;
@@ -141,7 +138,7 @@ public class MPBConfig {
 
         @Config.Comment("Minimum villagers for a village to be classified as MEDIUM (below this = SMALL).")
         @Config.RangeInt(min = 1, max = 500)
-        public int mediumMinVillagers = 20;
+        public int mediumMinVillagers = 16;
 
         @Config.Comment({
                 "Distance bonus applied when both endpoints of an RNG edge are HUBs.",
@@ -162,7 +159,7 @@ public class MPBConfig {
         public int gridStep = 2;
 
         @Config.Comment("Max iterations for A* expansions per edge.")
-        public int maxIterations = 4_500_000;
+        public int maxIterations = 10000000;
 
         @Config.Comment("Wall-clock timeout in seconds per path. A* gives up and uses best partial path after this time. Mountain routes need more time.")
         @Config.RangeInt(min = 10, max = 600)
@@ -172,7 +169,7 @@ public class MPBConfig {
         public int maxYDeltaPerStep = 2;
 
         @Config.Comment("Cost multiplier for climbing/descending.")
-        public double slopePenalty = 14.0;
+        public double slopePenalty = 8.0;
 
         @Config.Comment("Extra cost per unit of local terrain roughness along a segment.")
         public double surfaceRoughnessPenalty = 3.0;
@@ -188,7 +185,7 @@ public class MPBConfig {
                 "Makes the pathfinder prefer routes that go around forests.",
                 "Only applied when clearTrees=true. Set to 0 to disable tree avoidance."
         })
-        public double treePenalty = 90.0;
+        public double treePenalty = 15.0;
 
         @Config.Comment({
                 "Extra pathfinding cost when a cell contains farmland (or modded equivalent).",
@@ -201,10 +198,11 @@ public class MPBConfig {
         @Config.Comment({
                 "DynamicTrees branch radius (1-8) above which a tree is considered 'large'.",
                 "Large trees receive the dtLargeTreePenaltyMultiplier bonus on top of treePenalty.",
-                "Radius 1-2 = small branches, 4+ = substantial trunk, 8 = max. Default: 4."
+                "Radius 1-2 = saplings/small stubs (soft avoidance), 3+ = real trunks (strong avoidance).",
+                "Default: 3."
         })
         @Config.RangeInt(min = 1, max = 8)
-        public int dtLargeTreeRadiusThreshold = 1;
+        public int dtLargeTreeRadiusThreshold = 3;
 
         @Config.Comment({
                 "Multiplier applied to treePenalty when a large DynamicTrees trunk is nearby.",
@@ -252,7 +250,7 @@ public class MPBConfig {
                 "Default: 512."
         })
         @Config.RangeInt(min = 64, max = 1024)
-        public int corridorHalfWidthMax = 512;
+        public int corridorHalfWidthMax = 256;
 
         @Config.Comment("Minimum total rise within lookahead before a straight uphill is considered 'direct climb'.")
         @Config.RangeInt(min = 1, max = 16)
@@ -306,7 +304,7 @@ public class MPBConfig {
         public double hardRockCutMultiplier = 1.5;
 
         @Config.Comment("If true, when the goal cannot be reached exactly, return a path to the best reached point near the goal instead of failing. Recommended true for mountain worlds to at least partially connect isolated villages.")
-        public boolean allowPartialPathFallback = true;
+        public boolean allowPartialPathFallback = false;
 
         @Config.Comment({
                 "Maximum number of full-path profile rejections before A* gives up.",
@@ -315,7 +313,7 @@ public class MPBConfig {
                 "Default: 150."
         })
         @Config.RangeInt(min = 8, max = 500)
-        public int profileRejectionLimit = 150;
+        public int profileRejectionLimit = 300;
 
         @Config.Comment({
                 "If true, multiply the stagnation-abort threshold when the route has a large elevation change.",
@@ -351,7 +349,7 @@ public class MPBConfig {
                 "Routes > 600 blocks use step*2, routes > 1000 blocks use step*3 (capped at 12).",
                 "Disable if you notice roads being too coarse on long segments."
         })
-        public boolean adaptiveGridStep = false;
+        public boolean adaptiveGridStep = true;
 
         @Config.Comment("If true, give a cost bonus when the A* pathfinder moves onto an existing road block, promoting road sharing over parallel construction.")
         public boolean preferExistingRoads = false;
@@ -377,7 +375,11 @@ public class MPBConfig {
     }
 
     public static class Painting {
-        @Config.Comment("Road width in blocks (odd numbers recommended). Default 3.")
+        @Config.Comment({
+                "Width in blocks of village roads (even values are rounded up to odd). Default 3.",
+                "Lone trails are 2 blocks narrower (min 1) when road hierarchy is enabled.",
+                "Bridge decks are always 3 wide."
+        })
         public int roadWidth = 3;
 
         @Config.Comment("Clear 2 blocks above the road to ensure walkability.")
@@ -717,11 +719,17 @@ public class MPBConfig {
         @Config.RangeInt(min = 2, max = 8)
         public int walkClearanceAboveDeck = 3;
 
-        @Config.Comment("Require bridge direction to be aligned with incoming path direction.")
+        @Config.Comment({
+                "Safety rail only, not the main alignment mechanism: rejects bridge directions that would",
+                "require a near-reversal from the incoming path direction. Normal steering toward a well-",
+                "aligned bridge is handled by the same turnPenalty cost applied to ordinary road turns, so",
+                "this only needs to catch the pathological case, not enforce a tight angle."
+        })
         public boolean requireAlignedApproach = true;
 
-        @Config.Comment("Minimum normalized dot product between incoming direction and bridge direction.")
-        public double minApproachDot = 0.55;
+        @Config.Comment("Minimum normalized dot product between incoming direction and bridge direction (safety rail, see requireAlignedApproach).")
+        @Config.RangeDouble(min = -1.0, max = 1.0)
+        public double minApproachDot = -0.3;
 
         @Config.Comment("No bridge start/end within this radius of a village.")
         @Config.RangeInt(min = 0, max = 128)
@@ -843,6 +851,16 @@ public class MPBConfig {
         @Config.Comment("Cost bonus applied when reusing an existing bridge (higher = stronger preference for reuse).")
         @Config.RangeDouble(min = 0.0, max = 400.0)
         public double bridgeReuseBonus = 120.0;
+
+        @Config.Comment({
+                "Cost discount applied to normal A* moves that step closer to a known existing bridge",
+                "crossing's entrance, within bridgeReuseSearchRadius blocks. Unlike bridgeReuseBonus (which",
+                "discounts the reuse transition itself), this pulls the search toward the exact entrance",
+                "from a distance so A* actually walks there cell-by-cell instead of drifting past it.",
+                "0 disables this attraction."
+        })
+        @Config.RangeDouble(min = 0.0, max = 80.0)
+        public double bridgeEndpointMagnetismBonus = 12.0;
 
         @Config.Comment({
                 "When crossing water, scan this many blocks perpendicular to the bridge direction",

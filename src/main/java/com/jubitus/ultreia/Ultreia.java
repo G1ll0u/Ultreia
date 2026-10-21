@@ -27,7 +27,7 @@ import java.io.File;
         version = Tags.VERSION,
         acceptableRemoteVersions = "*",
         dependencies = "after:millenaire",
-        guiFactory = "com.jubitus.ultreia.gui.MPBGuiFactory"
+        guiFactory = "com.jubitus.ultreia.shadow.jubiconfig.factory.ModGuiFactory"
 )
 public class Ultreia {
 
@@ -49,14 +49,10 @@ public class Ultreia {
         MinecraftForge.EVENT_BUS.register(new MPBSpeedBoostHandler());
 
         File configDir = new File(event.getModConfigurationDirectory(), "ultreia");
-        JubiConfig.register(
-                Tags.MOD_ID, Tags.MOD_NAME, "mpbconfig",
-                MPBConfig.class, MPBNetworkHandler.CHANNEL,
-                () -> {}, // no additional post-save actions needed
-                configDir, 1
-        );
-        JubiConfig.applyOnStartup(Tags.MOD_ID);
-        JubiConfig.loadHistory(Tags.MOD_ID);
+        JubiConfig.builder(Tags.MOD_ID, Tags.MOD_NAME, MPBConfig.class, MPBNetworkHandler.CHANNEL, configDir)
+                .command("ultreia config")
+                .resetVersion(1) // config was restructured for this release, force a one-time reset
+                .register();
 
         MPBNetworkHandler.init();
         proxy.registerClientPackets();

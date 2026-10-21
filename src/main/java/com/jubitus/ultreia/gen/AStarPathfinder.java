@@ -9,6 +9,8 @@ import com.jubitus.ultreia.gen.newp.MPBRoadHalfConstraintSolver;
 import com.jubitus.ultreia.gen.util.MPBPos2D;
 import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
 import com.jubitus.ultreia.gen.world.MPBRoadNetwork;
+import com.jubitus.ultreia.gen.world.RoadSegment;
+import com.jubitus.ultreia.gen.world.RoadWaypoint;
 import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -49,13 +51,21 @@ public final class AStarPathfinder {
         final int ndir;
         final double cost;
         final BridgeSpan span;
+        /** Set only for a move that enters an already-built bridge via {@code buildExistingBridgeMoves}. */
+        @javax.annotation.Nullable final MPBRoadNetwork.BridgeCrossing reusedCrossing;
 
         BridgeMove(int nx, int nz, int ndir, double cost, BridgeSpan span) {
+            this(nx, nz, ndir, cost, span, null);
+        }
+
+        BridgeMove(int nx, int nz, int ndir, double cost, BridgeSpan span,
+                   @javax.annotation.Nullable MPBRoadNetwork.BridgeCrossing reusedCrossing) {
             this.nx = nx;
             this.nz = nz;
             this.ndir = ndir;
             this.cost = cost;
             this.span = span;
+            this.reusedCrossing = reusedCrossing;
         }
     }
 
@@ -86,6 +96,9 @@ public final class AStarPathfinder {
         private final Long2DoubleOpenHashMap gScore = new Long2DoubleOpenHashMap();
         private final Long2LongOpenHashMap cameFrom = new Long2LongOpenHashMap();
         private final Long2ObjectOpenHashMap<BridgeSpan> cameBridge = new Long2ObjectOpenHashMap<>();
+        // Separate from cameBridge because a reused-bridge move stores span=null (nothing new to build),
+        // which is indistinguishable from "no bridge at all" in a Long2ObjectOpenHashMap lookup.
+        private final Long2ObjectOpenHashMap<MPBRoadNetwork.BridgeCrossing> cameReusedBridge = new Long2ObjectOpenHashMap<>();
         private final Long2IntOpenHashMap distSinceBridge = new Long2IntOpenHashMap();
 
         private final PriorityQueue<Node> open = new PriorityQueue<>(new Comparator<Node>() {
@@ -672,6 +685,24 @@ public final class AStarPathfinder {
             final boolean magnetismActive = MPBConfig.ROAD_HIERARCHY.magnetismEnabled;
             final int magRadius = magnetismActive ? Math.max(4, MPBConfig.ROAD_HIERARCHY.magnetismRadius) : 0;
 
+            // Bridge-endpoint magnetism: pulls the search toward a known existing bridge crossing's
+            // entrance from a distance, so buildExistingBridgeMoves' validated single-cell snap
+            // (bug A fix) actually has a real adjacent node to trigger from instead of drifting past it.
+            final int bridgeReuseRadius = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeReuseSearchRadius);
+            final double bridgeMagnetismBonus = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeEndpointMagnetismBonus);
+            boolean bridgeMagnetismActive = MPBConfig.BRIDGE_AWARE_PATHFINDING.enabled
+                    && roadNetwork != null && bridgeReuseRadius > 0 && bridgeMagnetismBonus > 0.0;
+            List<MPBRoadNetwork.BridgeCrossing> nearbyCrossings = null;
+            double curDistToCrossingStart = Double.POSITIVE_INFINITY;
+            if (bridgeMagnetismActive) {
+                nearbyCrossings = roadNetwork.getBridgeCrossingsNear(cur.x, cur.z, bridgeReuseRadius);
+                if (nearbyCrossings.isEmpty()) {
+                    bridgeMagnetismActive = false;
+                } else {
+                    curDistToCrossingStart = nearestCrossingStartDist(cur.x, cur.z, nearbyCrossings);
+                }
+            }
+
             for (int dirIdx = 0; dirIdx < NEIGHBOR_DIRS.length; dirIdx++) {
                 int[] dir = NEIGHBOR_DIRS[dirIdx];
                 int dx = dir[0] * step;
@@ -726,14 +757,9 @@ public final class AStarPathfinder {
                         + sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
 
                 // Direction-change penalty: produces smooth natural roads and prevents zigzagging on flat terrain.
-                // Quadratic on turn angle: nearly free for gentle curves (≤45°), significant at 90°, prohibitive for reversals.
-                if (cur.dir != DIR_NONE && cur.dir != dirIdx) {
-                    int[] fromD = NEIGHBOR_DIRS[cur.dir];
-                    int[] toD   = NEIGHBOR_DIRS[dirIdx];
-                    double dot = normalizedDot(fromD[0], fromD[1], toD[0], toD[1]);
-                    double t = (1.0 - dot) * 0.5; // 0=straight, 0.5=90°, 1=reversal
-                    tentative += t * t * MPBConfig.PATHFINDING.turnPenalty * step;
-                }
+                // Same formula used for entering/exiting a bridge (see turnCost) — one turn-cost model for
+                // every kind of move, so a bridge never gets to attach at an angle a road turn wouldn't.
+                tentative += turnCost(cur.dir, dirIdx, step, MPBConfig.PATHFINDING.turnPenalty);
 
                 // Road magnetism: direction-aware attraction/repulsion around existing roads.
                 // Moving toward an existing road is discounted; moving away is penalised.
@@ -754,9 +780,19 @@ public final class AStarPathfinder {
                     }
                 }
 
+                // Bridge-endpoint magnetism: discount moving closer to a known crossing's entrance.
+                if (bridgeMagnetismActive) {
+                    double distNeighborBridge = nearestCrossingStartDist(nx, nz, nearbyCrossings);
+                    if (distNeighborBridge < bridgeReuseRadius && distNeighborBridge < curDistToCrossingStart) {
+                        double frac = 1.0 - distNeighborBridge / (double) bridgeReuseRadius;
+                        tentative -= bridgeMagnetismBonus * frac;
+                    }
+                }
+
                 if (tentative < gScore.get(nk)) {
                     cameFrom.put(nk, ck);
                     cameBridge.remove(nk);
+                    cameReusedBridge.remove(nk);
                     gScore.put(nk, tentative);
 
                     int prevDist = distSinceBridge.get(ck);
@@ -984,7 +1020,18 @@ public final class AStarPathfinder {
                 double tentative = gScore.get(ck) + mv.cost * bridgeMult + sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
                 if (tentative < gScore.get(nk)) {
                     cameFrom.put(nk, ck);
-                    cameBridge.put(nk, mv.span);
+                    if (mv.reusedCrossing != null) {
+                        cameBridge.remove(nk);
+                        cameReusedBridge.put(nk, mv.reusedCrossing);
+                        if (MPBConfig.GENERAL.printBridgeDebug) {
+                            Ultreia.LOGGER.info(
+                                    "[MPB Bridge] reuse transition taken: seg={} ({},{}) -> ({},{})",
+                                    mv.reusedCrossing.segmentId, cur.x, cur.z, mv.nx, mv.nz);
+                        }
+                    } else {
+                        cameBridge.put(nk, mv.span);
+                        cameReusedBridge.remove(nk);
+                    }
                     gScore.put(nk, tentative);
                     distSinceBridge.put(nk, 0);
 
@@ -997,6 +1044,12 @@ public final class AStarPathfinder {
         /**
          * Build cheap bridge moves that route through existing bridge crossings from MPBRoadNetwork.
          * A* will prefer these over building a new parallel bridge.
+         *
+         * The transition onto an existing bridge is only offered once the current A* node has actually,
+         * validly walked (via expandNormalMoves) to within one grid step of the crossing's exact entrance —
+         * never as a radius-wide teleport. The cost of getting there is already paid for by those normal
+         * moves (and by bridgeEndpointMagnetism biasing the search toward the entrance from a distance);
+         * this method must not add a separate straight-line "walk to start" cost on top of that.
          */
         private List<BridgeMove> buildExistingBridgeMoves(Node cur, long ck, TerrainSampler.Sample cs) {
             if (roadNetwork == null) return Collections.<BridgeMove>emptyList();
@@ -1008,28 +1061,61 @@ public final class AStarPathfinder {
             if (crossings.isEmpty()) return Collections.<BridgeMove>emptyList();
 
             double bonus = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeReuseBonus);
+            boolean debug = MPBConfig.GENERAL.printBridgeDebug;
+            // A validated "adjacent" tolerance, not a teleport radius: on the step-spaced A* grid, the
+            // nearest lattice point to any target coordinate is at most step*sqrt(2)/2 away, so this is
+            // always reachable once the search has genuinely arrived at the crossing's entrance cell.
+            double snapTol = (double) step;
+            double snapTolSq = snapTol * snapTol;
             List<BridgeMove> out = new ArrayList<>();
 
             for (MPBRoadNetwork.BridgeCrossing crossing : crossings) {
+                double distToStartSq = distSq(cur.x, cur.z, crossing.startX, crossing.startZ);
+                if (distToStartSq > snapTolSq) {
+                    if (debug) {
+                        Ultreia.LOGGER.info(
+                                "[MPB Bridge] reuse candidate seg={} rejected: not yet adjacent to entrance (dist={}, tol={})",
+                                crossing.segmentId, Math.sqrt(distToStartSq), snapTol);
+                    }
+                    continue;
+                }
+
                 int endX = crossing.endX, endZ = crossing.endZ;
                 if (!baseXZChecks(endX, endZ)) continue;
 
                 TerrainSampler.Sample endSample = sampler.sampleIfLoaded(endX, endZ);
                 if (endSample == null) continue;
-                if (endSample.isOcean) continue;
+                if (endSample.isOcean) {
+                    if (debug) Ultreia.LOGGER.info(
+                            "[MPB Bridge] reuse candidate seg={} rejected: far end is ocean", crossing.segmentId);
+                    continue;
+                }
 
                 // Prefer crossings that go roughly toward our goal
                 double toGoalDot = normalizedDot(endX - cur.x, endZ - cur.z, gx - cur.x, gz - cur.z);
-                if (toGoalDot < -0.3) continue; // bridge goes away from goal — skip
+                if (toGoalDot < -0.3) {
+                    if (debug) Ultreia.LOGGER.info(
+                            "[MPB Bridge] reuse candidate seg={} rejected: leads away from goal (dot={})",
+                            crossing.segmentId, toGoalDot);
+                    continue; // bridge goes away from goal — skip
+                }
 
-                // Cost: walk to bridge start + bridge traversal (discounted by reuse bonus)
-                double walkToStart = Math.sqrt(distSq(cur.x, cur.z, crossing.startX, crossing.startZ));
-                double bridgeCost  = crossing.lengthBlocks * 1.0;
-                double cost = walkToStart + bridgeCost - bonus;
+                // Cost: bridge traversal only, discounted by the reuse bonus. No walk-to-start cost:
+                // the hop from cur onto the exact entrance is bounded by snapTol and already implicitly
+                // covered by the normal moves that got A* here.
+                double bridgeCost = crossing.lengthBlocks * 1.0;
+                double cost = Math.max(0.1, bridgeCost - bonus);
 
                 int ndir = nearestDirIndex(endX - cur.x, endZ - cur.z);
-                // span = null: this is an existing bridge, RoadPainter must not rebuild it
-                out.add(new BridgeMove(endX, endZ, ndir, cost, null));
+                cost += turnCost(cur.dir, ndir, step, MPBConfig.PATHFINDING.turnPenalty);
+
+                if (debug) {
+                    Ultreia.LOGGER.info(
+                            "[MPB Bridge] reuse candidate seg={} accepted at ({},{}) -> ({},{}) cost={}",
+                            crossing.segmentId, cur.x, cur.z, endX, endZ, cost);
+                }
+                // span = null: this is an existing bridge, RoadPainter must not rebuild it.
+                out.add(new BridgeMove(endX, endZ, ndir, cost, null, crossing));
             }
 
             return out;
@@ -1124,7 +1210,7 @@ public final class AStarPathfinder {
             int dirLimit = Math.min(8, dirs.size());
             for (int i = 0; i < dirLimit; i++) {
                 BridgeDirScore d = dirs.get(i);
-                List<BridgeMove> moves = buildBridgeMovesFromQuickInfo(x, z, cur, d.dx, d.dz, d.info);
+                List<BridgeMove> moves = buildBridgeMovesFromQuickInfo(x, z, cur, curDir, d.dx, d.dz, d.info);
 
                 for (BridgeMove mv : moves) {
                     out.add(mv);
@@ -1279,6 +1365,7 @@ public final class AStarPathfinder {
         private List<BridgeMove> buildBridgeMovesFromQuickInfo(int x,
                                                                int z,
                                                                TerrainSampler.Sample cur,
+                                                               int curDir,
                                                                int dirX,
                                                                int dirZ,
                                                                QuickBridgeRayInfo info) {
@@ -1340,6 +1427,8 @@ public final class AStarPathfinder {
                 } else if (info.valleyCrossing) {
                     cost -= 20.0;
                 }
+
+                cost += turnCost(curDir, bridgeDir, step, MPBConfig.PATHFINDING.turnPenalty);
 
                 debugBridge("accept span start=(" + x + "," + cur.surfaceY + "," + z + ")"
                         + " end=(" + nx + "," + ns.surfaceY + "," + nz + ")"
@@ -1816,6 +1905,12 @@ public final class AStarPathfinder {
                 int cx = stateX(curK);
                 int cz = stateZ(curK);
 
+                MPBRoadNetwork.BridgeCrossing reused = cameReusedBridge.get(curK);
+                if (reused != null) {
+                    appendReusedBridgeWaypoints(out, reused);
+                    continue;
+                }
+
                 BridgeSpan span = cameBridge.get(curK);
                 if (span != null) {
                     spans.add(span);
@@ -1865,6 +1960,42 @@ public final class AStarPathfinder {
             }
 
             result = new BridgeAwarePathResult(out, spans);
+        }
+
+        /**
+         * Splices the exact persisted geometry of a reused bridge into the reconstructed coarse path,
+         * instead of the single ground-level point the naive "no span" branch would otherwise emit.
+         * Not added to {@code spans}/{@code forcedBridges}: RoadPainter must never rebuild this bridge —
+         * it treats these points as ordinary coarse waypoints, and its existing roadIndex.isBridgeXZ /
+         * isBridgeVolumeXZ checks already skip painting, earthworks and tree-clearing on them since they
+         * were marked in the persistent index when the bridge was first built.
+         */
+        private void appendReusedBridgeWaypoints(ArrayList<BlockPos> out, MPBRoadNetwork.BridgeCrossing crossing) {
+            if (roadNetwork == null) return;
+            RoadSegment seg = roadNetwork.getSegment(crossing.segmentId);
+            if (seg == null || seg.waypoints.isEmpty()) return;
+
+            List<RoadWaypoint> wps = seg.waypoints;
+            // The crossing tells us which physical end of the persisted segment we are entering from,
+            // so we walk the stored centerline in the matching direction.
+            boolean forward = (seg.startX() == crossing.startX && seg.startZ() == crossing.startZ);
+
+            if (forward) {
+                for (RoadWaypoint wp : wps) {
+                    appendIfNewXZ(out, wp.x, wp.y, wp.z);
+                }
+            } else {
+                for (int i = wps.size() - 1; i >= 0; i--) {
+                    RoadWaypoint wp = wps.get(i);
+                    appendIfNewXZ(out, wp.x, wp.y, wp.z);
+                }
+            }
+        }
+
+        private static void appendIfNewXZ(ArrayList<BlockPos> out, int x, int y, int z) {
+            if (out.isEmpty() || out.get(out.size() - 1).getX() != x || out.get(out.size() - 1).getZ() != z) {
+                out.add(new BlockPos(x, y, z));
+            }
         }
 
         private static int[] nearestValidGrid(int x0, int z0, int step, TerrainSampler sampler) {
@@ -2320,6 +2451,15 @@ public final class AStarPathfinder {
                 bridgeDebugSuppressed = 0;
             }
         }
+
+        private static double nearestCrossingStartDist(int x, int z, List<MPBRoadNetwork.BridgeCrossing> crossings) {
+            double best = Double.POSITIVE_INFINITY;
+            for (MPBRoadNetwork.BridgeCrossing c : crossings) {
+                double d = Math.sqrt(distSq(x, z, c.startX, c.startZ));
+                if (d < best) best = d;
+            }
+            return best;
+        }
     }
 
     public Session startSession(WorldServer world, BlockPos start, BlockPos goal, TerrainSampler sampler) {
@@ -2401,6 +2541,22 @@ public final class AStarPathfinder {
         double bl = Math.sqrt((double) bx * (double) bx + (double) bz * (double) bz);
         if (al <= 0.0 || bl <= 0.0) return 1.0;
         return ((double) ax * (double) bx + (double) az * (double) bz) / (al * bl);
+    }
+
+    /**
+     * Single turn-cost model shared by every kind of move — plain road steps, launching onto a fresh
+     * bridge, and snapping onto a reused one. Quadratic on turn angle: nearly free for gentle curves
+     * (≤45°), significant at 90°, prohibitive for reversals. Bridges used to be exempt from this (cost
+     * driven only by their own geometry, gated by a separate hard alignment cutoff), which let a bridge
+     * attach at an angle no ordinary road turn would ever be allowed to take.
+     */
+    private static double turnCost(int fromDir, int toDir, int step, double turnPenalty) {
+        if (fromDir == DIR_NONE || fromDir == toDir) return 0.0;
+        int[] fromD = Session.NEIGHBOR_DIRS[fromDir];
+        int[] toD = Session.NEIGHBOR_DIRS[toDir];
+        double dot = normalizedDot(fromD[0], fromD[1], toD[0], toD[1]);
+        double t = (1.0 - dot) * 0.5; // 0=straight, 0.5=90°, 1=reversal
+        return t * t * turnPenalty * step;
     }
     public static String debugEndpoint(WorldServer world,
                                        TerrainSampler sampler,

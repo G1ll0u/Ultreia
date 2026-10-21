@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.api;
 
+import com.jubitus.ultreia.gen.RoadType;
 import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
 import com.jubitus.ultreia.gen.world.MPBRoadNavigator;
 import com.jubitus.ultreia.gen.world.MPBRoadNetwork;
@@ -254,6 +255,74 @@ public final class MPBRoadAPI {
                 long key = RoadWaypoint.packXZ(seg.toVillage.getX(), seg.toVillage.getZ());
                 if (seen.add(key)) result.add(seg.toVillage);
             }
+        }
+        return result;
+    }
+
+    /**
+     * Every road and bridge segment touching the XZ rectangle, each as its full ordered waypoint
+     * polyline (road surface Y). Lets a route planner treat roads as cheap ground inside its own
+     * search, including roads that don't reach its destination. Server thread only.
+     */
+    public static List<List<BlockPos>> getRoadPolylinesInBox(WorldServer world,
+                                                             int minX, int minZ, int maxX, int maxZ) {
+        MPBRoadNetwork network = MPBRoadNetwork.get(world);
+        int cx = (minX + maxX) >> 1;
+        int cz = (minZ + maxZ) >> 1;
+        int radius = Math.max(maxX - minX, maxZ - minZ) / 2 + 16;
+        List<List<BlockPos>> result = new ArrayList<>();
+        for (RoadSegment seg : network.getSegmentsNear(cx, cz, radius)) {
+            if (seg == null || seg.waypoints.size() < 2) continue;
+            boolean inside = false;
+            for (RoadWaypoint wp : seg.waypoints) {
+                if (wp.x >= minX && wp.x <= maxX && wp.z >= minZ && wp.z <= maxZ) {
+                    inside = true;
+                    break;
+                }
+            }
+            if (!inside) continue;
+            List<BlockPos> poly = new ArrayList<>(seg.waypoints.size());
+            for (RoadWaypoint wp : seg.waypoints) poly.add(new BlockPos(wp.x, wp.y, wp.z));
+            result.add(poly);
+        }
+        return result;
+    }
+
+    // -------------------------------------------------------------------------
+    // Map rendering
+    // -------------------------------------------------------------------------
+
+    /**
+     * Changes whenever the set of road segments changes (added, removed, cleared, loaded).
+     * Never persisted; compare for inequality only. Server thread only.
+     */
+    public static long getRoadNetworkRevision(WorldServer world) {
+        return MPBRoadNetwork.get(world).getRevision();
+    }
+
+    /**
+     * Every road and bridge segment of this world, one int[] each:
+     * [kind, widthBlocks, isBridge, x0, z0, x1, z1, ...]
+     * kind: 0 = village road (RoadType.VILLAGE_MAIN), 1 = lone trail (RoadType.LONE_TRAIL).
+     * widthBlocks: widest width painted for this segment (deck width for a bridge).
+     * isBridge: 1 for a bridge segment, else 0.
+     * Then the centerline waypoints in order (x, z pairs). Server thread only.
+     */
+    public static List<int[]> getRoadSegmentsForMap(WorldServer world) {
+        List<RoadSegment> all = MPBRoadNetwork.get(world).allSegments();
+        List<int[]> result = new ArrayList<>(all.size());
+        for (RoadSegment seg : all) {
+            if (seg == null || seg.waypoints.isEmpty()) continue;
+            int[] out = new int[3 + seg.waypoints.size() * 2];
+            out[0] = seg.roadType == RoadType.LONE_TRAIL ? 1 : 0;
+            out[1] = seg.widthBlocks;
+            out[2] = seg.isBridge ? 1 : 0;
+            int k = 3;
+            for (RoadWaypoint wp : seg.waypoints) {
+                out[k++] = wp.x;
+                out[k++] = wp.z;
+            }
+            result.add(out);
         }
         return result;
     }

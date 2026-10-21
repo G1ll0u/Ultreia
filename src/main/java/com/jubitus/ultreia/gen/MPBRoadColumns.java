@@ -29,7 +29,8 @@ public final class MPBRoadColumns {
             IBlockState st = world.getBlockState(p);
             if (st.getMaterial() == Material.AIR) continue;
 
-            if (hasTile(world, p)) continue;
+            // DT saplings store species in a TileEntity but are safe to remove as vegetation.
+            if (hasTile(world, p) && !MPBTreeCompat.isDynamicTreesBlock(st)) continue;
             if (isAlwaysKeep(st)) continue;
 
             if (wouldCauseWaterFlow(world, p)) continue;
@@ -55,7 +56,8 @@ public final class MPBRoadColumns {
             IBlockState st = world.getBlockState(p);
             if (st.getMaterial() == Material.AIR) continue;
 
-            if (hasTile(world, p)) continue;
+            // DT saplings store species in a TileEntity but are safe to remove as vegetation.
+            if (hasTile(world, p) && !MPBTreeCompat.isDynamicTreesBlock(st)) continue;
             if (isAlwaysKeep(st)) continue;
 
             if (wouldCauseWaterFlow(world, p)) continue;

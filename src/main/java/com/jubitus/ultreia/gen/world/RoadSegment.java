@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.gen.world;
 
+import com.jubitus.ultreia.gen.RoadType;
 import net.minecraft.util.math.BlockPos;
 
 import javax.annotation.Nullable;
@@ -21,16 +22,25 @@ public final class RoadSegment {
     /** Village center (XZ) this segment leads to, or null. */
     @Nullable public final BlockPos toVillage;
 
+    /** Road type of the route this segment belongs to (a bridge takes its route's type). */
+    public final RoadType roadType;
+    /** Width actually painted, in blocks (deck width for a bridge). */
+    public final int widthBlocks;
+
     public RoadSegment(int id,
                        List<RoadWaypoint> waypoints,
                        boolean isBridge,
                        @Nullable BlockPos fromVillage,
-                       @Nullable BlockPos toVillage) {
+                       @Nullable BlockPos toVillage,
+                       RoadType roadType,
+                       int widthBlocks) {
         this.id = id;
         this.waypoints = waypoints;
         this.isBridge = isBridge;
         this.fromVillage = fromVillage;
         this.toVillage = toVillage;
+        this.roadType = roadType;
+        this.widthBlocks = widthBlocks;
     }
 
     public int startX() { return waypoints.isEmpty() ? 0 : waypoints.get(0).x; }

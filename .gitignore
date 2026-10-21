@@ -20,3 +20,13 @@ build
 # other
 eclipse
 run
+/.claude/
+
+# local, not versioned
+/libs/
+*.bak
+.claude/settings.local.json
+.mcp.json
+/DramaticTrees_source/
+/millDecomp/
+/mpbExport/
