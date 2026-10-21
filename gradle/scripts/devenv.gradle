@@ -1,0 +1,64 @@
+// Shared by every mod through devenv: repositories, dev-only helpers and shading, taken from the template's dependencies.gradle.
+// Applied at the top of each mod's dependencies.gradle; the mod only declares its own dependencies (`shade '...'` to embed one).
+
+apply from: 'gradle/scripts/helpers.gradle'
+
+repositories {
+    // Other repositories described by default:
+    // CleanroomMC: https://maven.cleanroommc.com
+    exclusiveContent {
+        forRepository {
+            maven {
+                name 'CleanroomMC CurseMaven'
+                url 'https://curse.cleanroommc.com'
+            }
+        }
+        filter {
+            includeGroup 'curse.maven'
+        }
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name 'Modrinth'
+                url 'https://api.modrinth.com/maven'
+            }
+        }
+        filter {
+            includeGroup 'maven.modrinth'
+        }
+    }
+    mavenLocal() // Must be last for caching to work
+}
+
+configurations {
+    shade
+    implementation.extendsFrom shade
+}
+
+dependencies {
+    // Include StripLatestForgeRequirements by default for the dev env, saves everyone a hassle
+    runtimeOnly 'com.cleanroommc:strip-latest-forge-requirements:1.0'
+    // Include OSXNarratorBlocker by default for the dev env, for M1+ Macs
+    runtimeOnly 'com.cleanroommc:osxnarratorblocker:1.0'
+}
+
+// Need reobfJar to use uber jars, so dependencies that are shaded in are present
+// Only redirect reobfJar through shadowJar when there's actually something to shade
+afterEvaluate {
+    if (!configurations.shade.dependencies.empty) {
+        tasks.named('reobfJar').configure {
+            inputJar.set(tasks.named('shadowJar').flatMap({ it.archiveFile }))
+        }
+    }
+}
+
+// By default, it will use a "uberdev" suffix, and only pack shade configuration dependencies
+// Uberdev: dev jar w/ dependencies, NOT a reobfuscated artifact!
+// The end result (reobfJar) will have a non-suffixed name, as unlike normal shading envs, reobfJar is the end task
+tasks.named('shadowJar').configure {
+    // Shadow wires shadowJar into the assemble task, so it runs even when nothing is shaded
+    onlyIf { !project.configurations.shade.dependencies.empty }
+    archiveClassifier = 'uberdev'
+    configurations = [project.configurations.shade]
+}

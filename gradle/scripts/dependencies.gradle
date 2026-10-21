@@ -1,95 +1,14 @@
-apply from: 'gradle/scripts/helpers.gradle'
-
-repositories {
-    // Other repositories described by default:
-    // CleanroomMC: https://maven.cleanroommc.com
-    exclusiveContent {
-        forRepository {
-            maven {
-                name 'CurseMaven'
-                url 'https://cursemaven.com'
-            }
-        }
-        filter {
-            includeGroup 'curse.maven'
-        }
-    }
-    exclusiveContent {
-        forRepository {
-            maven {
-                name 'Modrinth'
-                url 'https://api.modrinth.com/maven'
-            }
-        }
-        filter {
-            includeGroup 'maven.modrinth'
-        }
-    }
-    mavenLocal() // Must be last for caching to work
-}
-
-configurations {
-    shade
-    implementation.extendsFrom shade
-}
+// This mod's own dependencies. Shared repositories, dev helpers and shading come from devenv.gradle.
+// Configurations: implementation, compileOnly, runtimeOnly, annotationProcessor, shade (embedded in the jar).
+apply from: 'gradle/scripts/devenv.gradle'
 
 dependencies {
-    // Include StripLatestForgeRequirements by default for the dev env, saves everyone a hassle
-    runtimeOnly 'com.cleanroommc:strip-latest-forge-requirements:1.0'
-    // Include OSXNarratorBlocker by default for the dev env, for M1+ Macs
-    runtimeOnly 'com.cleanroommc:osxnarratorblocker:1.0'
-    // Shaded (not embed'd) so it can be package-relocated below — see the relocate comment further
-    // down. Each mod embedding jubiconfig this way can independently use its own jubiconfig
-    // version with zero risk of classloader collisions with another mod's copy.
     shade files('libs/jubiconfig-2.6.5.jar')
     compileOnly files('libs/millenaire-8.1.2.jar')
     implementation("curse.maven:dramatictrees-637540:5496154")
-    // Example - Dependency descriptor:
-    // 'com.google.code.gson:gson:2.8.6' << group: com.google.code.gson, name:gson, version:2.8.6
-    // 'group:name:version:classifier' where classifier is optional
-
-    // Example - Deobfuscating dependencies:
-    // rfg.deobf('curse.maven:had-enough-items-557549:4543375')
-    // By wrapping a dependency descriptor in rfg.deobf() method call, the dependency is queued for deobfuscation
-    // When deobfuscating, RFG respects the mapping_channel + mapping_version stated in gradle.properties
-
-    // Example - CurseMaven dependencies:
-    // 'curse.maven:had-enough-items-557549:4543375' << had-enough-items = project slug, 557549 = project id, 4543375 = file id
-    // Full documentation: https://cursemaven.com/
-
-    // Example - Modrinth dependencies:
-    // 'maven.modrinth:jei:4.16.1.1000' << jei = project name, 4.16.1.1000 = file version
-    // Full documentation: https://docs.modrinth.com/docs/tutorials/maven/
-
-    // Common dependency types (configuration):
-    // implementation = dependency available at both compile time and runtime
-    // runtimeOnly = runtime dependency
-    // compileOnly = compile time dependency
-    // annotationProcessor = annotation processing dependencies
-    // embed = bundle dependencies into final output artifact (no relocation)
-
-    // Transitive dependencies:
-    // (Dependencies that your dependency depends on)
-    // If you wish to exclude transitive dependencies in the described dependencies
-    // Use a closure as such:
-    // implementation ('com.google.code.gson:gson:2.8.6') {
-    //     transitive = false
-    // }
 }
 
-// Need reobfJar to use uber jars, so dependencies that are shaded in are present
-if (!configurations.shade.dependencies.empty) {
-    tasks.named('reobfJar').configure {
-        inputJar.set(tasks.named('shadowJar').flatMap({ it.archiveFile }))
-    }
-}
-
-tasks.shadowJar {
-    enabled = !project.configurations.shade.dependencies.empty
-    archiveClassifier = 'uberdev'
-    configurations = [ project.configurations.shade ]
-    // Relocated into a package unique to this mod so this mod's jubiconfig version can never
-    // collide/conflict with another mod's own (possibly different) embedded jubiconfig version —
-    // each mod's copy is fully private. Keep this relocate target unique per mod.
+// Each mod ships its own jubiconfig copy under its own package, so two mods never clash.
+tasks.named('shadowJar').configure {
     relocate 'com.jubitus.jubiconfig', 'com.jubitus.ultreia.shadow.jubiconfig'
 }
