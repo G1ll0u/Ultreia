@@ -68,6 +68,16 @@ public final class ProtectedAreas {
         return false;
     }
 
+    /** A no-paint zone lies within the square of radius r around (x, z). */
+    public boolean containsWithin(int x, int z, int r) {
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dz = -r; dz <= r; dz++) {
+                if (contains(x + dx, z + dz)) return true;
+            }
+        }
+        return false;
+    }
+
     public int penaltyAt(int x, int z) {
         List<Zone> list = byChunk.get(Pos2D.xzKey(x >> 4, z >> 4));
         if (list == null) return 0;

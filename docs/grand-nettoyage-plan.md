@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Phase 6 in progress (6.1–6.4 done).
+**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Phases 0–6 done (in-game checks pending). Next: phase 7.
 
 ## Goal
 
@@ -200,13 +200,16 @@ Kept apart: the two `(lateral, relY)` keys in `BridgeTemplateBridgeBuilder` (not
   fallback, magnetism; magnetism made twisted or too-wide roads). Their fields are kept unchanged until decided.
 - Constant booleans (`ROAD_HIERARCHY_ENABLED`, `BUILDINGS_ENABLED`…) leave dead branches, removed in the splits (6–10).
 
-### Phase 6 — Terrain authorities — status: in progress
+### Phase 6 — Terrain authorities — status: done (in-game check pending)
 
 Steps (approved): 6.1 `geom/HalfY` (done) · 6.2 `BlockRules` (done) · 6.3 `ColumnSurface` (done) · 6.4 one path-in-column scan (done) ·
-6.5 `TerrainSampler` split (+ `TreeProbe`). Decided: lone trails keep earthworks. 6.2 (user): tree wood = logs and DT branches only, everywhere (sampler,
+6.5 `TerrainSampler` split (done): sampler ~470, `WaterProbe`, `BuildingGuard`, `TreeProbe`,
+`route/TerrainCost`; `ProtectedAreas.containsWithin` replaces two neighbour loops. Decided: lone trails keep earthworks. 6.2 (user): tree wood = logs and DT branches only, everywhere (sampler,
 bridges, support pillars; `isLikelyTreeWood` dropped); lava never clearable for bridges; the building guard counts
 planks and fences as building. 6.3 (user): the road-index scan uses the common surface rule (no longer sees
 through planks). 6.4 (user): one path window, ground −3..+4, highest block first.
+Open (user, later): `BUILDINGS.hardBlockInPathfinding` has no effect (both branches block footprints except on an
+existing path); its comment promises otherwise.
 
 
 - `terrain/ColumnSurface`: one surface scan replacing `TerrainSampler.sample` loop, `sampleLightIfLoaded`,

@@ -1607,17 +1607,7 @@ public final class RoadPainter {
                 earthworks = false;
             }
 
-            boolean nearNoPaint = false;
-            if (protectedAreas != null) {
-                for (int dx = -1; dx <= 1 && !nearNoPaint; dx++) {
-                    for (int dz = -1; dz <= 1; dz++) {
-                        if (protectedAreas.contains(x + dx, z + dz)) {
-                            nearNoPaint = true;
-                            break;
-                        }
-                    }
-                }
-            }
+            boolean nearNoPaint = protectedAreas != null && protectedAreas.containsWithin(x, z, 1);
             if (nearNoPaint) {
                 earthworks = false;
             }
