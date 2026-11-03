@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.paint;
 
 import com.jubitus.ultreia.terrain.GroundRules;
 import com.jubitus.ultreia.Ultreia;
@@ -15,9 +15,9 @@ import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
-public final class MPBRoadColumns {
+public final class HeadroomClearer {
 
-    private MPBRoadColumns() {}
+    private HeadroomClearer() {}
 
     public static void clearRoadColumn(World world, BlockPos base, int up, boolean dryRun, boolean allowSolidNaturalCut) {
         if (dryRun) return;

@@ -6,7 +6,7 @@ import com.jubitus.ultreia.route.EndpointResolver;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.planner.NetworkPlanData;
 import com.jubitus.ultreia.planner.NetworkPlanner;
-import com.jubitus.ultreia.gen.RoadPainter;
+import com.jubitus.ultreia.paint.RoadPainter;
 import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.route.VillageGateField;

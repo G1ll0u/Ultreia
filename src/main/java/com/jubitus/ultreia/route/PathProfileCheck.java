@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.route;
 
-import com.jubitus.ultreia.gen.newp.MPBRoadHalfProfile;
+import com.jubitus.ultreia.paint.RoadHeightProfile;
 
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.terrain.TerrainSampler;
@@ -31,7 +31,7 @@ public final class PathProfileCheck {
         }
 
         try {
-            int[] half = MPBRoadHalfProfile.build(dense, bridges, sampler, roadType);
+            int[] half = RoadHeightProfile.build(dense, bridges, sampler, roadType);
             if (half == null || half.length != dense.size()) {
                 return false;
             }

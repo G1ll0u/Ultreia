@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.paint;
 
 import com.jubitus.ultreia.terrain.GroundRules;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
@@ -11,8 +11,6 @@ import com.jubitus.ultreia.gen.bridge.template.BridgeBuildService;
 import com.jubitus.ultreia.gen.bridge.template.BridgeTemplate;
 import com.jubitus.ultreia.gen.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
-import com.jubitus.ultreia.gen.newp.MPBRoadHalfProfile;
-import com.jubitus.ultreia.gen.world.Earthworks;
 import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
 import com.jubitus.ultreia.gen.world.MPBRoadNetwork;
 import com.jubitus.ultreia.gen.world.RoadSegment;
@@ -685,7 +683,7 @@ public final class RoadPainter {
             edgeNoise = new int[n];
 
             try {
-                centerHalf = MPBRoadHalfProfile.build(path, forcedBridges, sampler, roadType);
+                centerHalf = RoadHeightProfile.build(path, forcedBridges, sampler, roadType);
             } catch (IllegalStateException ex) {
                 failed = true;
                 failReason = "No feasible final road profile with max 0.5-block steps: " + ex.getMessage();
@@ -1581,7 +1579,7 @@ public final class RoadPainter {
 
             if (!dryRun && !nearNoPaint && !isBridgeJoinIndex(i)) {
                 // Always allow clearing solid natural blocks above the road surface for proper headroom.
-                MPBRoadColumns.clearAtAndAbove(world, supportTop.up(), 2, false, true);
+                HeadroomClearer.clearAtAndAbove(world, supportTop.up(), 2, false, true);
             }
 
             if (!hasSupportWithinOneBlock(supportTop)) return;
@@ -1606,7 +1604,7 @@ public final class RoadPainter {
             }
 
             // Always allow clearing solid natural blocks when placing the road block and clearing headroom.
-            MPBRoadColumns.clearAtAndAbove(world, placePos, 2, false, true);
+            HeadroomClearer.clearAtAndAbove(world, placePos, 2, false, true);
 
             IBlockState place = useBottomSlab
                     ? MPBMillPathPalette.slabBottom(kind)
@@ -1615,12 +1613,12 @@ public final class RoadPainter {
             world.setBlockState(placePos, place, 2);
 
             if (MPBConfig.PAINTING.clearHeadroom) {
-                MPBRoadColumns.clearRoadColumn(world, placePos, 3, false, true);
+                HeadroomClearer.clearRoadColumn(world, placePos, 3, false, true);
             }
 
             if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
                 net.minecraft.util.math.BlockPos dtRootPos =
-                        MPBRoadColumns.clearTreesAbove(world, placePos, 4, false);
+                        HeadroomClearer.clearTreesAbove(world, placePos, 4, false);
                 // If a whole DT tree was removed, paint a road block at the rootydirt position
                 // (now plain dirt) so no bare earth patch is left where the tree stood.
                 if (dtRootPos != null) {
@@ -1815,7 +1813,7 @@ public final class RoadPainter {
 
             try {
                 if (centerHalf == null || centerHalf.length != n) {
-                    centerHalf = MPBRoadHalfProfile.build(path, forcedBridges, sampler, roadType);
+                    centerHalf = RoadHeightProfile.build(path, forcedBridges, sampler, roadType);
                 }
             } catch (IllegalStateException ex) {
                 failed = true;

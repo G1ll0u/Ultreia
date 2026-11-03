@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.newp;
+package com.jubitus.ultreia.paint;
 
 import com.jubitus.ultreia.route.RoadType;
 
@@ -19,9 +19,9 @@ import net.minecraft.util.math.BlockPos;
 import java.util.Arrays;
 import java.util.List;
 
-public final class MPBRoadHalfProfile {
+public final class RoadHeightProfile {
 
-    private MPBRoadHalfProfile() {}
+    private RoadHeightProfile() {}
 
     public static int[] build(List<BlockPos> path, List<BridgeSpan> bridges, TerrainSampler sampler, RoadType roadType) {
         int n = path == null ? 0 : path.size();
@@ -41,7 +41,7 @@ public final class MPBRoadHalfProfile {
         int maxStepHalf = Math.max(1, MPBConfig.PAINTING.maxRoadStepHalfPerBlock);
         int smoothRadius = Math.max(0, MPBConfig.PAINTING.verticalSmoothRadius);
 
-        int[] solved = MPBRoadHalfConstraintSolver.solveProfile(
+        int[] solved = RoadHeightSolver.solveProfile(
                 terrainHalf,
                 fixedHalf,
                 cutHalf,
@@ -63,7 +63,7 @@ public final class MPBRoadHalfProfile {
                                                          TerrainSampler sampler) {
         int n = path == null ? 0 : path.size();
         int[] out = new int[n];
-        Arrays.fill(out, MPBRoadHalfConstraintSolver.FIXED_NONE);
+        Arrays.fill(out, RoadHeightSolver.FIXED_NONE);
 
         if (path == null || bridges == null || bridges.isEmpty() || sampler == null) {
             return out;

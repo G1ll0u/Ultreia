@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.gen.newp;
 
+import com.jubitus.ultreia.paint.RoadHeightSolver;
 import com.jubitus.ultreia.route.RoadType;
 
 import com.jubitus.ultreia.config.MPBConfig;
@@ -83,7 +84,7 @@ public final class MPBBridgeApproachFeasibility {
         BlockPos far = line.get(line.size() - 1);
         int farHalf = BridgeGeometry.naturalSurfaceHalfY(far.getY());
 
-        return MPBRoadHalfConstraintSolver.isLineFeasible(
+        return RoadHeightSolver.isLineFeasible(
                 line,
                 sampler,
                 bridgeDeckHalf,

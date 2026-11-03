@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.newp;
+package com.jubitus.ultreia.paint;
 
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.gen.bridge.BridgeGeometry;
@@ -7,11 +7,11 @@ import net.minecraft.util.math.BlockPos;
 import java.util.Arrays;
 import java.util.List;
 
-public final class MPBRoadHalfConstraintSolver {
+public final class RoadHeightSolver {
 
     public static final int FIXED_NONE = Integer.MIN_VALUE;
 
-    private MPBRoadHalfConstraintSolver() {}
+    private RoadHeightSolver() {}
 
     public static boolean isLineFeasible(List<BlockPos> line,
                                          TerrainSampler sampler,

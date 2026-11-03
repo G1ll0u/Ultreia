@@ -6,7 +6,7 @@ import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.bridge.*;
 import com.jubitus.ultreia.gen.newp.MPBBridgeApproachFeasibility;
-import com.jubitus.ultreia.gen.newp.MPBRoadHalfConstraintSolver;
+import com.jubitus.ultreia.paint.RoadHeightSolver;
 import com.jubitus.ultreia.gen.util.MPBPos2D;
 import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
 import com.jubitus.ultreia.gen.world.MPBRoadNetwork;
@@ -2046,7 +2046,7 @@ public final class AStarPathfinder {
             int fillHalf = earthworks ? Math.max(0, MPBConfig.PAINTING.earthworksMaxFill + pfTolerance) * 2 : 0;
             int maxStepHalf = Math.max(1, MPBConfig.PAINTING.maxRoadStepHalfPerBlock);
 
-            boolean gradeFeasible = MPBRoadHalfConstraintSolver.isLineFeasible(
+            boolean gradeFeasible = RoadHeightSolver.isLineFeasible(
                     line,
                     sampler,
                     startHalf,

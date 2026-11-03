@@ -3,7 +3,7 @@ package com.jubitus.ultreia.job;
 import com.jubitus.ultreia.route.AStarPathfinder;
 import com.jubitus.ultreia.gen.MPBChunkManager;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
-import com.jubitus.ultreia.gen.RoadPainter;
+import com.jubitus.ultreia.paint.RoadPainter;
 import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.config.MPBConfig;

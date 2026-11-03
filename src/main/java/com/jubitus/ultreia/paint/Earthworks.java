@@ -1,7 +1,6 @@
-package com.jubitus.ultreia.gen.world;
+package com.jubitus.ultreia.paint;
 
 import com.jubitus.ultreia.terrain.GroundRules;
-import com.jubitus.ultreia.gen.MPBRoadColumns;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
 import net.minecraft.block.Block;
@@ -49,7 +48,7 @@ public final class Earthworks {
         }
 
         if (!dryRun) {
-            MPBRoadColumns.clearRoadColumn(world, new BlockPos(x, targetY, z), 2, false, true);
+            HeadroomClearer.clearRoadColumn(world, new BlockPos(x, targetY, z), 2, false, true);
         }
 
         return targetY;
