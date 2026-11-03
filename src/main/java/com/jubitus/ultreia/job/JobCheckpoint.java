@@ -1,5 +1,6 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.job;
 
+import com.jubitus.ultreia.gen.PathNetworkBuilder;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.math.BlockPos;
@@ -10,7 +11,7 @@ import net.minecraft.world.storage.WorldSavedData;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MPBJobCheckpoint extends WorldSavedData {
+public class JobCheckpoint extends WorldSavedData {
 
     private static final String NAME = "ultreia_job_checkpoint";
 
@@ -23,19 +24,19 @@ public class MPBJobCheckpoint extends WorldSavedData {
     private boolean dryRun = false;
     private final List<BlockPos[]> edges = new ArrayList<>();
 
-    public MPBJobCheckpoint() {
+    public JobCheckpoint() {
         super(NAME);
     }
 
-    public MPBJobCheckpoint(String name) {
+    public JobCheckpoint(String name) {
         super(name);
     }
 
-    public static MPBJobCheckpoint get(World world) {
+    public static JobCheckpoint get(World world) {
         MapStorage storage = world.getPerWorldStorage();
-        MPBJobCheckpoint data = (MPBJobCheckpoint) storage.getOrLoadData(MPBJobCheckpoint.class, NAME);
+        JobCheckpoint data = (JobCheckpoint) storage.getOrLoadData(JobCheckpoint.class, NAME);
         if (data == null) {
-            data = new MPBJobCheckpoint();
+            data = new JobCheckpoint();
             storage.setData(NAME, data);
         }
         return data;

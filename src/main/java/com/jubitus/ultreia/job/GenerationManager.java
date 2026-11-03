@@ -1,5 +1,6 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.job;
 
+import com.jubitus.ultreia.gen.RoadType;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import net.minecraft.command.ICommandSender;
@@ -16,19 +17,19 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class MPBGenerationManager {
+public final class GenerationManager {
 
-    private static final ConcurrentHashMap<Integer, MPBAsyncJob> JOBS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer, TickedJob> JOBS = new ConcurrentHashMap<>();
 
     // Pending auto-resumes: dim → (world, checkpoint, ticksRemaining)
     private static final ConcurrentHashMap<Integer, PendingResume> PENDING_RESUMES = new ConcurrentHashMap<>();
 
     private static final class PendingResume {
         final WorldServer world;
-        final MPBJobCheckpoint checkpoint;
+        final JobCheckpoint checkpoint;
         int remainingTicks;
 
-        PendingResume(WorldServer world, MPBJobCheckpoint checkpoint, int delay) {
+        PendingResume(WorldServer world, JobCheckpoint checkpoint, int delay) {
             this.world = world;
             this.checkpoint = checkpoint;
             this.remainingTicks = delay;
@@ -38,7 +39,7 @@ public final class MPBGenerationManager {
     public static String status(World world) {
         if (world == null || world.provider == null) return "No world.";
         int dim = world.provider.getDimension();
-        MPBAsyncJob job = JOBS.get(dim);
+        TickedJob job = JOBS.get(dim);
         if (job != null) return job.statusLine();
         PendingResume pr = PENDING_RESUMES.get(dim);
         if (pr != null) return "Resume pending in " + pr.remainingTicks + " ticks.";
@@ -49,11 +50,11 @@ public final class MPBGenerationManager {
         if (world == null || world.provider == null) return;
         int dim = world.provider.getDimension();
         PENDING_RESUMES.remove(dim);
-        MPBAsyncJob job = JOBS.remove(dim);
+        TickedJob job = JOBS.remove(dim);
         if (job != null) {
             // User explicitly cancelled: clear checkpoint so next /mpb generate starts fresh.
-            if (job instanceof MPBGenerationJob) {
-                ((MPBGenerationJob) job).onJobComplete();
+            if (job instanceof VillageNetworkJob) {
+                ((VillageNetworkJob) job).onJobComplete();
             }
             try {
                 job.shutdown();
@@ -71,7 +72,7 @@ public final class MPBGenerationManager {
             return;
         }
 
-        MPBAsyncJob job = new MPBGenerationJob(world, sender, force, dryRun);
+        TickedJob job = new VillageNetworkJob(world, sender, force, dryRun);
         JOBS.put(dim, job);
 
         if (sender != null) {
@@ -88,7 +89,7 @@ public final class MPBGenerationManager {
             return;
         }
 
-        MPBAsyncJob job = new MPBCustomPathGenerationJob(world, sender, start, goal, dryRun, roadType);
+        TickedJob job = new ManualPathJob(world, sender, start, goal, dryRun, roadType);
         JOBS.put(dim, job);
 
         if (sender != null) {
@@ -97,7 +98,7 @@ public final class MPBGenerationManager {
     }
 
     // Queues an auto-resume after a short delay to ensure Millenaire has fully loaded.
-    public static void queueResume(WorldServer world, MPBJobCheckpoint checkpoint) {
+    public static void queueResume(WorldServer world, JobCheckpoint checkpoint) {
         int dim = world.provider.getDimension();
         if (JOBS.containsKey(dim) || PENDING_RESUMES.containsKey(dim)) return;
         int delay = Math.max(20, MPBConfig.GENERAL.autoResumeDelayTicks);
@@ -108,9 +109,9 @@ public final class MPBGenerationManager {
 
     // Called from FMLServerStoppingEvent to persist latest progress for all active jobs.
     public static void onServerStopping() {
-        for (MPBAsyncJob job : JOBS.values()) {
-            if (job instanceof MPBGenerationJob) {
-                ((MPBGenerationJob) job).onServerStopping();
+        for (TickedJob job : JOBS.values()) {
+            if (job instanceof VillageNetworkJob) {
+                ((VillageNetworkJob) job).onServerStopping();
             }
         }
     }
@@ -121,7 +122,7 @@ public final class MPBGenerationManager {
         if (!MPBConfig.GENERAL.autoResumeGeneration) return;
 
         WorldServer world = (WorldServer) event.getWorld();
-        MPBJobCheckpoint checkpoint = MPBJobCheckpoint.get(world);
+        JobCheckpoint checkpoint = JobCheckpoint.get(world);
         if (!checkpoint.isActive() || checkpoint.getEdges().isEmpty()) return;
 
         queueResume(world, checkpoint);
@@ -142,7 +143,7 @@ public final class MPBGenerationManager {
                     int dim = pr.world.provider.getDimension();
                     if (!JOBS.containsKey(dim)) {
                         try {
-                            MPBGenerationJob job = new MPBGenerationJob(pr.world, pr.checkpoint);
+                            VillageNetworkJob job = new VillageNetworkJob(pr.world, pr.checkpoint);
                             JOBS.put(dim, job);
                             Ultreia.LOGGER.info("[MPB] Auto-resumed generation for dim={}", dim);
                         } catch (Throwable t) {
@@ -158,7 +159,7 @@ public final class MPBGenerationManager {
         // The budget is shared by every dimension's job, so two jobs never cost more than one.
         long budgetNs = Math.max(1, MPBConfig.GENERAL.tickBudgetMs) * 1_000_000L / JOBS.size();
 
-        for (MPBAsyncJob job : JOBS.values()) {
+        for (TickedJob job : JOBS.values()) {
             long start = System.nanoTime();
 
             try {
@@ -186,8 +187,8 @@ public final class MPBGenerationManager {
                 JOBS.remove(job.getDim());
 
                 // Normal completion: clear the checkpoint.
-                if (job instanceof MPBGenerationJob) {
-                    ((MPBGenerationJob) job).onJobComplete();
+                if (job instanceof VillageNetworkJob) {
+                    ((VillageNetworkJob) job).onJobComplete();
                 }
                 try {
                     job.shutdown();

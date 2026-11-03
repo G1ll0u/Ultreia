@@ -1,5 +1,8 @@
 package com.jubitus.ultreia.command;
 
+import com.jubitus.ultreia.job.GenerationManager;
+import com.jubitus.ultreia.job.ManualPathSelection;
+import com.jubitus.ultreia.job.VillageNetworkJob;
 import com.jubitus.jubiconfig.network.MsgOpenConfigGui;
 import com.jubitus.ultreia.gen.*;
 import com.jubitus.ultreia.gen.bridge.template.BridgeTemplateRegistry;
@@ -86,7 +89,7 @@ public final class CommandUltreia extends CommandBase {
             }
 
             BlockPos pos = resolveCommandPos(world, player, args);
-            MPBManualPathState.setPos1(player, dim, pos);
+            ManualPathSelection.setPos1(player, dim, pos);
             sender.sendMessage(new TextComponentString("Ultreïa: pos1 = " + formatPos(pos) + " in dim " + dim));
             return;
         }
@@ -98,13 +101,13 @@ public final class CommandUltreia extends CommandBase {
             }
 
             BlockPos pos = resolveCommandPos(world, player, args);
-            MPBManualPathState.setPos2(player, dim, pos);
+            ManualPathSelection.setPos2(player, dim, pos);
             sender.sendMessage(new TextComponentString("Ultreïa: pos2 = " + formatPos(pos) + " in dim " + dim));
             return;
         }
 
         if ("generate".equals(sub)) {
-            MPBGenerationManager.start(world, sender, false, false);
+            GenerationManager.start(world, sender, false, false);
             return;
         }
 
@@ -114,7 +117,7 @@ public final class CommandUltreia extends CommandBase {
                 return;
             }
 
-            MPBManualPathState.PlayerState state = MPBManualPathState.getForDimension(player, dim);
+            ManualPathSelection.PlayerState state = ManualPathSelection.getForDimension(player, dim);
 
             if (state.pos1 == null) {
                 sender.sendMessage(new TextComponentString("Ultreïa: pos1 is not set. Use /ultreia pos1"));
@@ -140,7 +143,7 @@ public final class CommandUltreia extends CommandBase {
                 }
             }
 
-            MPBGenerationManager.startCustom(world, sender, state.pos1, state.pos2, false, roadType);
+            GenerationManager.startCustom(world, sender, state.pos1, state.pos2, false, roadType);
             return;
         }
 
@@ -192,7 +195,7 @@ public final class CommandUltreia extends CommandBase {
 
         if ("status".equals(sub)) {
             if (player != null) {
-                MPBManualPathState.PlayerState state = MPBManualPathState.getForDimension(player, dim);
+                ManualPathSelection.PlayerState state = ManualPathSelection.getForDimension(player, dim);
 
                 String pos1 = state.pos1 == null ? "<unset>" : formatPos(state.pos1);
                 String pos2 = state.pos2 == null ? "<unset>" : formatPos(state.pos2);
@@ -202,7 +205,7 @@ public final class CommandUltreia extends CommandBase {
                 sender.sendMessage(new TextComponentString("Ultreïa: dim=" + dim + " console sender"));
             }
 
-            sender.sendMessage(new TextComponentString("Ultreïa job: " + MPBGenerationManager.status(world)));
+            sender.sendMessage(new TextComponentString("Ultreïa job: " + GenerationManager.status(world)));
             return;
         }
 
@@ -212,13 +215,13 @@ public final class CommandUltreia extends CommandBase {
                 return;
             }
 
-            MPBManualPathState.reset(player, dim);
+            ManualPathSelection.reset(player, dim);
             sender.sendMessage(new TextComponentString("Ultreïa: pos1 and pos2 cleared for dim " + dim));
             return;
         }
 
         if ("cancel".equals(sub)) {
-            MPBGenerationManager.cancel(world);
+            GenerationManager.cancel(world);
             sender.sendMessage(new TextComponentString("Ultreïa: cancelled active generation in dim " + dim));
             return;
         }
@@ -286,7 +289,7 @@ public final class CommandUltreia extends CommandBase {
     private static BlockPos resolveAnchor(WorldServer world, int x, int z) {
         TerrainSampler sampler = new TerrainSampler(world);
         try {
-            return MPBGenerationJob.findAnchor(world, new BlockPos(x, 0, z), sampler, 16);
+            return VillageNetworkJob.findAnchor(world, new BlockPos(x, 0, z), sampler, 16);
         } finally {
             sampler.clearCache();
         }

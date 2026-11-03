@@ -4,7 +4,7 @@ import com.jubitus.jubiconfig.JubiConfig;
 import com.jubitus.ultreia.command.CommandUltreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.bridge.template.BridgeDefaultTemplates;
-import com.jubitus.ultreia.gen.MPBGenerationManager;
+import com.jubitus.ultreia.job.GenerationManager;
 import com.jubitus.ultreia.gen.world.MPBChunkLoadingCallback;
 import com.jubitus.ultreia.network.MPBNetworkHandler;
 import com.jubitus.ultreia.player.MPBSpeedBoostHandler;
@@ -46,7 +46,7 @@ public class Ultreia {
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         ForgeChunkManager.setForcedChunkLoadingCallback(Ultreia.INSTANCE, new MPBChunkLoadingCallback());
-        MinecraftForge.EVENT_BUS.register(new MPBGenerationManager());
+        MinecraftForge.EVENT_BUS.register(new GenerationManager());
         MinecraftForge.EVENT_BUS.register(new MPBSpeedBoostHandler());
 
         File configDir = new File(event.getModConfigurationDirectory(), "ultreia");
@@ -68,7 +68,7 @@ public class Ultreia {
 
     @Mod.EventHandler
     public void serverStopping(FMLServerStoppingEvent event) {
-        MPBGenerationManager.onServerStopping();
+        GenerationManager.onServerStopping();
         if (MillPresence.isPresent()) MillIntegration.clear();
     }
 }

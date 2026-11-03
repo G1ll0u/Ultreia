@@ -1,10 +1,10 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.job;
 
 import net.minecraft.command.ICommandSender;
 
 import java.lang.ref.WeakReference;
 
-public interface MPBAsyncJob {
+public interface TickedJob {
 
     int getDim();
 

@@ -1,5 +1,16 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.job;
 
+import com.jubitus.ultreia.gen.AStarPathfinder;
+import com.jubitus.ultreia.gen.MPBChunkManager;
+import com.jubitus.ultreia.gen.MPBEndpointResolver;
+import com.jubitus.ultreia.gen.MPBProtectedAreas;
+import com.jubitus.ultreia.gen.MPBWorldData;
+import com.jubitus.ultreia.gen.PathNetworkBuilder;
+import com.jubitus.ultreia.gen.RoadPainter;
+import com.jubitus.ultreia.gen.RoadType;
+import com.jubitus.ultreia.gen.TerrainSampler;
+import com.jubitus.ultreia.gen.VillageGateField;
+import com.jubitus.ultreia.gen.VillageGateTracker;
 import com.jubitus.ultreia.MillPresence;
 
 import com.jubitus.ultreia.Ultreia;
@@ -24,7 +35,7 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class MPBGenerationJob implements MPBAsyncJob {
+public final class VillageNetworkJob implements TickedJob {
 
     private final WorldServer world;
     private final WeakReference<ICommandSender> senderRef;
@@ -32,7 +43,7 @@ public final class MPBGenerationJob implements MPBAsyncJob {
     private final boolean dryRun;
 
     private final MPBWorldData saved;
-    private final MPBJobCheckpoint checkpoint;
+    private final JobCheckpoint checkpoint;
     private final TerrainSampler sampler;
     private final MPBProtectedAreas protectedAreas;
 
@@ -65,7 +76,7 @@ public final class MPBGenerationJob implements MPBAsyncJob {
     private final MPBRoadNetwork roadNetwork;
 
     // Fresh-start constructor
-    public MPBGenerationJob(WorldServer world, ICommandSender sender, boolean force, boolean dryRun) {
+    public VillageNetworkJob(WorldServer world, ICommandSender sender, boolean force, boolean dryRun) {
         this.world = world;
         this.senderRef = new WeakReference<>(sender);
         this.force = force;
@@ -79,7 +90,7 @@ public final class MPBGenerationJob implements MPBAsyncJob {
         MillIntegration.logNodeSummary(world);
         this.nodes = MillIntegration.getAllNodePositions(world);
         this.saved = MPBWorldData.get(world);
-        this.checkpoint = MPBJobCheckpoint.get(world);
+        this.checkpoint = JobCheckpoint.get(world);
 
         this.roadIndex = MPBRoadIndexData.get(world);
         this.roadIndex.attachChunkManager(this.chunkManager);
@@ -108,7 +119,7 @@ public final class MPBGenerationJob implements MPBAsyncJob {
     }
 
     // Resume constructor — restores an interrupted job from a persisted checkpoint.
-    MPBGenerationJob(WorldServer world, MPBJobCheckpoint cp) {
+    VillageNetworkJob(WorldServer world, JobCheckpoint cp) {
         this.world = world;
         this.senderRef = new WeakReference<>(null);
         this.force = cp.isForce();

@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.gen;
 
+import com.jubitus.ultreia.job.VillageNetworkJob;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
@@ -83,7 +84,7 @@ public final class MPBEndpointResolver {
 
             // Rule 3: approach point just outside building noPaint zones
             BlockPos approx = stepToward(nodeCenter, otherNodeCenter, Math.max(8, protectR + 6));
-            BlockPos anchor = MPBGenerationJob.findAnchor(world, approx, sampler, 120);
+            BlockPos anchor = VillageNetworkJob.findAnchor(world, approx, sampler, 120);
             if (protectedAreas == null || !protectedAreas.contains(anchor.getX(), anchor.getZ())) {
                 return anchor;
             }
@@ -308,7 +309,7 @@ public final class MPBEndpointResolver {
             @Nullable MPBProtectedAreas protectedAreas
     ) {
         if (protectedAreas == null) {
-            return MPBGenerationJob.findAnchor(world, start, sampler, 24);
+            return VillageNetworkJob.findAnchor(world, start, sampler, 24);
         }
         int dx = Integer.signum(toward.getX() - start.getX());
         int dz = Integer.signum(toward.getZ() - start.getZ());
@@ -316,7 +317,7 @@ public final class MPBEndpointResolver {
 
         BlockPos cur = start;
         for (int i = 0; i < 20; i++) {
-            BlockPos a = MPBGenerationJob.findAnchor(world, cur, sampler, 16);
+            BlockPos a = VillageNetworkJob.findAnchor(world, cur, sampler, 16);
             if (!protectedAreas.contains(a.getX(), a.getZ())) return a;
             cur = cur.add(dx * 4, 0, dz * 4);
         }

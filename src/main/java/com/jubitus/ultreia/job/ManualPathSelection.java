@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.job;
 
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.util.math.BlockPos;
@@ -7,7 +7,7 @@ import javax.annotation.Nullable;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class MPBManualPathState {
+public final class ManualPathSelection {
 
     public static final class PlayerState {
         public int dimension;
@@ -21,7 +21,7 @@ public final class MPBManualPathState {
 
     private static final ConcurrentHashMap<UUID, PlayerState> STATES = new ConcurrentHashMap<>();
 
-    private MPBManualPathState() {}
+    private ManualPathSelection() {}
 
     public static PlayerState get(EntityPlayerMP player) {
         UUID id = player.getUniqueID();

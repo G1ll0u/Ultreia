@@ -1,5 +1,11 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.job;
 
+import com.jubitus.ultreia.gen.AStarPathfinder;
+import com.jubitus.ultreia.gen.MPBChunkManager;
+import com.jubitus.ultreia.gen.MPBProtectedAreas;
+import com.jubitus.ultreia.gen.RoadPainter;
+import com.jubitus.ultreia.gen.RoadType;
+import com.jubitus.ultreia.gen.TerrainSampler;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.bridge.BridgeAwarePathResult;
 import com.jubitus.ultreia.gen.bridge.BridgeSpan;
@@ -16,7 +22,7 @@ import net.minecraft.world.WorldServer;
 import java.lang.ref.WeakReference;
 import java.util.List;
 
-public final class MPBCustomPathGenerationJob implements MPBAsyncJob {
+public final class ManualPathJob implements TickedJob {
 
     private final WorldServer world;
     private final WeakReference<ICommandSender> senderRef;
@@ -43,7 +49,7 @@ public final class MPBCustomPathGenerationJob implements MPBAsyncJob {
     private boolean done = false;
     private boolean failed = false;
 
-    public MPBCustomPathGenerationJob(WorldServer world, ICommandSender sender, BlockPos start, BlockPos goal, boolean dryRun, RoadType roadType) {
+    public ManualPathJob(WorldServer world, ICommandSender sender, BlockPos start, BlockPos goal, boolean dryRun, RoadType roadType) {
         this.world = world;
         this.senderRef = new WeakReference<>(sender);
         this.dryRun = dryRun;
@@ -62,7 +68,7 @@ public final class MPBCustomPathGenerationJob implements MPBAsyncJob {
         this.sampler.setRoadIndex(this.roadIndex);
         this.roadNetwork = MPBRoadNetwork.get(world);
 
-        this.protectedAreas = MPBGenerationJob.buildProtectedAreas(world, sampler);
+        this.protectedAreas = VillageNetworkJob.buildProtectedAreas(world, sampler);
         this.sampler.setProtectedAreas(this.protectedAreas);
     }
 
@@ -108,8 +114,8 @@ public final class MPBCustomPathGenerationJob implements MPBAsyncJob {
             if (!initialized) {
                 initialized = true;
 
-                resolvedStart = MPBGenerationJob.findAnchor(world, requestedStart, sampler, 16);
-                resolvedGoal = MPBGenerationJob.findAnchor(world, requestedGoal, sampler, 16);
+                resolvedStart = VillageNetworkJob.findAnchor(world, requestedStart, sampler, 16);
+                resolvedGoal = VillageNetworkJob.findAnchor(world, requestedGoal, sampler, 16);
 
                 if (resolvedStart == null || resolvedGoal == null) {
                     fail("Could not resolve valid start/end anchors.");
