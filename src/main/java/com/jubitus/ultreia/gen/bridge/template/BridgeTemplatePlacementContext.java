@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.gen.bridge.template;
 
-import com.jubitus.ultreia.gen.bridge.BridgeSpan;
+import com.jubitus.ultreia.bridge.BridgeSpan;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.Rotation;
 

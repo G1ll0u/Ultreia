@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.paint;
 
 import com.jubitus.ultreia.terrain.TerrainSampler;
-import com.jubitus.ultreia.gen.bridge.BridgeGeometry;
+import com.jubitus.ultreia.bridge.BridgeGeometry;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.Arrays;

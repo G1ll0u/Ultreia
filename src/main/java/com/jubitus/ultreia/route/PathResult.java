@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.route;
 
-import com.jubitus.ultreia.gen.bridge.BridgeSpan;
+import com.jubitus.ultreia.bridge.BridgeSpan;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.ArrayList;

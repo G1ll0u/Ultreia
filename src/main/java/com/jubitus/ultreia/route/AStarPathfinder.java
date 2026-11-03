@@ -1,11 +1,14 @@
 package com.jubitus.ultreia.route;
 
+import com.jubitus.ultreia.bridge.BridgeFeasibility;
+import com.jubitus.ultreia.bridge.BridgeGeometry;
+import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.bridge.*;
-import com.jubitus.ultreia.gen.newp.MPBBridgeApproachFeasibility;
+import com.jubitus.ultreia.bridge.BridgeApproachCheck;
 import com.jubitus.ultreia.paint.RoadHeightSolver;
 import com.jubitus.ultreia.gen.util.MPBPos2D;
 import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
@@ -1589,7 +1592,7 @@ public final class AStarPathfinder {
 
             if (waterCells <= 0 && deepCells <= 2) cost += 200.0;
             int approachBlocks = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeApproachRampBlocks);
-            if (!MPBBridgeApproachFeasibility.canConnectBridgeApproaches(sampler, span, approachBlocks + 2, roadType)) {
+            if (!BridgeApproachCheck.canConnectBridgeApproaches(sampler, span, approachBlocks + 2, roadType)) {
                 cost += 120.0;
             }
 

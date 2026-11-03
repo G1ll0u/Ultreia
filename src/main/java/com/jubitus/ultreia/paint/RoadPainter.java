@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.paint;
 
+import com.jubitus.ultreia.bridge.BridgeGeometry;
+import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.terrain.GroundRules;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;

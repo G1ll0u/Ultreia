@@ -1,20 +1,18 @@
-package com.jubitus.ultreia.gen.newp;
+package com.jubitus.ultreia.bridge;
 
 import com.jubitus.ultreia.paint.RoadHeightSolver;
 import com.jubitus.ultreia.route.RoadType;
 
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.terrain.TerrainSampler;
-import com.jubitus.ultreia.gen.bridge.BridgeGeometry;
-import com.jubitus.ultreia.gen.bridge.BridgeSpan;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public final class MPBBridgeApproachFeasibility {
+public final class BridgeApproachCheck {
 
-    private MPBBridgeApproachFeasibility() {}
+    private BridgeApproachCheck() {}
 
     public static boolean canConnectBridgeApproaches(TerrainSampler sampler,
                                                      BridgeSpan span,

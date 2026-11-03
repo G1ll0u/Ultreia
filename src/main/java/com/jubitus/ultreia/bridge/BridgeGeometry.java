@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.bridge;
+package com.jubitus.ultreia.bridge;
 
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.terrain.TerrainSampler;

@@ -2,7 +2,7 @@ package com.jubitus.ultreia.gen.bridge.template;
 
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.terrain.GroundRules;
-import com.jubitus.ultreia.gen.bridge.BridgeGeometry;
+import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockSlab;

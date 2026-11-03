@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.gen.bridge;
 
+import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;

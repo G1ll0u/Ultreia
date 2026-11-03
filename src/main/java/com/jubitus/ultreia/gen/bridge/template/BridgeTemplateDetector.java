@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.gen.bridge.template;
 
-import com.jubitus.ultreia.gen.bridge.BridgeGeometry;
+import com.jubitus.ultreia.bridge.BridgeGeometry;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.state.IBlockState;

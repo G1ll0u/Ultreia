@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.config;
 
+import com.jubitus.ultreia.bridge.BridgeGeometry;
 import net.minecraftforge.common.config.Config;
 
 public class MPBConfig {

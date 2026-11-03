@@ -16,7 +16,7 @@ import com.jubitus.ultreia.MillPresence;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.route.PathResult;
-import com.jubitus.ultreia.gen.bridge.BridgeSpan;
+import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.gen.bridge.MPBRoadConnectionHelper;
 import com.jubitus.ultreia.gen.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.ultreia.gen.mill.MillBuildingObstacles2;

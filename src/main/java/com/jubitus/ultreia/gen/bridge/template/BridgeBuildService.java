@@ -3,7 +3,7 @@ package com.jubitus.ultreia.gen.bridge.template;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.terrain.TerrainSampler;
-import com.jubitus.ultreia.gen.bridge.BridgeSpan;
+import com.jubitus.ultreia.bridge.BridgeSpan;
 import net.minecraft.world.WorldServer;
 
 public final class BridgeBuildService {
