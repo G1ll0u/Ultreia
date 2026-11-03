@@ -72,7 +72,7 @@ public final class EndpointResolver {
                 BlockPos best = candidates.get(0).pos;
                 if (UltreiaConfig.GENERAL.printFailureBreakdown) {
                     Ultreia.LOGGER.debug(
-                            "[MPB] gate selected village={},{} other={},{} total_candidates={} -> ({},{},{})",
+                            "[Ultreia] gate selected village={},{} other={},{} total_candidates={} -> ({},{},{})",
                             nodeCenter.getX(), nodeCenter.getZ(),
                             otherNodeCenter.getX(), otherNodeCenter.getZ(),
                             candidates.size(), best.getX(), best.getY(), best.getZ());
@@ -269,7 +269,7 @@ public final class EndpointResolver {
 
 
     /**
-     * Scans the block column at (x, z) for the lowest Millénaire/MPB path block.
+     * Scans the block column at (x, z) for the lowest Millénaire/Ultreia path block.
      * Searches from Y=4 up to surfaceY+5 to catch paths buried below the terrain surface.
      * Returns the Y coordinate of the found block, or null if none exists.
      */

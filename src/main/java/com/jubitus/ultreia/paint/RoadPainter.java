@@ -483,7 +483,7 @@ public final class RoadPainter {
                 mergeStopAt = mergeHitIndex;
 
                 Ultreia.LOGGER.info(
-                        "[MPB] Early merge: path index {}/{} -> road ({}, {}), stopping paint here",
+                        "[Ultreia] Early merge: path index {}/{} -> road ({}, {}), stopping paint here",
                         idx, path.size() - 1, near.getX(), near.getZ());
                 return;
             }
@@ -598,7 +598,7 @@ public final class RoadPainter {
 
                         if (UltreiaConfig.DEBUG.debugRoadPainting) {
                             Ultreia.LOGGER.debug(
-                                    "[MPB] Parallel gap suppressed: path[{}..{}] len={} near=({},{})",
+                                    "[Ultreia] Parallel gap suppressed: path[{}..{}] len={} near=({},{})",
                                     runStart, runEnd, runLen, nearX[runStart], nearZ[runStart]);
                         }
                     }
@@ -744,7 +744,7 @@ public final class RoadPainter {
             }
 
             if (UltreiaConfig.DEBUG.debugRoadPainting) {
-                Ultreia.LOGGER.debug("[MPB] edgeNoise built: n={} maxOffset={} period={}", n, maxOffset, period);
+                Ultreia.LOGGER.debug("[Ultreia] edgeNoise built: n={} maxOffset={} period={}", n, maxOffset, period);
             }
         }
 
@@ -1299,7 +1299,7 @@ public final class RoadPainter {
                             lx, lz, startHalf, mergeTargetX, mergeTargetZ, endHalf);
                     if (UltreiaConfig.DEBUG.debugRoadPainting) {
                         Ultreia.LOGGER.debug(
-                                "[MPB] Merge connector: ({},{}) half={} -> ({},{}) half={} cells={}",
+                                "[Ultreia] Merge connector: ({},{}) half={} -> ({},{}) half={} cells={}",
                                 lx, lz, startHalf, mergeTargetX, mergeTargetZ, endHalf,
                                 mergeConnectorList == null ? 0 : mergeConnectorList.size());
                     }
@@ -1802,7 +1802,7 @@ public final class RoadPainter {
 
             if (talusCursor < talusCells.length) return false;
             if (UltreiaConfig.DEBUG.debugRoadPainting) {
-                Ultreia.LOGGER.info("[MPB] Talus pass: {} road cells, {} talus cells, slopeRatio={}",
+                Ultreia.LOGGER.info("[Ultreia] Talus pass: {} road cells, {} talus cells, slopeRatio={}",
                         newlyPlaced.size(), talusCells.length, slopeRatio);
             }
             return true;

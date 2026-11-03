@@ -29,10 +29,10 @@ public final class BridgeTemplateSelector {
         if (result != null) return result;
         result = BridgeTemplateValidator.validate(t);
         for (String err : result.errors) {
-            Ultreia.LOGGER.error("[MPB] Bridge template '{}' error: {}", t.name, err);
+            Ultreia.LOGGER.error("[Ultreia] Bridge template '{}' error: {}", t.name, err);
         }
         for (String w : result.warnings) {
-            Ultreia.LOGGER.warn("[MPB] Bridge template '{}': {}", t.name, w);
+            Ultreia.LOGGER.warn("[Ultreia] Bridge template '{}': {}", t.name, w);
         }
         VALIDATED.put(t, result);
         return result;

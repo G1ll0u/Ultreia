@@ -111,7 +111,7 @@ public final class HeadroomClearer {
                 if (UltreiaConfig.PAINTING.dtRemoveWholeTree && radius >= threshold) {
                     if (UltreiaConfig.DEBUG.logDTTreeRemoval) {
                         Ultreia.LOGGER.info(
-                                "[MPB] DT whole-tree removal at ({},{},{}) radius={}",
+                                "[Ultreia] DT whole-tree removal at ({},{},{}) radius={}",
                                 p.getX(), p.getY(), p.getZ(), radius);
                     }
                     // Returns the rootydirt pos (now plain dirt) so the caller can paint road over it.

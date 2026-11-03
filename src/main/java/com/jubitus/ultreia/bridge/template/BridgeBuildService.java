@@ -16,12 +16,12 @@ public final class BridgeBuildService {
                                 boolean dryRun) {
         BridgeTemplate template = span.template;
         if (template == null) {
-            Ultreia.LOGGER.warn("[MPB] No bridge template matched and default '{}' not found — bridge skipped.",
+            Ultreia.LOGGER.warn("[Ultreia] No bridge template matched and default '{}' not found — bridge skipped.",
                     UltreiaConfig.BRIDGES.defaultTemplateName);
             return false;
         }
         if (UltreiaConfig.DEBUG.logBridgeTemplateSelection) {
-            Ultreia.LOGGER.info("[MPB] Bridge ({} blocks, water={}, waterDominant={}): template '{}'",
+            Ultreia.LOGGER.info("[Ultreia] Bridge ({} blocks, water={}, waterDominant={}): template '{}'",
                     span.lengthBlocks(), span.hasWaterCrossing, span.waterDominant, template.name);
         }
         return BridgeTemplateBridgeBuilder.build(world, sampler, span, template, dryRun);

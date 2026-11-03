@@ -155,12 +155,12 @@ public final class VillageNetworkJob implements TickedJob {
         }
 
         if (this.edges.isEmpty()) {
-            Ultreia.LOGGER.warn("[MPB] Resumed job has no edges — marking complete.");
+            Ultreia.LOGGER.warn("[Ultreia] Resumed job has no edges — marking complete.");
             this.done = true;
             return;
         }
 
-        Ultreia.LOGGER.info("[MPB] Resumed generation: edges={}, resuming at {}/{}, built={} skipped={} failed={}",
+        Ultreia.LOGGER.info("[Ultreia] Resumed generation: edges={}, resuming at {}/{}, built={} skipped={} failed={}",
                 edges.size(), edgeIndex, edges.size(), built, skipped, failed);
     }
 
@@ -219,7 +219,7 @@ public final class VillageNetworkJob implements TickedJob {
                 // At least one lone building endpoint → narrow terrain-following trail.
                 curRoadType = (aIsLone || bIsLone) ? RoadType.LONE_TRAIL : RoadType.VILLAGE_MAIN;
                 if (UltreiaConfig.ROAD_HIERARCHY.debugLogRoadType) {
-                    Ultreia.LOGGER.info("[MPB] Edge {} roadType={} aIsLone={} bIsLone={}",
+                    Ultreia.LOGGER.info("[Ultreia] Edge {} roadType={} aIsLone={} bIsLone={}",
                             e.key(), curRoadType, aIsLone, bIsLone);
                 }
 
@@ -399,7 +399,7 @@ public final class VillageNetworkJob implements TickedJob {
         try {
             world.getPerWorldStorage().saveAllData();
         } catch (Throwable t) {
-            Ultreia.LOGGER.warn("[MPB] Force-save failed: {}", t.getMessage());
+            Ultreia.LOGGER.warn("[Ultreia] Force-save failed: {}", t.getMessage());
         }
     }
 

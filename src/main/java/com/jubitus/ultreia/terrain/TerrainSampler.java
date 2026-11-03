@@ -623,7 +623,7 @@ public class TerrainSampler {
         Block b = st.getBlock();
         if (b.isWood(world, pos)) return false;
         if (b.isLeaves(st, world, pos)) return false;
-        // Mill/MPB path blocks are road infrastructure, not obstacles to paint around.
+        // Mill/Ultreia path blocks are road infrastructure, not obstacles to paint around.
         if (MillPathPalette.isMillPath(b)) return false;
         return !isNaturalGround(st);
     }

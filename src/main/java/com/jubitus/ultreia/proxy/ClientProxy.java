@@ -21,7 +21,7 @@ public final class ClientProxy implements IProxy {
                 try {
                     mc.displayGuiScreen(new MapScreen(cx, cz, radius, segments));
                 } catch (Exception e) {
-                    Ultreia.LOGGER.error("[MPBMap] Failed to open map GUI on client", e);
+                    Ultreia.LOGGER.error("[Ultreia map] Failed to open map GUI on client", e);
                 }
             });
         });

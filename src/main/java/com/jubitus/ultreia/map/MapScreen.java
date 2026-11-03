@@ -675,7 +675,7 @@ public final class MapScreen extends GuiScreen {
         File file = new File(mc.gameDir, name);
 
         try (PrintWriter pw = new PrintWriter(new FileWriter(file))) {
-            pw.println("# MPB Road Network Export");
+            pw.println("# Ultreia Road Network Export");
             pw.println("# Timestamp: " + System.currentTimeMillis());
             pw.println("# Center: (" + centerX + ", " + centerZ + ")");
             pw.println("# Radius: " + radius + " blocks");

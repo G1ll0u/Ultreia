@@ -49,7 +49,7 @@ public final class MPBRoadAPI {
         return true;
     }
 
-    /** True if this XZ column is part of an MPB road or bridge deck. */
+    /** True if this XZ column is part of an Ultreia road or bridge deck. */
     public static boolean isOnRoad(WorldServer world, int x, int z) {
         return RoadIndex.get(world).isRoadXZ(x, z);
     }

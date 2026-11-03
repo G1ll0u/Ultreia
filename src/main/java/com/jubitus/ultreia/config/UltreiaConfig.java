@@ -46,7 +46,7 @@ public class UltreiaConfig {
         public boolean printFailureBreakdown = true;
         @Config.Comment("Print per-span bridge debug traces during pathfinding. Very verbose — leave off unless debugging bridge placement.")
         public boolean printBridgeDebug = false;
-        @Config.Comment("Allow MPB to load/generate chunks during pathfinding when needed.")
+        @Config.Comment("Allow Ultreïa to load/generate chunks during pathfinding when needed.")
         public boolean allowChunkLoading = true;
 
         @Config.Comment("Automatically resume an interrupted generation job when the world loads.")
@@ -73,7 +73,7 @@ public class UltreiaConfig {
 
 
 
-        @Config.Comment("Max chunks MPB may force-load per edge (safety cap). Resets between edges.")
+        @Config.Comment("Max chunks Ultreïa may force-load per edge (safety cap). Resets between edges.")
         public int maxForcedChunksPerJob = 4000;
 
 

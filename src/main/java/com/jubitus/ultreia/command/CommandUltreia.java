@@ -181,7 +181,7 @@ public final class CommandUltreia extends CommandBase {
             }
             NetworkHandler.CHANNEL.sendTo(new PacketOpenMapGui(px, pz, guiRadius, segData), player);
             sender.sendMessage(new TextComponentString(
-                    "§7[MPB] Opening map GUI — " + nearby.size() + " segment(s) in radius " + guiRadius + "..."));
+                    "§7[Ultreïa] Opening map GUI — " + nearby.size() + " segment(s) in radius " + guiRadius + "..."));
             return;
         }
 

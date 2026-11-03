@@ -7,7 +7,7 @@ import java.util.*;
  * Entity navigation over the RoadNetwork.
  *
  * Provides A* routing through the stored road segment graph.
- * Intended for use by entity mods that want to navigate along MPB roads.
+ * Intended for use by entity mods that want to navigate along Ultreia roads.
  *
  * Usage:
  *   RoadNetwork network = RoadNetwork.get(world);

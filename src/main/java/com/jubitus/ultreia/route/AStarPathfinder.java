@@ -387,7 +387,7 @@ public final class AStarPathfinder {
                     lastProgressLogNs = nowNs;
                     long elapsedSec = (nowNs - sessionStartNs) / 1_000_000_000L;
                     Ultreia.LOGGER.info(
-                            "[MPB A*] still running: it={} closed={} open={} best_dist={} elapsed={}s",
+                            "[Ultreia A*] still running: it={} closed={} open={} best_dist={} elapsed={}s",
                             it, closed.size(), open.size(),
                             Double.isFinite(bestApproxHeuristic) ? (int) bestApproxHeuristic : -1,
                             elapsedSec);
@@ -435,7 +435,7 @@ public final class AStarPathfinder {
                                 // snap back onto internal building paths of the departure structure.
                                 && distSq(nearRoad.getX(), nearRoad.getZ(), sx, sz) >= snapMinDistSq) {
                             Ultreia.LOGGER.info(
-                                    "[MPB A*] Road-snap: ({},{}) snapped to road at ({},{})",
+                                    "[Ultreia A*] Road-snap: ({},{}) snapped to road at ({},{})",
                                     cur.x, cur.z, nearRoad.getX(), nearRoad.getZ());
                             foundState = ck;
                             reconstructing = true;
@@ -1033,7 +1033,7 @@ public final class AStarPathfinder {
                         cameReusedBridge.put(nk, mv.reusedCrossing);
                         if (UltreiaConfig.GENERAL.printBridgeDebug) {
                             Ultreia.LOGGER.info(
-                                    "[MPB Bridge] reuse transition taken: seg={} ({},{}) -> ({},{})",
+                                    "[Ultreia Bridge] reuse transition taken: seg={} ({},{}) -> ({},{})",
                                     mv.reusedCrossing.segmentId, cur.x, cur.z, mv.nx, mv.nz);
                         }
                     } else {
@@ -1082,7 +1082,7 @@ public final class AStarPathfinder {
                 if (distToStartSq > snapTolSq) {
                     if (debug) {
                         Ultreia.LOGGER.info(
-                                "[MPB Bridge] reuse candidate seg={} rejected: not yet adjacent to entrance (dist={}, tol={})",
+                                "[Ultreia Bridge] reuse candidate seg={} rejected: not yet adjacent to entrance (dist={}, tol={})",
                                 crossing.segmentId, Math.sqrt(distToStartSq), snapTol);
                     }
                     continue;
@@ -1095,7 +1095,7 @@ public final class AStarPathfinder {
                         - BridgeGeometry.naturalSurfaceHalfY(crossing.startY));
                 if (hopDelta > hopCells + 1) {
                     if (debug) Ultreia.LOGGER.info(
-                            "[MPB Bridge] reuse candidate seg={} rejected: entrance step {} halves over {} cells",
+                            "[Ultreia Bridge] reuse candidate seg={} rejected: entrance step {} halves over {} cells",
                             crossing.segmentId, hopDelta, hopCells);
                     continue;
                 }
@@ -1107,7 +1107,7 @@ public final class AStarPathfinder {
                 if (endSample == null) continue;
                 if (endSample.isOcean) {
                     if (debug) Ultreia.LOGGER.info(
-                            "[MPB Bridge] reuse candidate seg={} rejected: far end is ocean", crossing.segmentId);
+                            "[Ultreia Bridge] reuse candidate seg={} rejected: far end is ocean", crossing.segmentId);
                     continue;
                 }
 
@@ -1115,7 +1115,7 @@ public final class AStarPathfinder {
                 double toGoalDot = normalizedDot(endX - cur.x, endZ - cur.z, gx - cur.x, gz - cur.z);
                 if (toGoalDot < -0.3) {
                     if (debug) Ultreia.LOGGER.info(
-                            "[MPB Bridge] reuse candidate seg={} rejected: leads away from goal (dot={})",
+                            "[Ultreia Bridge] reuse candidate seg={} rejected: leads away from goal (dot={})",
                             crossing.segmentId, toGoalDot);
                     continue; // bridge goes away from goal — skip
                 }
@@ -1131,7 +1131,7 @@ public final class AStarPathfinder {
 
                 if (debug) {
                     Ultreia.LOGGER.info(
-                            "[MPB Bridge] reuse candidate seg={} accepted at ({},{}) -> ({},{}) cost={}",
+                            "[Ultreia Bridge] reuse candidate seg={} accepted at ({},{}) -> ({},{}) cost={}",
                             crossing.segmentId, cur.x, cur.z, endX, endZ, cost);
                 }
                 // span = null: this is an existing bridge, RoadPainter must not rebuild it.
@@ -1664,7 +1664,7 @@ public final class AStarPathfinder {
                         if (freeBlocks < minClearance) {
                             if (UltreiaConfig.GENERAL.printBridgeDebug) {
                                 Ultreia.LOGGER.info(
-                                        "[MPB Bridge] self-overlap bridge[{}]: deck Y={} at ({},{}) over approach road Y={} at ({},{}), clearance={} < {}",
+                                        "[Ultreia Bridge] self-overlap bridge[{}]: deck Y={} at ({},{}) over approach road Y={} at ({},{}), clearance={} < {}",
                                         b, deckSurfaceY, bridgePoint.getX(), bridgePoint.getZ(),
                                         roadPoint.getY(), roadPoint.getX(), roadPoint.getZ(),
                                         freeBlocks, minClearance);
@@ -2223,7 +2223,7 @@ public final class AStarPathfinder {
             if (!UltreiaConfig.GENERAL.printBridgeDebug) return;
 
             if (bridgeDebugPrinted < BRIDGE_DEBUG_LIMIT) {
-                Ultreia.LOGGER.info("[MPB bridge-debug] {}", msg);
+                Ultreia.LOGGER.info("[Ultreia bridge-debug] {}", msg);
                 bridgeDebugPrinted++;
             } else {
                 bridgeDebugSuppressed++;
@@ -2233,7 +2233,7 @@ public final class AStarPathfinder {
         private void flushBridgeDebugSummary() {
             if (!UltreiaConfig.GENERAL.printBridgeDebug) return;
             if (bridgeDebugSuppressed > 0) {
-                Ultreia.LOGGER.info("[MPB bridge-debug] suppressed {} additional bridge debug lines", bridgeDebugSuppressed);
+                Ultreia.LOGGER.info("[Ultreia bridge-debug] suppressed {} additional bridge debug lines", bridgeDebugSuppressed);
                 bridgeDebugSuppressed = 0;
             }
         }

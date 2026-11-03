@@ -243,8 +243,8 @@ public class RoadIndex extends WorldSavedData {
                     pos.setPos(x, yy, z);
                     IBlockState st = world.getBlockState(pos);
                     Block b = st.getBlock();
-                    // Only index MPB's own blocks — Millénaire village paths share the same
-                    // palette but must NOT be treated as MPB-generated roads.
+                    // Only index Ultreia's own blocks — Millénaire village paths share the same
+                    // palette but must NOT be treated as Ultreia-generated roads.
                     if (b == UltreiaBlocks.PATH_BLOCK || b == UltreiaBlocks.PATH_SLAB) {
                         markRoad(x, yy, z);
                         break;

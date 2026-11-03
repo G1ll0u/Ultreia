@@ -42,7 +42,7 @@ public final class ChunkManager {
 
         if (edgeCap > 0 && ours.size() >= edgeCap) {
             if (UltreiaConfig.GENERAL.debugLogChunkLifecycle) {
-                Ultreia.LOGGER.warn("[MPB] Edge chunk cap ({}) reached, cannot load {},{}", edgeCap, cx, cz);
+                Ultreia.LOGGER.warn("[Ultreia] Edge chunk cap ({}) reached, cannot load {},{}", edgeCap, cx, cz);
             }
             return false;
         }
@@ -107,7 +107,7 @@ public final class ChunkManager {
 
         if (UltreiaConfig.GENERAL.debugLogChunkLifecycle) {
             Ultreia.LOGGER.debug(
-                "[MPB] releaseEdge: owned={} queued={} sideEffect={} totalLoaded={}",
+                "[Ultreia] releaseEdge: owned={} queued={} sideEffect={} totalLoaded={}",
                 ours.size(), ownedQueued, sideEffectQueued, cps.getLoadedChunkCount());
         }
 
@@ -121,7 +121,7 @@ public final class ChunkManager {
                 try { cps.tick(); } catch (Throwable ignored) { break; }
             }
             if (UltreiaConfig.GENERAL.debugLogChunkLifecycle) {
-                Ultreia.LOGGER.debug("[MPB] Emergency drain pass, now {} chunks loaded", cps.getLoadedChunkCount());
+                Ultreia.LOGGER.debug("[Ultreia] Emergency drain pass, now {} chunks loaded", cps.getLoadedChunkCount());
             }
         }
     }

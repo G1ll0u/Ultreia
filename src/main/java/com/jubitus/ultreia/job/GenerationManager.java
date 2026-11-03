@@ -103,7 +103,7 @@ public final class GenerationManager {
         if (JOBS.containsKey(dim) || PENDING_RESUMES.containsKey(dim)) return;
         int delay = Math.max(20, UltreiaConfig.GENERAL.autoResumeDelayTicks);
         PENDING_RESUMES.put(dim, new PendingResume(world, checkpoint, delay));
-        Ultreia.LOGGER.info("[MPB] Queued auto-resume for dim={} at edge {}/{} (starts in {} ticks)",
+        Ultreia.LOGGER.info("[Ultreia] Queued auto-resume for dim={} at edge {}/{} (starts in {} ticks)",
                 dim, checkpoint.getEdgeIndex(), checkpoint.getEdges().size(), delay);
     }
 
@@ -145,9 +145,9 @@ public final class GenerationManager {
                         try {
                             VillageNetworkJob job = new VillageNetworkJob(pr.world, pr.checkpoint);
                             JOBS.put(dim, job);
-                            Ultreia.LOGGER.info("[MPB] Auto-resumed generation for dim={}", dim);
+                            Ultreia.LOGGER.info("[Ultreia] Auto-resumed generation for dim={}", dim);
                         } catch (Throwable t) {
-                            Ultreia.LOGGER.error("[MPB] Failed to resume generation for dim={}", dim, t);
+                            Ultreia.LOGGER.error("[Ultreia] Failed to resume generation for dim={}", dim, t);
                         }
                     }
                 }
