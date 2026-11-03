@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-03)**: phases 0 and 1 done (0.36 and phase 1 not committed yet; in-game checks pending). Next: phase 2.
+**Status (2026-11-03)**: phases 0, 1 and 2 done and committed (in-game checks pending). Next: phase 3.
 
 ## Goal
 
@@ -42,23 +42,23 @@ roads and bridges, completing an existing network, new villages.
 | Package | Takes over |
 |---|---|
 | (root) | `Ultreia`, `UltreiaLateLoader`, `MillPresence`, registration handlers |
-| `job/` | `MPBGenerationJob` + `MPBCustomPathGenerationJob` → `RoadJob` + `VillageNetworkSource` + `ManualPathSource`; `MPBGenerationManager`, `MPBAsyncJob`, `MPBJobCheckpoint`, `MPBManualPathState`; `PathGenerationService` deleted |
-| `planner/` | `PathNetworkBuilder` (→ `NetworkPlanner`), `VillageClassifier`, `LogicalEdge`, `MPBWorldData` (→ `PlanData`) |
-| `route/` | `AStarPathfinder` split (phase 9), `MPBEndpointResolver`, `VillageGateField`, `VillageGateTracker`, `RoadType`, `newp/MPBPathProfileFeasibility` (→ `PathProfileCheck`) |
-| `terrain/` | `TerrainSampler` split (phase 6), `MPBGround`, `newp/MPBTreeCompat`, `MPBProtectedAreas`, new `TerrainView` interface |
-| `paint/` | `RoadPainter` split (phase 10), `world/Earthworks`, `MPBRoadColumns`, `newp/MPBRoadHalfConstraintSolver` + `MPBRoadHalfProfile`, palette choice from `mill/MPBMillPathPalette` |
-| `bridge/` | `gen/bridge/*` minus `BridgePlanner`, `newp/MPBBridgeApproachFeasibility` (→ `BridgeApproachCheck`), bridge moves and costs taken out of A*, bridge painting taken out of `RoadPainter` |
-| `bridge/template/` | `gen/bridge/template/*` (split in phase 8) |
-| `roads/` | `gen/world/{MPBRoadNetwork, MPBRoadIndexData, MPBRoadNavigator, RoadSegment, RoadWaypoint}`, `bridge/MPBRoadConnectionHelper` |
-| `chunk/` | `MPBChunkManager`, `world/MPBChunkLoadingCallback` |
-| `mill/` | `gen/mill/*`, `integration/*`, Millénaire parts of the palette and of `MPBRoadIndexData.kindFromState`, `newp/MPBMillenairePathCompat`; `MillVillageIndex` split (phase 11); new Millénaire-free facade `Villages` |
-| `geom/` | `util/MPBPos2D` (→ `Pos2D`), `RasterLine8` + `SupercoverLine` (→ `LineRaster`), half-Y encoding from `BridgeGeometry` (→ `HalfY`) |
-| `map/` | `gui/GuiMPBMap` split (phase 11), `network/Packet{OpenMapGui,RequestPreview,NetworkPreview}` |
-| `net/` | `network/MPBNetworkHandler` (channel only) |
-| `boost/` | `player/MPBSpeedBoostHandler` |
+| `job/` | `VillageNetworkJob` + `ManualPathJob` → `RoadJob` + `VillageNetworkSource` + `ManualPathSource` (phase 7); `GenerationManager`, `TickedJob`, `JobCheckpoint`, `ManualPathSelection` |
+| `planner/` | `NetworkPlanner`, `VillageClassifier`, `LogicalEdge`, `NetworkPlanData` |
+| `route/` | `AStarPathfinder` split (phase 9), `EndpointResolver`, `VillageGateField`, `VillageGateTracker`, `RoadType`, `PathProfileCheck`, `PathResult` |
+| `terrain/` | `TerrainSampler` split (phase 6), `GroundRules`, `TreeCompat`, `ProtectedAreas`, new `TerrainView` interface |
+| `paint/` | `RoadPainter` split (phase 10), `Earthworks`, `HeadroomClearer`, `RoadHeightSolver` + `RoadHeightProfile`, palette choice from `mill/MillPathPalette` |
+| `bridge/` | `BridgeFeasibility`, `BridgeGeometry`, `BridgeSpan`, `BridgeApproachCheck`; bridge moves and costs taken out of A*, bridge painting taken out of `RoadPainter` |
+| `bridge/template/` | template classes (split in phase 8) |
+| `roads/` | `RoadNetwork`, `RoadIndex`, `RoadNavigator`, `RoadSegment`, `RoadWaypoint`, `RoadJoins` |
+| `chunk/` | `ChunkManager`, `ChunkLoadingCallback` |
+| `mill/` | `MillVillageIndex` (split in phase 11), `MillBuildingZones`, `MillPathPalette`, `MillPathStability`, `MillWorldDataRegistry`, `MillFileNodeLoader`; Millénaire part of `RoadIndex.kindFromState`; new Millénaire-free facade `Villages` |
+| `geom/` | `Pos2D`, `RasterLine8` + `SupercoverLine` (→ `LineRaster`, phase 4), half-Y encoding from `BridgeGeometry` (→ `HalfY`) |
+| `map/` | `MapScreen` split (phase 11), `PacketOpenMapGui`, `PacketRequestPreview`, `PacketNetworkPreview` |
+| `net/` | `NetworkHandler` (channel only) |
+| `boost/` | `SpeedBoostHandler` |
 | `command/`, `config/`, `block/`, `proxy/`, `api/`, `mixin/` | unchanged folders |
 
-`gen/`, `gen/newp/`, `gen/util/`, `gen/world/`, `integration/`, `gui/`, `network/`, `player/` disappear.
+Phase 0–1 tables below use the class names of their time.
 
 ## Phases (ordered by gain / risk)
 
@@ -159,11 +159,13 @@ Zero visible change; every item re-checked by usage search before deletion.
 - `force` / `dryRun` chain (always false), checkpoint `dryRun` key (still read), `MPBRoadNetwork.bridgeDeckIndex`,
   `GuiMPBMap` colour constants, `IProxy/ClientProxy.registerBlockModels`, navigator/gate/edge unused methods.
 
-### Phase 2 — Feature packages and prefix — status: not started
+### Phase 2 — Feature packages and prefix — status: done
 
-Pure moves and renames into the target tree, one commit per package; nothing else changes. `mixins.ultreia.json`
-is not touched (mixins stay in `mixin/`). Save `NAME`s and NBT keys are untouched (classes may be renamed:
-`WorldSavedData` is looked up by name). Visible: none.
+Pure moves and renames into the target tree, one commit per package; nothing else changed. Names chosen with the
+user so each says what the class does (e.g. `MPBRoadColumns` → `paint/HeadroomClearer`, `MPBAsyncJob` →
+`job/TickedJob`, `integration/MillIntegration` → `mill/MillWorldDataRegistry`); `MPBConfig` → `UltreiaConfig`
+(jubiconfig keys come from field names only). Save `NAME`s, NBT keys, config fields, block names, `MPBRoadAPI`,
+mixin classes and `mixins.ultreia.json` unchanged. Visible: none.
 
 ### Phase 3 — Tests (lean) — status: not started
 
@@ -194,8 +196,8 @@ Identical copies merged (no behaviour change): xz key ×13 and 2D distance ×10 
 ### Phase 6 — Terrain authorities — status: not started
 
 - `terrain/ColumnSurface`: one surface scan replacing `TerrainSampler.sample` loop, `sampleLightIfLoaded`,
-  `hasWaterLikeNearColumn`, `MPBRoadIndexData.findSurfaceYForScan` (diverge: lava, trees, config).
-- `terrain/BlockRules`: tree/plant/water/liquid/natural/clearable/man-made, replacing `MPBGround`, `MPBTreeCompat`
+  `hasWaterLikeNearColumn`, `RoadIndex.findSurfaceYForScan` (diverge: lava, trees, config).
+- `terrain/BlockRules`: tree/plant/water/liquid/natural/clearable/man-made, replacing `GroundRules`, `TreeCompat`
   classification, `isSkippableTop`, `isClearableOrAir`, `isSoftClearable`, `isNaturalSolid`, `isLikelyTreeWood`
   (never narrows), bridge `isReplaceableForBridge`/`isImportReplaceable`/`isBridgeClearable`, `Earthworks` copies.
 - Path in a column / its half height: one scan (today 7 windows) and `geom/HalfY` (support-top formula ×3 in the painter).
@@ -218,7 +220,7 @@ Visible (each confirmed): manual paths merge into existing roads; same scan radi
 - `BridgeMoveGenerator` (~450) and `BridgeMoveCost` (~120) out of A*; `BridgeSegmentPainter` out of `RoadPainter`.
 - Template side: `BridgeTemplateBridgeBuilder` → `BridgeDeckPlacer`, `BridgeStructurePlacer`, `BridgeCellRules`;
   `BridgeLocalFrame` absorbs `BridgeTemplateDirection` and the importer's direction parsing; templates validated
-  once at load (not at every bridge). JSON classes (`BridgeTemplate`, `MPBBlockStateRef`, `BridgeTemplateIO`) keep their format.
+  once at load (not at every bridge). JSON classes (`BridgeTemplate`, `BlockStateRef`, `BridgeTemplateIO`) keep their format.
 - Fix `CLAUDE.md`: the approach check is a gate or a cost (decide with the user), the "only gatekeeper" line rewritten.
 
 ### Phase 9 — A* split — status: not started
@@ -239,7 +241,7 @@ inside `paintSingle` becomes an explicit argument. Debug switch for earthworks/t
 
 - `MillVillageIndex` (950) → `MillSettlements` (~400), `MillBuildings` (~400); `mill/Villages` is the only door
   for code outside `mill/` (checks `MillPresence`, vanilla types only).
-- `GuiMPBMap` (760) → `MapScreen` (~230), `MapView`, `MapRenderer` (~330), `MapExporter`.
+- `MapScreen` (760) → `MapScreen` (~230), `MapView`, `MapRenderer` (~330), `MapExporter`.
 - Commands: one usage text, `create`/`update` share one sequence; player text through the lang file (keys listed).
 - README fixed (wrong commands, missing ones).
 

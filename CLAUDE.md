@@ -45,25 +45,31 @@ Packages under `src/main/java/com/jubitus/ultreia/`. This map is provisional unt
 
 | Area | Folder |
 |---|---|
-| Generation pipeline: jobs, manager, A*, painter, terrain, chunk management, protected areas, network building, village classification | `gen/` |
-| Bridges (legacy procedural + template-based) | `gen/bridge/`, `gen/bridge/template/` |
-| Persisted road data, road index, navigation over placed roads | `gen/world/` |
-| Millénaire village/building data | `gen/mill/`, `integration/` |
-| Tree handling and other terrain compat | `gen/newp/` |
-| Mixins into Millénaire (optional, conditional plugin) | `mixin/` |
-| Config (single Forge `@Config` class, `Debug` category) | `config/` |
-| Commands, network packets, GUI, proxies, blocks, player speed boost, public API | `command/`, `network/`, `gui/`, `proxy/`, `block/`, `player/`, `api/` |
+| Generation jobs, manager, tick budget, checkpoint, manual path selection | `job/` |
+| Logical network (MST + RNG, village classes, planned network save) | `planner/` |
+| A*, endpoints, village gates, road types, whole-path check | `route/` |
+| Terrain sampling, ground and tree rules, protected areas | `terrain/` |
+| Road painting, earthworks, headroom clearing, road height profile | `paint/` |
+| Bridges (feasibility, geometry, approach) and templates | `bridge/`, `bridge/template/` |
+| Placed roads: network, index, navigation, joins | `roads/` |
+| Chunk loading | `chunk/` |
+| Millénaire data and path blocks | `mill/` |
+| Mixins into Millénaire (queued only when Millénaire is present) | `mixin/` |
+| Geometry (xz keys, line rasterisation) | `geom/` |
+| Map GUI and preview packets; network channel | `map/`, `net/` |
+| Config (single jubiconfig class, `Debug` category) | `config/` |
+| Commands, proxies, blocks, player speed boost, public API | `command/`, `proxy/`, `block/`, `boost/`, `api/` |
 
 ## Cross-cutting invariants
 
 - **Walkability.** Every elevation step between adjacent road or bridge blocks is ≤ 0.5 blocks (half-slab). Players must never be forced to jump — roads, earthwork ramps and bridge decks alike. Verify it whenever touching terrain-painting or bridge-deck code.
-- **Bridge realism.** A bridge exists only with real clearance below (valley, river, gorge); never over near-flat terrain at near-ground level. Both ends connect smoothly to the approach road — no floating starts, no abrupt drops. `BridgeFeasibility` → `MPBBridgeApproachFeasibility` → `MPBPathProfileFeasibility` is the only gatekeeper for bridge placement.
+- **Bridge realism.** A bridge exists only with real clearance below (valley, river, gorge); never over near-flat terrain at near-ground level. Both ends connect smoothly to the approach road — no floating starts, no abrupt drops. `BridgeFeasibility` → `BridgeApproachCheck` → `PathProfileCheck` is the only gatekeeper for bridge placement.
 - **Procedural debug visibility.** Every non-trivial decision in generation, pathfinding or painting has a debug log path gated behind a boolean in the `Debug` config category (one switch per subsystem, not one per decision). It must never log per tick or per block.
-- **Async safety.** World mutations happen only on the server thread, inside the tick budget (`MPBGenerationManager.onServerTick`); never from another thread.
-- **Chunks.** Always go through `MPBChunkManager` (force-load before touching, bounded count, per-edge lifecycle, unload pressure); never load chunks directly.
-- **Never paint** inside `MPBProtectedAreas` (building footprints) or over existing Millénaire path blocks.
+- **Async safety.** World mutations happen only on the server thread, inside the tick budget (`GenerationManager.onServerTick`); never from another thread.
+- **Chunks.** Always go through `chunk/ChunkManager` (force-load before touching, bounded count, per-edge lifecycle, unload pressure); never load chunks directly.
+- **Never paint** inside `terrain/ProtectedAreas` (building footprints) or over existing Millénaire path blocks.
 - **Bridge moves are part of A\*** — the pathfinder emits bridge nodes that `RoadPainter` later materialises; do not add a post-pass that invents bridges.
-- **Millénaire is optional.** Nothing outside `integration/`, `gen/mill/` and `mixin/` may require it at class-load time; use `MillPresence`. The late mixin loader queues the mixins only when Millénaire is present; detect it with `getResource()`, never `Class.forName()` (it triggers `MixinTargetAlreadyLoadedException`).
+- **Millénaire is optional.** Nothing outside `mill/` and `mixin/` may require it at class-load time; use `MillPresence`. The late mixin loader queues the mixins only when Millénaire is present; detect it with `getResource()`, never `Class.forName()` (it triggers `MixinTargetAlreadyLoadedException`).
 - **Mixin targets are Millénaire internals**: any change to a mixin means re-checking the target's obfuscated names.
 - **Road types** (`RoadType`: village main vs lone trail) change A* costs, width and earthworks; any new road behaviour must say which types it applies to.
 
