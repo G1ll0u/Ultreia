@@ -3,7 +3,7 @@ package com.jubitus.ultreia.terrain;
 import com.jubitus.ultreia.gen.MPBChunkManager;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
-import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
+import com.jubitus.ultreia.roads.RoadIndex;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.block.Block;
@@ -125,7 +125,7 @@ public class TerrainSampler {
     private ProtectedAreas protectedAreas;
 
     private MPBChunkManager chunkManager;
-    private MPBRoadIndexData roadIndex;
+    private RoadIndex roadIndex;
 
     private final Long2IntOpenHashMap roadDistCache = new Long2IntOpenHashMap();
     {
@@ -149,7 +149,7 @@ public class TerrainSampler {
         this.chunkManager = mgr;
     }
 
-    public void setRoadIndex(MPBRoadIndexData idx) {
+    public void setRoadIndex(RoadIndex idx) {
         this.roadIndex = idx;
         roadDistCache.clear();
     }

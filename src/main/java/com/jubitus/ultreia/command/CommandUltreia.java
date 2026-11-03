@@ -9,9 +9,9 @@ import com.jubitus.jubiconfig.network.MsgOpenConfigGui;
 import com.jubitus.ultreia.gen.*;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.ultreia.gen.util.MPBPos2D;
-import com.jubitus.ultreia.gen.world.MPBRoadNetwork;
-import com.jubitus.ultreia.gen.world.RoadSegment;
-import com.jubitus.ultreia.gen.world.RoadWaypoint;
+import com.jubitus.ultreia.roads.RoadNetwork;
+import com.jubitus.ultreia.roads.RoadSegment;
+import com.jubitus.ultreia.roads.RoadWaypoint;
 import com.jubitus.ultreia.integration.MillIntegration;
 import com.jubitus.ultreia.network.MPBNetworkHandler;
 import com.jubitus.ultreia.network.PacketOpenMapGui;
@@ -164,7 +164,7 @@ public final class CommandUltreia extends CommandBase {
             }
             BlockPos ppos = player.getPosition();
             int px = ppos.getX(), pz = ppos.getZ();
-            MPBRoadNetwork network = MPBRoadNetwork.get(world);
+            RoadNetwork network = RoadNetwork.get(world);
             List<RoadSegment> nearby = network.getSegmentsNear(px, pz, guiRadius);
             List<PacketOpenMapGui.SegmentData> segData = new ArrayList<>();
             for (RoadSegment seg : nearby) {

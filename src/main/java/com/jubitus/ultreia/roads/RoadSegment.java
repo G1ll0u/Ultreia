@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.world;
+package com.jubitus.ultreia.roads;
 
 import com.jubitus.ultreia.route.RoadType;
 import net.minecraft.util.math.BlockPos;

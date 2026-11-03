@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.world;
+package com.jubitus.ultreia.roads;
 
 /** A single point in the road network with its world position and type. */
 public final class RoadWaypoint {

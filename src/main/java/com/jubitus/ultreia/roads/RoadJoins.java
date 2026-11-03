@@ -1,11 +1,10 @@
-package com.jubitus.ultreia.gen.bridge;
+package com.jubitus.ultreia.roads;
 
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
-import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.state.IBlockState;
@@ -15,14 +14,14 @@ import net.minecraft.world.WorldServer;
 import javax.annotation.Nullable;
 import java.util.List;
 
-public final class MPBRoadConnectionHelper {
+public final class RoadJoins {
 
-    private MPBRoadConnectionHelper() {}
+    private RoadJoins() {}
 
     @Nullable
     public static BlockPos resolveSnappedApproachAnchor(WorldServer world,
                                                         TerrainSampler sampler,
-                                                        @Nullable MPBRoadIndexData roadIndex,
+                                                        @Nullable RoadIndex roadIndex,
                                                         BlockPos originalAnchor,
                                                         BlockPos otherAnchor,
                                                         @Nullable BlockPos snappedRoad,
@@ -50,7 +49,7 @@ public final class MPBRoadConnectionHelper {
     @Nullable
     private static BlockPos findNaturalApproachNearRoad(WorldServer world,
                                                         TerrainSampler sampler,
-                                                        MPBRoadIndexData roadIndex,
+                                                        RoadIndex roadIndex,
                                                         BlockPos sourceAnchor,
                                                         BlockPos otherAnchor,
                                                         BlockPos roadPos,
@@ -122,7 +121,7 @@ public final class MPBRoadConnectionHelper {
 
     public static boolean canMergeCleanlyToRoad(WorldServer world,
                                                 TerrainSampler sampler,
-                                                @Nullable MPBRoadIndexData roadIndex,
+                                                @Nullable RoadIndex roadIndex,
                                                 int pathX,
                                                 int pathY,
                                                 int pathZ,

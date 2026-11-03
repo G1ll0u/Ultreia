@@ -11,8 +11,8 @@ import com.jubitus.ultreia.route.PathResult;
 import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.ultreia.gen.util.MPBPos2D;
-import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
-import com.jubitus.ultreia.gen.world.MPBRoadNetwork;
+import com.jubitus.ultreia.roads.RoadIndex;
+import com.jubitus.ultreia.roads.RoadNetwork;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.math.BlockPos;
@@ -35,8 +35,8 @@ public final class ManualPathJob implements TickedJob {
     private final MPBChunkManager chunkManager;
     private final TerrainSampler sampler;
     private final ProtectedAreas protectedAreas;
-    private final MPBRoadIndexData roadIndex;
-    private final MPBRoadNetwork roadNetwork;
+    private final RoadIndex roadIndex;
+    private final RoadNetwork roadNetwork;
     private final AStarPathfinder astar = new AStarPathfinder();
 
     private BlockPos resolvedStart;
@@ -63,10 +63,10 @@ public final class ManualPathJob implements TickedJob {
         this.sampler = new TerrainSampler(world);
         this.sampler.setChunkManager(chunkManager);
 
-        this.roadIndex = MPBRoadIndexData.get(world);
+        this.roadIndex = RoadIndex.get(world);
         this.roadIndex.attachChunkManager(this.chunkManager);
         this.sampler.setRoadIndex(this.roadIndex);
-        this.roadNetwork = MPBRoadNetwork.get(world);
+        this.roadNetwork = RoadNetwork.get(world);
 
         this.protectedAreas = VillageNetworkJob.buildProtectedAreas(world, sampler);
         this.sampler.setProtectedAreas(this.protectedAreas);

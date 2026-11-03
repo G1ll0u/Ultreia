@@ -11,10 +11,10 @@ import com.jubitus.ultreia.gen.bridge.*;
 import com.jubitus.ultreia.bridge.BridgeApproachCheck;
 import com.jubitus.ultreia.paint.RoadHeightSolver;
 import com.jubitus.ultreia.gen.util.MPBPos2D;
-import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
-import com.jubitus.ultreia.gen.world.MPBRoadNetwork;
-import com.jubitus.ultreia.gen.world.RoadSegment;
-import com.jubitus.ultreia.gen.world.RoadWaypoint;
+import com.jubitus.ultreia.roads.RoadIndex;
+import com.jubitus.ultreia.roads.RoadNetwork;
+import com.jubitus.ultreia.roads.RoadSegment;
+import com.jubitus.ultreia.roads.RoadWaypoint;
 import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -58,14 +58,14 @@ public final class AStarPathfinder {
         final double turnCost;
         final BridgeSpan span;
         /** Set only for a move that enters an already-built bridge via {@code buildExistingBridgeMoves}. */
-        @javax.annotation.Nullable final MPBRoadNetwork.BridgeCrossing reusedCrossing;
+        @javax.annotation.Nullable final RoadNetwork.BridgeCrossing reusedCrossing;
 
         BridgeMove(int nx, int nz, int ndir, double cost, double turnCost, BridgeSpan span) {
             this(nx, nz, ndir, cost, turnCost, span, null);
         }
 
         BridgeMove(int nx, int nz, int ndir, double cost, double turnCost, BridgeSpan span,
-                   @javax.annotation.Nullable MPBRoadNetwork.BridgeCrossing reusedCrossing) {
+                   @javax.annotation.Nullable RoadNetwork.BridgeCrossing reusedCrossing) {
             this.nx = nx;
             this.nz = nz;
             this.ndir = ndir;
@@ -87,7 +87,7 @@ public final class AStarPathfinder {
         private final int configStep;
         private int gx, gz;
 
-        @javax.annotation.Nullable private MPBRoadNetwork roadNetwork;
+        @javax.annotation.Nullable private RoadNetwork roadNetwork;
         private RoadType roadType = RoadType.VILLAGE_MAIN;
 
         // Multi-gate support: when set, A* can terminate at any gate in this field.
@@ -96,7 +96,7 @@ public final class AStarPathfinder {
 
         // Road-snap: for LONE_TRAIL, terminate A* as soon as we are within snapRadius of any
         // existing road block (that we didn't place ourselves).
-        @javax.annotation.Nullable private MPBRoadIndexData snapRoadIndex = null;
+        @javax.annotation.Nullable private RoadIndex snapRoadIndex = null;
         private int snapRadius = 0;
         private double snapMinDistSq = 0;
 
@@ -105,7 +105,7 @@ public final class AStarPathfinder {
         private final Long2ObjectOpenHashMap<BridgeSpan> cameBridge = new Long2ObjectOpenHashMap<>();
         // Separate from cameBridge because a reused-bridge move stores span=null (nothing new to build),
         // which is indistinguishable from "no bridge at all" in a Long2ObjectOpenHashMap lookup.
-        private final Long2ObjectOpenHashMap<MPBRoadNetwork.BridgeCrossing> cameReusedBridge = new Long2ObjectOpenHashMap<>();
+        private final Long2ObjectOpenHashMap<RoadNetwork.BridgeCrossing> cameReusedBridge = new Long2ObjectOpenHashMap<>();
         private final Long2IntOpenHashMap distSinceBridge = new Long2IntOpenHashMap();
 
         private final PriorityQueue<Node> open = new PriorityQueue<>(new Comparator<Node>() {
@@ -327,7 +327,7 @@ public final class AStarPathfinder {
             open.add(new Node(sx, sz, DIR_NONE, h0));
         }
 
-        public void setRoadNetwork(@javax.annotation.Nullable MPBRoadNetwork network) {
+        public void setRoadNetwork(@javax.annotation.Nullable RoadNetwork network) {
             this.roadNetwork = network;
         }
 
@@ -349,7 +349,7 @@ public final class AStarPathfinder {
          * of any road in {@code index}. Only activates after leaving a minimum distance from the start.
          * Intended for LONE_TRAIL routes that should graft onto the nearest existing road.
          */
-        public void setSnapToRoad(@javax.annotation.Nullable MPBRoadIndexData index, int radius) {
+        public void setSnapToRoad(@javax.annotation.Nullable RoadIndex index, int radius) {
             this.snapRoadIndex = index;
             this.snapRadius = Math.max(1, radius);
             // Don't snap within the first ~6 A* steps to avoid immediate self-termination.
@@ -699,7 +699,7 @@ public final class AStarPathfinder {
             final double bridgeMagnetismBonus = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeEndpointMagnetismBonus);
             boolean bridgeMagnetismActive = MPBConfig.BRIDGE_AWARE_PATHFINDING.enabled
                     && roadNetwork != null && bridgeReuseRadius > 0 && bridgeMagnetismBonus > 0.0;
-            List<MPBRoadNetwork.BridgeCrossing> nearbyCrossings = null;
+            List<RoadNetwork.BridgeCrossing> nearbyCrossings = null;
             double curDistToCrossingStart = Double.POSITIVE_INFINITY;
             if (bridgeMagnetismActive) {
                 nearbyCrossings = roadNetwork.getBridgeCrossingsNear(cur.x, cur.z, bridgeReuseRadius);
@@ -1050,7 +1050,7 @@ public final class AStarPathfinder {
         }
 
         /**
-         * Build cheap bridge moves that route through existing bridge crossings from MPBRoadNetwork.
+         * Build cheap bridge moves that route through existing bridge crossings from RoadNetwork.
          * A* will prefer these over building a new parallel bridge.
          *
          * The transition onto an existing bridge is only offered once the current A* node has actually,
@@ -1065,7 +1065,7 @@ public final class AStarPathfinder {
             int reuseRadius = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeReuseSearchRadius);
             if (reuseRadius <= 0) return Collections.<BridgeMove>emptyList();
 
-            List<MPBRoadNetwork.BridgeCrossing> crossings = roadNetwork.getBridgeCrossingsNear(cur.x, cur.z, reuseRadius);
+            List<RoadNetwork.BridgeCrossing> crossings = roadNetwork.getBridgeCrossingsNear(cur.x, cur.z, reuseRadius);
             if (crossings.isEmpty()) return Collections.<BridgeMove>emptyList();
 
             double bonus = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeReuseBonus);
@@ -1077,7 +1077,7 @@ public final class AStarPathfinder {
             double snapTolSq = snapTol * snapTol;
             List<BridgeMove> out = new ArrayList<>();
 
-            for (MPBRoadNetwork.BridgeCrossing crossing : crossings) {
+            for (RoadNetwork.BridgeCrossing crossing : crossings) {
                 double distToStartSq = distSq(cur.x, cur.z, crossing.startX, crossing.startZ);
                 if (distToStartSq > snapTolSq) {
                     if (debug) {
@@ -1698,7 +1698,7 @@ public final class AStarPathfinder {
                 int cx = stateX(curK);
                 int cz = stateZ(curK);
 
-                MPBRoadNetwork.BridgeCrossing reused = cameReusedBridge.get(curK);
+                RoadNetwork.BridgeCrossing reused = cameReusedBridge.get(curK);
                 if (reused != null) {
                     appendReusedBridgeWaypoints(out, reused);
                     continue;
@@ -1763,7 +1763,7 @@ public final class AStarPathfinder {
          * isBridgeVolumeXZ checks already skip painting, earthworks and tree-clearing on them since they
          * were marked in the persistent index when the bridge was first built.
          */
-        private void appendReusedBridgeWaypoints(ArrayList<BlockPos> out, MPBRoadNetwork.BridgeCrossing crossing) {
+        private void appendReusedBridgeWaypoints(ArrayList<BlockPos> out, RoadNetwork.BridgeCrossing crossing) {
             if (roadNetwork == null) return;
             RoadSegment seg = roadNetwork.getSegment(crossing.segmentId);
             if (seg == null || seg.waypoints.isEmpty()) return;
@@ -2238,9 +2238,9 @@ public final class AStarPathfinder {
             }
         }
 
-        private static double nearestCrossingStartDist(int x, int z, List<MPBRoadNetwork.BridgeCrossing> crossings) {
+        private static double nearestCrossingStartDist(int x, int z, List<RoadNetwork.BridgeCrossing> crossings) {
             double best = Double.POSITIVE_INFINITY;
-            for (MPBRoadNetwork.BridgeCrossing c : crossings) {
+            for (RoadNetwork.BridgeCrossing c : crossings) {
                 double d = Math.sqrt(distSq(x, z, c.startX, c.startZ));
                 if (d < best) best = d;
             }
@@ -2343,7 +2343,7 @@ public final class AStarPathfinder {
     public static String debugEndpoint(WorldServer world,
                                        TerrainSampler sampler,
                                        ProtectedAreas protectedAreas,
-                                       MPBRoadIndexData roadIndex,
+                                       RoadIndex roadIndex,
                                        BlockPos pos) {
         if (pos == null) return "endpoint=null";
 

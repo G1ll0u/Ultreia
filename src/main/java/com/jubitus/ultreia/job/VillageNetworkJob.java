@@ -17,12 +17,12 @@ import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.route.PathResult;
 import com.jubitus.ultreia.bridge.BridgeSpan;
-import com.jubitus.ultreia.gen.bridge.MPBRoadConnectionHelper;
+import com.jubitus.ultreia.roads.RoadJoins;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.ultreia.gen.mill.MillBuildingObstacles2;
 import com.jubitus.ultreia.gen.mill.MillVillageIndex;
-import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
-import com.jubitus.ultreia.gen.world.MPBRoadNetwork;
+import com.jubitus.ultreia.roads.RoadIndex;
+import com.jubitus.ultreia.roads.RoadNetwork;
 import com.jubitus.ultreia.integration.MillIntegration;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.command.ICommandSender;
@@ -72,8 +72,8 @@ public final class VillageNetworkJob implements TickedJob {
 
     private final MPBChunkManager chunkManager;
 
-    private final MPBRoadIndexData roadIndex;
-    private final MPBRoadNetwork roadNetwork;
+    private final RoadIndex roadIndex;
+    private final RoadNetwork roadNetwork;
 
     // Fresh-start constructor
     public VillageNetworkJob(WorldServer world, ICommandSender sender, boolean force, boolean dryRun) {
@@ -92,10 +92,10 @@ public final class VillageNetworkJob implements TickedJob {
         this.saved = NetworkPlanData.get(world);
         this.checkpoint = JobCheckpoint.get(world);
 
-        this.roadIndex = MPBRoadIndexData.get(world);
+        this.roadIndex = RoadIndex.get(world);
         this.roadIndex.attachChunkManager(this.chunkManager);
         this.sampler.setRoadIndex(this.roadIndex);
-        this.roadNetwork = MPBRoadNetwork.get(world);
+        this.roadNetwork = RoadNetwork.get(world);
 
         this.protectedAreas = buildProtectedAreas(world, sampler);
         this.sampler.setProtectedAreas(this.protectedAreas);
@@ -139,10 +139,10 @@ public final class VillageNetworkJob implements TickedJob {
         this.saved = NetworkPlanData.get(world);
         this.checkpoint = cp;
 
-        this.roadIndex = MPBRoadIndexData.get(world);
+        this.roadIndex = RoadIndex.get(world);
         this.roadIndex.attachChunkManager(this.chunkManager);
         this.sampler.setRoadIndex(this.roadIndex);
-        this.roadNetwork = MPBRoadNetwork.get(world);
+        this.roadNetwork = RoadNetwork.get(world);
 
         this.protectedAreas = buildProtectedAreas(world, sampler);
         this.sampler.setProtectedAreas(this.protectedAreas);
@@ -255,14 +255,14 @@ public final class VillageNetworkJob implements TickedJob {
 
 // Lone building rule: if a lone endpoint is near an existing road, build a short spur to it.
                 if (aIsLone && nearA != null && (protectedAreas == null || !protectedAreas.contains(nearA.getX(), nearA.getZ()))) {
-                    BlockPos spurGoal = MPBRoadConnectionHelper.resolveSnappedApproachAnchor(
+                    BlockPos spurGoal = RoadJoins.resolveSnappedApproachAnchor(
                             world, sampler, roadIndex, a0, e.b, nearA, protectedAreas
                     );
                     if (spurGoal != null) {
                         b0 = spurGoal;
                     }
                 } else if (bIsLone && nearB != null && (protectedAreas == null || !protectedAreas.contains(nearB.getX(), nearB.getZ()))) {
-                    BlockPos spurGoal = MPBRoadConnectionHelper.resolveSnappedApproachAnchor(
+                    BlockPos spurGoal = RoadJoins.resolveSnappedApproachAnchor(
                             world, sampler, roadIndex, b0, e.a, nearB, protectedAreas
                     );
                     if (spurGoal != null) {

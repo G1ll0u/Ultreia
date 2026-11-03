@@ -3,7 +3,7 @@ package com.jubitus.ultreia.player;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
-import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
+import com.jubitus.ultreia.roads.RoadIndex;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.SharedMonsterAttributes;
@@ -49,7 +49,7 @@ public final class MPBSpeedBoostHandler {
 
         for (WorldServer world : DimensionManager.getWorlds()) {
             if (world == null) continue;
-            MPBRoadIndexData roadIndex = MPBRoadIndexData.get(world);
+            RoadIndex roadIndex = RoadIndex.get(world);
             List<?> players = new ArrayList<>(world.playerEntities);
             for (Object obj : players) {
                 if (obj instanceof EntityPlayerMP) {
@@ -71,7 +71,7 @@ public final class MPBSpeedBoostHandler {
         if (state != null) removeModifier(currentTarget(state));
     }
 
-    private void tickPlayer(EntityPlayerMP player, WorldServer world, MPBRoadIndexData roadIndex, MPBConfig.SpeedBoost cfg) {
+    private void tickPlayer(EntityPlayerMP player, WorldServer world, RoadIndex roadIndex, MPBConfig.SpeedBoost cfg) {
         UUID id = player.getUniqueID();
         State state = states.computeIfAbsent(id, k -> new State());
 
@@ -115,7 +115,7 @@ public final class MPBSpeedBoostHandler {
         }
     }
 
-    private boolean detectOnRoad(EntityLivingBase target, WorldServer world, MPBRoadIndexData roadIndex,
+    private boolean detectOnRoad(EntityLivingBase target, WorldServer world, RoadIndex roadIndex,
                                   int radius) {
         int px = (int) Math.floor(target.posX);
         int py = (int) Math.floor(target.posY);

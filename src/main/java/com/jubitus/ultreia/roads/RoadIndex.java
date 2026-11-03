@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.world;
+package com.jubitus.ultreia.roads;
 
 import com.jubitus.ultreia.MillPresence;
 import com.jubitus.ultreia.block.MPBBlocks;
@@ -21,7 +21,7 @@ import net.minecraft.world.storage.WorldSavedData;
 
 import javax.annotation.Nullable;
 
-public class MPBRoadIndexData extends WorldSavedData {
+public class RoadIndex extends WorldSavedData {
 
     private static final String NAME = "ultreia_roadindex";
     private static final int WORDS = 4; // 4 * 64 = 256 bits per chunk
@@ -39,19 +39,19 @@ public class MPBRoadIndexData extends WorldSavedData {
     private transient final LongOpenHashSet scannedChunks = new LongOpenHashSet();
     private transient MPBChunkManager chunkManager;
 
-    public MPBRoadIndexData() {
+    public RoadIndex() {
         super(NAME);
     }
 
-    public MPBRoadIndexData(String name) {
+    public RoadIndex(String name) {
         super(name);
     }
 
-    public static MPBRoadIndexData get(WorldServer world) {
+    public static RoadIndex get(WorldServer world) {
         MapStorage storage = world.getPerWorldStorage();
-        MPBRoadIndexData data = (MPBRoadIndexData) storage.getOrLoadData(MPBRoadIndexData.class, NAME);
+        RoadIndex data = (RoadIndex) storage.getOrLoadData(RoadIndex.class, NAME);
         if (data == null) {
-            data = new MPBRoadIndexData();
+            data = new RoadIndex();
             storage.setData(NAME, data);
         }
         return data;

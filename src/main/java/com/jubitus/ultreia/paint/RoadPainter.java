@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.paint;
 
+import com.jubitus.ultreia.roads.RoadJoins;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.terrain.GroundRules;
@@ -13,9 +14,9 @@ import com.jubitus.ultreia.bridge.template.BridgeBuildService;
 import com.jubitus.ultreia.bridge.template.BridgeTemplate;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
-import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
-import com.jubitus.ultreia.gen.world.MPBRoadNetwork;
-import com.jubitus.ultreia.gen.world.RoadSegment;
+import com.jubitus.ultreia.roads.RoadIndex;
+import com.jubitus.ultreia.roads.RoadNetwork;
+import com.jubitus.ultreia.roads.RoadSegment;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
@@ -95,9 +96,9 @@ public final class RoadPainter {
         private final it.unimi.dsi.fastutil.longs.LongOpenHashSet core = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
         private final it.unimi.dsi.fastutil.longs.LongOpenHashSet painted = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
 
-        private final MPBRoadIndexData roadIndex;
+        private final RoadIndex roadIndex;
         private final it.unimi.dsi.fastutil.longs.LongOpenHashSet newlyPlaced = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
-        @javax.annotation.Nullable private MPBRoadNetwork roadNetwork;
+        @javax.annotation.Nullable private RoadNetwork roadNetwork;
         @javax.annotation.Nullable private net.minecraft.util.math.BlockPos fromVillage;
         @javax.annotation.Nullable private net.minecraft.util.math.BlockPos toVillage;
 
@@ -154,7 +155,7 @@ public final class RoadPainter {
                 List<BridgeSpan> forcedBridges,
                 TerrainSampler sampler,
                 ProtectedAreas protectedAreas,
-                MPBRoadIndexData roadIndex,
+                RoadIndex roadIndex,
                 boolean dryRun,
                 boolean allowEarlyMerge) {
             this.world = world;
@@ -333,7 +334,7 @@ public final class RoadPainter {
             return failReason;
         }
 
-        public void setRoadNetwork(@javax.annotation.Nullable MPBRoadNetwork network,
+        public void setRoadNetwork(@javax.annotation.Nullable RoadNetwork network,
                                    @javax.annotation.Nullable net.minecraft.util.math.BlockPos from,
                                    @javax.annotation.Nullable net.minecraft.util.math.BlockPos to) {
             this.roadNetwork = network;
@@ -464,7 +465,7 @@ public final class RoadPainter {
 
                 // The connector climbs at most one half-block per cell, so the height gap is capped by its length.
                 int connectorCells = Math.max(Math.abs(p.getX() - near.getX()), Math.abs(p.getZ() - near.getZ()));
-                if (!MPBRoadConnectionHelper.canMergeCleanlyToRoad(
+                if (!RoadJoins.canMergeCleanlyToRoad(
                         world, sampler, roadIndex,
                         p.getX(), p.getY(), p.getZ(),
                         near.getX(), near.getZ(),
@@ -1289,7 +1290,7 @@ public final class RoadPainter {
                     int startHalf = (centerHalf != null && mergeHitIndex < centerHalf.length)
                             ? centerHalf[mergeHitIndex]
                             : BridgeGeometry.naturalSurfaceHalfY(path.get(mergeHitIndex).getY());
-                    Integer roadHalfVal = MPBRoadConnectionHelper.findRoadSurfaceHalfY(
+                    Integer roadHalfVal = RoadJoins.findRoadSurfaceHalfY(
                             world, sampler, mergeTargetX, mergeTargetZ);
                     int endHalf = roadHalfVal != null ? roadHalfVal : startHalf;
 
@@ -2056,7 +2057,7 @@ public final class RoadPainter {
             return targetHalf;
         }
 
-        private void markBridgeVolumeInIndex(BridgeSpan span, MPBRoadIndexData idx) {
+        private void markBridgeVolumeInIndex(BridgeSpan span, RoadIndex idx) {
             // Only mark volume for water-crossing bridges. Valley bridges are high enough
             // above the valley floor that ground-level paths cannot interact with them.
             if (!span.hasWaterCrossing) return;
@@ -2189,7 +2190,7 @@ public final class RoadPainter {
                                 List<BridgeSpan> forcedBridges,
                                 TerrainSampler sampler,
                                 ProtectedAreas protectedAreas,
-                                MPBRoadIndexData roadIndex,
+                                RoadIndex roadIndex,
                                 boolean dryRun,
                                 boolean allowEarlyMerge) {
         if (coarsePath == null || coarsePath.isEmpty()) {

@@ -1,20 +1,20 @@
-package com.jubitus.ultreia.gen.world;
+package com.jubitus.ultreia.roads;
 
 import javax.annotation.Nullable;
 import java.util.*;
 
 /**
- * Entity navigation over the MPBRoadNetwork.
+ * Entity navigation over the RoadNetwork.
  *
  * Provides A* routing through the stored road segment graph.
  * Intended for use by entity mods that want to navigate along MPB roads.
  *
  * Usage:
- *   MPBRoadNetwork network = MPBRoadNetwork.get(world);
- *   List<RoadWaypoint> path = MPBRoadNavigator.findRoute(network, fromX, fromZ, toX, toZ, 256);
+ *   RoadNetwork network = RoadNetwork.get(world);
+ *   List<RoadWaypoint> path = RoadNavigator.findRoute(network, fromX, fromZ, toX, toZ, 256);
  *   // Walk path waypoints in order
  */
-public final class MPBRoadNavigator {
+public final class RoadNavigator {
 
     /** Physical endpoint proximity fallback (for segments without village data). */
     private static final int JUNCTION_SNAP_RADIUS = 12;
@@ -28,7 +28,7 @@ public final class MPBRoadNavigator {
      */
     private static final int LEG_BREAK_DIST = 24;
 
-    private MPBRoadNavigator() {}
+    private RoadNavigator() {}
 
     /**
      * Find a route from near (fromX,fromZ) to near (toX,toZ) through the road network.
@@ -39,7 +39,7 @@ public final class MPBRoadNavigator {
      * @param maxSearchRadius Maximum radius to snap from/to a road segment.
      * @return Ordered list of waypoints to follow, or empty if no route found.
      */
-    public static List<RoadWaypoint> findRoute(MPBRoadNetwork network,
+    public static List<RoadWaypoint> findRoute(RoadNetwork network,
                                                int fromX, int fromZ,
                                                int toX, int toZ,
                                                int maxSearchRadius) {
@@ -57,7 +57,7 @@ public final class MPBRoadNavigator {
      * A new leg starts wherever two consecutive route parts do not physically connect — i.e. at
      * village gate crossings, where the entity must traverse the village to reach the next road.
      */
-    public static List<List<RoadWaypoint>> findRouteLegs(MPBRoadNetwork network,
+    public static List<List<RoadWaypoint>> findRouteLegs(RoadNetwork network,
                                                          int fromX, int fromZ,
                                                          int toX, int toZ,
                                                          int maxSearchRadius) {

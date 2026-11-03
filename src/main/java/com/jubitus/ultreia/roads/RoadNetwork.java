@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.world;
+package com.jubitus.ultreia.roads;
 
 import com.jubitus.ultreia.planner.LogicalEdge;
 import com.jubitus.ultreia.planner.NetworkPlanData;
@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * - Map rendering (segment polylines, bridge markers)
  * - Future entity navigation API
  */
-public final class MPBRoadNetwork extends WorldSavedData {
+public final class RoadNetwork extends WorldSavedData {
 
     private static final String NAME = "ultreia_roadnetwork";
 
@@ -71,21 +71,21 @@ public final class MPBRoadNetwork extends WorldSavedData {
 
     // Bridge deck XZ key → segment ID for fast bridge lookup
 
-    public MPBRoadNetwork() {
+    public RoadNetwork() {
         super(NAME);
     }
 
-    public MPBRoadNetwork(String name) {
+    public RoadNetwork(String name) {
         super(name);
     }
 
     // --- Static factory ---
 
-    public static MPBRoadNetwork get(WorldServer world) {
+    public static RoadNetwork get(WorldServer world) {
         MapStorage storage = world.getPerWorldStorage();
-        MPBRoadNetwork data = (MPBRoadNetwork) storage.getOrLoadData(MPBRoadNetwork.class, NAME);
+        RoadNetwork data = (RoadNetwork) storage.getOrLoadData(RoadNetwork.class, NAME);
         if (data == null) {
-            data = new MPBRoadNetwork();
+            data = new RoadNetwork();
             storage.setData(NAME, data);
         }
         if (data.legacyPending) data.inferLegacySegments(NetworkPlanData.get(world));
@@ -111,7 +111,7 @@ public final class MPBRoadNetwork extends WorldSavedData {
      * Also marks road blocks in roadIndex with their Y coordinate.
      */
     public int addRoadSegment(List<BlockPos> path,
-                              MPBRoadIndexData roadIndex,
+                              RoadIndex roadIndex,
                               @Nullable BlockPos fromVillage,
                               @Nullable BlockPos toVillage,
                               RoadType roadType,
@@ -141,7 +141,7 @@ public final class MPBRoadNetwork extends WorldSavedData {
      */
     public int addBridgeSegment(BridgeSpan span,
                                 int[] deckHalfY,
-                                MPBRoadIndexData roadIndex,
+                                RoadIndex roadIndex,
                                 @Nullable BlockPos fromVillage,
                                 @Nullable BlockPos toVillage,
                                 RoadType roadType) {
@@ -252,7 +252,7 @@ public final class MPBRoadNetwork extends WorldSavedData {
      * other are considered connected.
      */
     public List<RoadWaypoint> findRoute(int fromX, int fromZ, int toX, int toZ, int maxSearchRadius) {
-        return MPBRoadNavigator.findRoute(this, fromX, fromZ, toX, toZ, maxSearchRadius);
+        return RoadNavigator.findRoute(this, fromX, fromZ, toX, toZ, maxSearchRadius);
     }
 
     /** Read-only view of all segments — for navigation and external API. */

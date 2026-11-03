@@ -1,11 +1,11 @@
 package com.jubitus.ultreia.api;
 
 import com.jubitus.ultreia.route.RoadType;
-import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
-import com.jubitus.ultreia.gen.world.MPBRoadNavigator;
-import com.jubitus.ultreia.gen.world.MPBRoadNetwork;
-import com.jubitus.ultreia.gen.world.RoadSegment;
-import com.jubitus.ultreia.gen.world.RoadWaypoint;
+import com.jubitus.ultreia.roads.RoadIndex;
+import com.jubitus.ultreia.roads.RoadNavigator;
+import com.jubitus.ultreia.roads.RoadNetwork;
+import com.jubitus.ultreia.roads.RoadSegment;
+import com.jubitus.ultreia.roads.RoadWaypoint;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
 
@@ -51,12 +51,12 @@ public final class MPBRoadAPI {
 
     /** True if this XZ column is part of an MPB road or bridge deck. */
     public static boolean isOnRoad(WorldServer world, int x, int z) {
-        return MPBRoadIndexData.get(world).isRoadXZ(x, z);
+        return RoadIndex.get(world).isRoadXZ(x, z);
     }
 
     /** True if this XZ column is a bridge deck (a subset of road). */
     public static boolean isBridge(WorldServer world, int x, int z) {
-        return MPBRoadIndexData.get(world).isBridgeXZ(x, z);
+        return RoadIndex.get(world).isBridgeXZ(x, z);
     }
 
     /**
@@ -64,7 +64,7 @@ public final class MPBRoadAPI {
      * The Y comes from the persistent road index; no world scan is performed.
      */
     public static int getRoadY(WorldServer world, int x, int z) {
-        return MPBRoadIndexData.get(world).getRoadY(x, z);
+        return RoadIndex.get(world).getRoadY(x, z);
     }
 
     // -------------------------------------------------------------------------
@@ -79,7 +79,7 @@ public final class MPBRoadAPI {
      */
     @Nullable
     public static BlockPos findNearestRoadPos(WorldServer world, int x, int z, int maxRadius) {
-        MPBRoadIndexData idx = MPBRoadIndexData.get(world);
+        RoadIndex idx = RoadIndex.get(world);
         BlockPos raw = idx.findNearestRoad(x, z, maxRadius);
         if (raw == null) return null;
         return resolveY(idx, raw.getX(), raw.getZ());
@@ -91,7 +91,7 @@ public final class MPBRoadAPI {
      */
     @Nullable
     public static BlockPos findNearestBridgePos(WorldServer world, int x, int z, int maxRadius) {
-        MPBRoadIndexData idx = MPBRoadIndexData.get(world);
+        RoadIndex idx = RoadIndex.get(world);
         return idx.findNearestBridge(x, z, maxRadius);
     }
 
@@ -133,7 +133,7 @@ public final class MPBRoadAPI {
         int projX = fromX + (int) Math.round(nx * clampedStep);
         int projZ = fromZ + (int) Math.round(nz * clampedStep);
 
-        MPBRoadIndexData idx = MPBRoadIndexData.get(world);
+        RoadIndex idx = RoadIndex.get(world);
         BlockPos raw = idx.findNearestRoad(projX, projZ, searchRadius);
         if (raw == null) return null;
 
@@ -147,7 +147,7 @@ public final class MPBRoadAPI {
      */
     @Nullable
     public static BlockPos findRoadSpawnPos(WorldServer world, int x, int z, int maxRadius) {
-        MPBRoadIndexData idx = MPBRoadIndexData.get(world);
+        RoadIndex idx = RoadIndex.get(world);
 
         // Search in expanding rings; skip bridge deck blocks for spawn preference
         for (int r = 0; r <= maxRadius; r++) {
@@ -199,7 +199,7 @@ public final class MPBRoadAPI {
                                                int fromX, int fromZ,
                                                int toX, int toZ,
                                                int maxSearchRadius) {
-        MPBRoadNetwork network = MPBRoadNetwork.get(world);
+        RoadNetwork network = RoadNetwork.get(world);
         List<RoadWaypoint> waypoints = network.findRoute(fromX, fromZ, toX, toZ, maxSearchRadius);
         if (waypoints.isEmpty()) return Collections.emptyList();
         List<BlockPos> result = new ArrayList<>(waypoints.size());
@@ -223,9 +223,9 @@ public final class MPBRoadAPI {
                                                          int fromX, int fromZ,
                                                          int toX, int toZ,
                                                          int maxSearchRadius) {
-        MPBRoadNetwork network = MPBRoadNetwork.get(world);
+        RoadNetwork network = RoadNetwork.get(world);
         List<List<RoadWaypoint>> legs =
-                MPBRoadNavigator.findRouteLegs(network, fromX, fromZ, toX, toZ, maxSearchRadius);
+                RoadNavigator.findRouteLegs(network, fromX, fromZ, toX, toZ, maxSearchRadius);
         if (legs.isEmpty()) return Collections.emptyList();
         List<List<BlockPos>> result = new ArrayList<>(legs.size());
         for (List<RoadWaypoint> leg : legs) {
@@ -242,7 +242,7 @@ public final class MPBRoadAPI {
      * Returns an empty list if no road segments have village endpoints.
      */
     public static List<BlockPos> getConnectedVillages(WorldServer world) {
-        MPBRoadNetwork network = MPBRoadNetwork.get(world);
+        RoadNetwork network = RoadNetwork.get(world);
         Set<Long> seen = new HashSet<>();
         List<BlockPos> result = new ArrayList<>();
         for (RoadSegment seg : network.allSegments()) {
@@ -266,7 +266,7 @@ public final class MPBRoadAPI {
      */
     public static List<List<BlockPos>> getRoadPolylinesInBox(WorldServer world,
                                                              int minX, int minZ, int maxX, int maxZ) {
-        MPBRoadNetwork network = MPBRoadNetwork.get(world);
+        RoadNetwork network = RoadNetwork.get(world);
         int cx = (minX + maxX) >> 1;
         int cz = (minZ + maxZ) >> 1;
         int radius = Math.max(maxX - minX, maxZ - minZ) / 2 + 16;
@@ -297,7 +297,7 @@ public final class MPBRoadAPI {
      * Never persisted; compare for inequality only. Server thread only.
      */
     public static long getRoadNetworkRevision(WorldServer world) {
-        return MPBRoadNetwork.get(world).getRevision();
+        return RoadNetwork.get(world).getRevision();
     }
 
     /**
@@ -309,7 +309,7 @@ public final class MPBRoadAPI {
      * Then the centerline waypoints in order (x, z pairs). Server thread only.
      */
     public static List<int[]> getRoadSegmentsForMap(WorldServer world) {
-        List<RoadSegment> all = MPBRoadNetwork.get(world).allSegments();
+        List<RoadSegment> all = RoadNetwork.get(world).allSegments();
         List<int[]> result = new ArrayList<>(all.size());
         for (RoadSegment seg : all) {
             if (seg == null || seg.waypoints.isEmpty()) continue;
@@ -336,7 +336,7 @@ public final class MPBRoadAPI {
      * Y comes purely from the persistent index — no world access needed.
      */
     @Nullable
-    private static BlockPos resolveY(MPBRoadIndexData idx, int x, int z) {
+    private static BlockPos resolveY(RoadIndex idx, int x, int z) {
         int y = idx.getRoadY(x, z);
         if (y < 0) return null;
         return new BlockPos(x, y, z);
