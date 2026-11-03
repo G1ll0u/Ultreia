@@ -1,17 +1,18 @@
-package com.jubitus.ultreia.gen.bridge;
+package com.jubitus.ultreia.route;
 
+import com.jubitus.ultreia.gen.bridge.BridgeSpan;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public final class BridgeAwarePathResult {
+public final class PathResult {
 
     private final List<BlockPos> path;
     private final List<BridgeSpan> bridges;
 
-    public BridgeAwarePathResult(List<BlockPos> path, List<BridgeSpan> bridges) {
+    public PathResult(List<BlockPos> path, List<BridgeSpan> bridges) {
         this.path = path == null ? Collections.<BlockPos>emptyList() : Collections.unmodifiableList(new ArrayList<>(path));
         this.bridges = bridges == null ? Collections.<BridgeSpan>emptyList() : Collections.unmodifiableList(new ArrayList<>(bridges));
     }

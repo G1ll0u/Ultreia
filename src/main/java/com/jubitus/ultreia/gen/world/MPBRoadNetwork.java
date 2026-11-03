@@ -2,7 +2,7 @@ package com.jubitus.ultreia.gen.world;
 
 import com.jubitus.ultreia.planner.LogicalEdge;
 import com.jubitus.ultreia.planner.NetworkPlanData;
-import com.jubitus.ultreia.gen.RoadType;
+import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.gen.bridge.BridgeGeometry;
 import com.jubitus.ultreia.gen.bridge.BridgeSpan;
 import it.unimi.dsi.fastutil.ints.IntArrayList;

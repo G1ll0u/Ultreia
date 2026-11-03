@@ -1,10 +1,11 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.route;
 
+import com.jubitus.ultreia.gen.MPBProtectedAreas;
+import com.jubitus.ultreia.gen.TerrainSampler;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.bridge.*;
 import com.jubitus.ultreia.gen.newp.MPBBridgeApproachFeasibility;
-import com.jubitus.ultreia.gen.newp.MPBPathProfileFeasibility;
 import com.jubitus.ultreia.gen.newp.MPBRoadHalfConstraintSolver;
 import com.jubitus.ultreia.gen.util.MPBPos2D;
 import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
@@ -131,7 +132,7 @@ public final class AStarPathfinder {
         private final ArrayList<Integer> bridgePathStartIndices = new ArrayList<>();
         private int recGuard = 0;
 
-        private BridgeAwarePathResult result = new BridgeAwarePathResult(Collections.<BlockPos>emptyList(), Collections.<BridgeSpan>emptyList());
+        private PathResult result = new PathResult(Collections.<BlockPos>emptyList(), Collections.<BridgeSpan>emptyList());
 
         private int skipOcean = 0, skipBlacklist = 0, skipBlocked = 0, skipSlope = 0, skipBridge = 0;
 
@@ -510,14 +511,14 @@ public final class AStarPathfinder {
                     buildResultFromReconstruction();
 
                     if (!failed) {
-                        BridgeAwarePathResult rr = result;
+                        PathResult rr = result;
                         if (rr == null || rr.getPath() == null || rr.getPath().isEmpty()) {
                             failed = true;
                             failReason = "reconstruction produced empty path";
                             return StepResult.FAILED;
                         }
 
-                        boolean fullProfileOk = MPBPathProfileFeasibility.isFullPathFeasible(
+                        boolean fullProfileOk = PathProfileCheck.isFullPathFeasible(
                                 rr.getPath(),
                                 rr.getBridges(),
                                 sampler,
@@ -537,7 +538,7 @@ public final class AStarPathfinder {
                             revStates.clear();
 
                             closed.add(badState);
-                            result = new BridgeAwarePathResult(
+                            result = new PathResult(
                                     Collections.<BlockPos>emptyList(),
                                     Collections.<BridgeSpan>emptyList()
                             );
@@ -1679,7 +1680,7 @@ public final class AStarPathfinder {
             bridgePathStartIndices.clear();
 
             if (revStates.isEmpty()) {
-                result = new BridgeAwarePathResult(Collections.<BlockPos>emptyList(), Collections.<BridgeSpan>emptyList());
+                result = new PathResult(Collections.<BlockPos>emptyList(), Collections.<BridgeSpan>emptyList());
                 return;
             }
 
@@ -1737,7 +1738,7 @@ public final class AStarPathfinder {
                         if (manhattan > 2048L) {
                             failed = true;
                             failReason = "reconstructed path contains absurd jump: (" + prev.getX() + "," + prev.getZ() + ") -> (" + cx + "," + cz + ")";
-                            result = new BridgeAwarePathResult(Collections.<BlockPos>emptyList(), Collections.<BridgeSpan>emptyList());
+                            result = new PathResult(Collections.<BlockPos>emptyList(), Collections.<BridgeSpan>emptyList());
                             return;
                         }
                     }
@@ -1748,7 +1749,7 @@ public final class AStarPathfinder {
                 }
             }
 
-            result = new BridgeAwarePathResult(out, spans);
+            result = new PathResult(out, spans);
         }
 
         /**
@@ -1854,7 +1855,7 @@ public final class AStarPathfinder {
             return free;
         }
 
-        public BridgeAwarePathResult getResult() {
+        public PathResult getResult() {
             return result;
         }
 

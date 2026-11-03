@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.api;
 
-import com.jubitus.ultreia.gen.RoadType;
+import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
 import com.jubitus.ultreia.gen.world.MPBRoadNavigator;
 import com.jubitus.ultreia.gen.world.MPBRoadNetwork;

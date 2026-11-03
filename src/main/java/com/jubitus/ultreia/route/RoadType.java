@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.route;
 
 import com.jubitus.ultreia.config.MPBConfig;
 

@@ -1,5 +1,7 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.route;
 
+import com.jubitus.ultreia.gen.MPBProtectedAreas;
+import com.jubitus.ultreia.gen.TerrainSampler;
 import com.jubitus.ultreia.job.VillageNetworkJob;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
@@ -13,9 +15,9 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class MPBEndpointResolver {
+public final class EndpointResolver {
 
-    private MPBEndpointResolver() {}
+    private EndpointResolver() {}
 
     /**
      * Resolves the best approach point to connect a village or lone building.

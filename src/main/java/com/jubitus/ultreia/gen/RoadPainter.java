@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.gen;
 
+import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.bridge.*;

@@ -1,21 +1,21 @@
 package com.jubitus.ultreia.job;
 
-import com.jubitus.ultreia.gen.AStarPathfinder;
+import com.jubitus.ultreia.route.AStarPathfinder;
 import com.jubitus.ultreia.gen.MPBChunkManager;
-import com.jubitus.ultreia.gen.MPBEndpointResolver;
+import com.jubitus.ultreia.route.EndpointResolver;
 import com.jubitus.ultreia.gen.MPBProtectedAreas;
 import com.jubitus.ultreia.planner.NetworkPlanData;
 import com.jubitus.ultreia.planner.NetworkPlanner;
 import com.jubitus.ultreia.gen.RoadPainter;
-import com.jubitus.ultreia.gen.RoadType;
+import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.gen.TerrainSampler;
-import com.jubitus.ultreia.gen.VillageGateField;
-import com.jubitus.ultreia.gen.VillageGateTracker;
+import com.jubitus.ultreia.route.VillageGateField;
+import com.jubitus.ultreia.route.VillageGateTracker;
 import com.jubitus.ultreia.MillPresence;
 
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.bridge.BridgeAwarePathResult;
+import com.jubitus.ultreia.route.PathResult;
 import com.jubitus.ultreia.gen.bridge.BridgeSpan;
 import com.jubitus.ultreia.gen.bridge.MPBRoadConnectionHelper;
 import com.jubitus.ultreia.gen.bridge.template.BridgeTemplateRegistry;
@@ -228,12 +228,12 @@ public final class VillageNetworkJob implements TickedJob {
                 VillageGateField[] gateFieldA = new VillageGateField[1];
                 VillageGateField[] gateFieldB = new VillageGateField[1];
 
-                BlockPos a0 = MPBEndpointResolver.resolveEndpointAnchor(
+                BlockPos a0 = EndpointResolver.resolveEndpointAnchor(
                         world, e.a, e.b, sampler, protectedAreas,
                         aIsVillage ? gateTracker : null,
                         aIsVillage ? gateFieldA : null);
 
-                BlockPos b0 = MPBEndpointResolver.resolveEndpointAnchor(
+                BlockPos b0 = EndpointResolver.resolveEndpointAnchor(
                         world, e.b, e.a, sampler, protectedAreas,
                         bIsVillage ? gateTracker : null,
                         bIsVillage ? gateFieldB : null);
@@ -270,7 +270,7 @@ public final class VillageNetworkJob implements TickedJob {
                     }
                 }
                 // Village endpoints are already resolved to their Millénaire path entry by
-                // MPBEndpointResolver — no further road-snapping needed here.
+                // EndpointResolver — no further road-snapping needed here.
 
                 if (a0.getX() == b0.getX() && a0.getZ() == b0.getZ()) {
                     if (!dryRun) saved.markBuilt(curEdge.key());
@@ -314,7 +314,7 @@ public final class VillageNetworkJob implements TickedJob {
                     return;
                 }
                 if (sr == AStarPathfinder.StepResult.FOUND || sr == AStarPathfinder.StepResult.PARTIAL) {
-                    BridgeAwarePathResult pathResult = curSession.getResult();
+                    PathResult pathResult = curSession.getResult();
                     List<BlockPos> coarse = pathResult.getPath();
                     List<BridgeSpan> bridges = pathResult.getBridges();
 
@@ -435,7 +435,7 @@ public final class VillageNetworkJob implements TickedJob {
         return "Ultreïa: generation completed.";
     }
 
-    // Made public for MPBEndpointResolver
+    // Made public for EndpointResolver
     public static BlockPos findAnchor(WorldServer world, BlockPos raw, TerrainSampler sampler, int maxR) {
         int cx = raw.getX();
         int cz = raw.getZ();

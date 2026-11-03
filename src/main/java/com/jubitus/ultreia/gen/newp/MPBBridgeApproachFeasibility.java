@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.gen.newp;
 
-import com.jubitus.ultreia.gen.RoadType;
+import com.jubitus.ultreia.route.RoadType;
 
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.TerrainSampler;

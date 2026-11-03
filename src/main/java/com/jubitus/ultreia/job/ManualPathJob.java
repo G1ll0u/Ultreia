@@ -1,13 +1,13 @@
 package com.jubitus.ultreia.job;
 
-import com.jubitus.ultreia.gen.AStarPathfinder;
+import com.jubitus.ultreia.route.AStarPathfinder;
 import com.jubitus.ultreia.gen.MPBChunkManager;
 import com.jubitus.ultreia.gen.MPBProtectedAreas;
 import com.jubitus.ultreia.gen.RoadPainter;
-import com.jubitus.ultreia.gen.RoadType;
+import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.gen.TerrainSampler;
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.bridge.BridgeAwarePathResult;
+import com.jubitus.ultreia.route.PathResult;
 import com.jubitus.ultreia.gen.bridge.BridgeSpan;
 import com.jubitus.ultreia.gen.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.ultreia.gen.util.MPBPos2D;
@@ -147,7 +147,7 @@ public final class ManualPathJob implements TickedJob {
                 }
 
                 if (sr == AStarPathfinder.StepResult.FOUND || sr == AStarPathfinder.StepResult.PARTIAL) {
-                    BridgeAwarePathResult pathResult = curSession.getResult();
+                    PathResult pathResult = curSession.getResult();
                     List<BlockPos> coarse = pathResult.getPath();
                     List<BridgeSpan> bridges = pathResult.getBridges();
 

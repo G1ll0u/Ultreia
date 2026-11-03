@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.gen.world;
 
-import com.jubitus.ultreia.gen.RoadType;
+import com.jubitus.ultreia.route.RoadType;
 import net.minecraft.util.math.BlockPos;
 
 import javax.annotation.Nullable;

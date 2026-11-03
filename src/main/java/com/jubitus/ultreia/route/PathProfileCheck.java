@@ -1,6 +1,6 @@
-package com.jubitus.ultreia.gen.newp;
+package com.jubitus.ultreia.route;
 
-import com.jubitus.ultreia.gen.RoadType;
+import com.jubitus.ultreia.gen.newp.MPBRoadHalfProfile;
 
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.TerrainSampler;
@@ -13,9 +13,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public final class MPBPathProfileFeasibility {
+public final class PathProfileCheck {
 
-    private MPBPathProfileFeasibility() {}
+    private PathProfileCheck() {}
 
     public static boolean isFullPathFeasible(List<BlockPos> coarsePath,
                                              List<BridgeSpan> bridges,

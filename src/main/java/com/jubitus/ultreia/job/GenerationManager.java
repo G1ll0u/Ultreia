@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.job;
 
-import com.jubitus.ultreia.gen.RoadType;
+import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import net.minecraft.command.ICommandSender;
