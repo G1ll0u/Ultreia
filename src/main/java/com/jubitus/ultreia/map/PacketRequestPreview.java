@@ -1,5 +1,6 @@
-package com.jubitus.ultreia.network;
+package com.jubitus.ultreia.map;
 
+import com.jubitus.ultreia.network.MPBNetworkHandler;
 import com.jubitus.ultreia.planner.NetworkPlanner;
 import com.jubitus.ultreia.planner.VillageClassifier;
 import com.jubitus.ultreia.mill.MillVillageIndex;

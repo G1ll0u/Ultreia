@@ -13,7 +13,7 @@ import com.jubitus.ultreia.roads.RoadSegment;
 import com.jubitus.ultreia.roads.RoadWaypoint;
 import com.jubitus.ultreia.mill.MillWorldDataRegistry;
 import com.jubitus.ultreia.network.MPBNetworkHandler;
-import com.jubitus.ultreia.network.PacketOpenMapGui;
+import com.jubitus.ultreia.map.PacketOpenMapGui;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
 import net.minecraft.command.ICommandSender;

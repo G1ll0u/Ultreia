@@ -1,9 +1,6 @@
-package com.jubitus.ultreia.gui;
+package com.jubitus.ultreia.map;
 
 import com.jubitus.ultreia.network.MPBNetworkHandler;
-import com.jubitus.ultreia.network.PacketNetworkPreview;
-import com.jubitus.ultreia.network.PacketOpenMapGui;
-import com.jubitus.ultreia.network.PacketRequestPreview;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.ScaledResolution;
@@ -27,7 +24,7 @@ import java.util.List;
 import java.util.Set;
 
 @SideOnly(Side.CLIENT)
-public final class GuiMPBMap extends GuiScreen {
+public final class MapScreen extends GuiScreen {
 
     private static final int PANEL_H  = 38;
     private static final float ZOOM_MIN = 0.003f;
@@ -77,7 +74,7 @@ public final class GuiMPBMap extends GuiScreen {
     private List<PacketNetworkPreview.EdgeData> previewEdges = null;
     private boolean previewPending = false;
 
-    public GuiMPBMap(int centerX, int centerZ, int radius,
+    public MapScreen(int centerX, int centerZ, int radius,
                      List<PacketOpenMapGui.SegmentData> segments) {
         this.centerX = centerX;
         this.centerZ = centerZ;

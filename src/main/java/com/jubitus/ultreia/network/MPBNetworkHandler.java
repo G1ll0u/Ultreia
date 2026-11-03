@@ -1,5 +1,8 @@
 package com.jubitus.ultreia.network;
 
+import com.jubitus.ultreia.map.PacketNetworkPreview;
+import com.jubitus.ultreia.map.PacketOpenMapGui;
+import com.jubitus.ultreia.map.PacketRequestPreview;
 import com.jubitus.jubiconfig.network.MsgOpenConfigGui;
 import com.jubitus.jubiconfig.network.MsgSaveConfigGui;
 import com.jubitus.ultreia.Tags;

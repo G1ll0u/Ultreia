@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.network;
+package com.jubitus.ultreia.map;
 
 import io.netty.buffer.ByteBuf;
 import net.minecraftforge.fml.common.network.ByteBufUtils;
