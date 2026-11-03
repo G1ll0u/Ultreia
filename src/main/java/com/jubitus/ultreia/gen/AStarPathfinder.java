@@ -50,20 +50,23 @@ public final class AStarPathfinder {
         final int nz;
         final int ndir;
         final double cost;
+        /** Kept apart from {@code cost}: the lone-trail bridge multiplier must not scale it. */
+        final double turnCost;
         final BridgeSpan span;
         /** Set only for a move that enters an already-built bridge via {@code buildExistingBridgeMoves}. */
         @javax.annotation.Nullable final MPBRoadNetwork.BridgeCrossing reusedCrossing;
 
-        BridgeMove(int nx, int nz, int ndir, double cost, BridgeSpan span) {
-            this(nx, nz, ndir, cost, span, null);
+        BridgeMove(int nx, int nz, int ndir, double cost, double turnCost, BridgeSpan span) {
+            this(nx, nz, ndir, cost, turnCost, span, null);
         }
 
-        BridgeMove(int nx, int nz, int ndir, double cost, BridgeSpan span,
+        BridgeMove(int nx, int nz, int ndir, double cost, double turnCost, BridgeSpan span,
                    @javax.annotation.Nullable MPBRoadNetwork.BridgeCrossing reusedCrossing) {
             this.nx = nx;
             this.nz = nz;
             this.ndir = ndir;
             this.cost = cost;
+            this.turnCost = turnCost;
             this.span = span;
             this.reusedCrossing = reusedCrossing;
         }
@@ -517,7 +520,8 @@ public final class AStarPathfinder {
                         boolean fullProfileOk = MPBPathProfileFeasibility.isFullPathFeasible(
                                 rr.getPath(),
                                 rr.getBridges(),
-                                sampler
+                                sampler,
+                                roadType
                         );
                         boolean clearanceOk = bridgesHaveApproachPathClearance(rr.getPath(), rr.getBridges());
 
@@ -666,8 +670,7 @@ public final class AStarPathfinder {
             final int configMaxDy = Math.max(1, MPBConfig.PATHFINDING.maxYDeltaPerStep);
             // LONE_TRAIL: no earthworks → path follows terrain strictly.
             final boolean isLoneTrail = MPBConfig.ROAD_HIERARCHY.enabled && roadType == RoadType.LONE_TRAIL;
-            final boolean earthworks = MPBConfig.PATHFINDING.allowEarthworks
-                    && !(isLoneTrail && !MPBConfig.ROAD_HIERARCHY.loneTrailEarthworksEnabled);
+            final boolean earthworks = roadType.allowsEarthworks();
 
             // Scale maxDy proportionally when using an adaptive (larger) step,
             // so the grade limit stays the same regardless of step size.
@@ -1017,7 +1020,8 @@ public final class AStarPathfinder {
                     continue;
                 }
 
-                double tentative = gScore.get(ck) + mv.cost * bridgeMult + sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
+                double tentative = gScore.get(ck) + mv.cost * bridgeMult + mv.turnCost
+                        + sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
                 if (tentative < gScore.get(nk)) {
                     cameFrom.put(nk, ck);
                     if (mv.reusedCrossing != null) {
@@ -1080,6 +1084,18 @@ public final class AStarPathfinder {
                     continue;
                 }
 
+                // The hop onto the deck is not a normal move: keep it walkable (one half-block per cell,
+                // plus one for the rounding of the stored deck Y).
+                int hopCells = Math.max(1, Math.max(Math.abs(cur.x - crossing.startX), Math.abs(cur.z - crossing.startZ)));
+                int hopDelta = Math.abs(BridgeGeometry.naturalSurfaceHalfY(cs.surfaceY)
+                        - BridgeGeometry.naturalSurfaceHalfY(crossing.startY));
+                if (hopDelta > hopCells + 1) {
+                    if (debug) Ultreia.LOGGER.info(
+                            "[MPB Bridge] reuse candidate seg={} rejected: entrance step {} halves over {} cells",
+                            crossing.segmentId, hopDelta, hopCells);
+                    continue;
+                }
+
                 int endX = crossing.endX, endZ = crossing.endZ;
                 if (!baseXZChecks(endX, endZ)) continue;
 
@@ -1107,7 +1123,7 @@ public final class AStarPathfinder {
                 double cost = Math.max(0.1, bridgeCost - bonus);
 
                 int ndir = nearestDirIndex(endX - cur.x, endZ - cur.z);
-                cost += turnCost(cur.dir, ndir, step, MPBConfig.PATHFINDING.turnPenalty);
+                double turn = turnCost(cur.dir, ndir, step, MPBConfig.PATHFINDING.turnPenalty);
 
                 if (debug) {
                     Ultreia.LOGGER.info(
@@ -1115,7 +1131,7 @@ public final class AStarPathfinder {
                             crossing.segmentId, cur.x, cur.z, endX, endZ, cost);
                 }
                 // span = null: this is an existing bridge, RoadPainter must not rebuild it.
-                out.add(new BridgeMove(endX, endZ, ndir, cost, null, crossing));
+                out.add(new BridgeMove(endX, endZ, ndir, cost, turn, null, crossing));
             }
 
             return out;
@@ -1224,7 +1240,7 @@ public final class AStarPathfinder {
                 Collections.sort(out, new Comparator<BridgeMove>() {
                     @Override
                     public int compare(BridgeMove a, BridgeMove b) {
-                        return Double.compare(a.cost, b.cost);
+                        return Double.compare(a.cost + a.turnCost, b.cost + b.turnCost);
                     }
                 });
 
@@ -1428,7 +1444,7 @@ public final class AStarPathfinder {
                     cost -= 20.0;
                 }
 
-                cost += turnCost(curDir, bridgeDir, step, MPBConfig.PATHFINDING.turnPenalty);
+                double turn = turnCost(curDir, bridgeDir, step, MPBConfig.PATHFINDING.turnPenalty);
 
                 debugBridge("accept span start=(" + x + "," + cur.surfaceY + "," + z + ")"
                         + " end=(" + nx + "," + ns.surfaceY + "," + nz + ")"
@@ -1437,14 +1453,14 @@ public final class AStarPathfinder {
                         + " waterCrossing=" + info.waterCrossing
                         + " valleyCrossing=" + info.valleyCrossing);
 
-                out.add(new BridgeMove(nx, nz, bridgeDir, cost, span));
+                out.add(new BridgeMove(nx, nz, bridgeDir, cost, turn, span));
             }
 
             if (out.size() > 1) {
                 Collections.sort(out, new Comparator<BridgeMove>() {
                     @Override
                     public int compare(BridgeMove a, BridgeMove b) {
-                        return Double.compare(a.cost, b.cost);
+                        return Double.compare(a.cost + a.turnCost, b.cost + b.turnCost);
                     }
                 });
 
@@ -1666,7 +1682,7 @@ public final class AStarPathfinder {
                         cost -= 40.0;
                     }
 
-                    out.add(new BridgeMove(bestLandX, bestLandZ, bridgeDir, cost, span));
+                    out.add(new BridgeMove(bestLandX, bestLandZ, bridgeDir, cost, 0.0, span));
 
                     if (realWaterCrossing) {
                         break;
@@ -1683,7 +1699,7 @@ public final class AStarPathfinder {
                 Collections.sort(out, new Comparator<BridgeMove>() {
                     @Override
                     public int compare(BridgeMove a, BridgeMove b) {
-                        return Double.compare(a.cost, b.cost);
+                        return Double.compare(a.cost + a.turnCost, b.cost + b.turnCost);
                     }
                 });
 
@@ -1743,7 +1759,7 @@ public final class AStarPathfinder {
             int longestWaterRun = 0;
             int curWaterRun = 0;
 
-            int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span, sampler);
+            int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
 
             for (int i = 1; i < span.centerline.size() - 1; i++) {
                 BlockPos p = span.centerline.get(i);
@@ -1799,7 +1815,7 @@ public final class AStarPathfinder {
 
             if (waterCells <= 0 && deepCells <= 2) cost += 200.0;
             int approachBlocks = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeApproachRampBlocks);
-            if (!MPBBridgeApproachFeasibility.canConnectBridgeApproaches(sampler, span, approachBlocks + 2)) {
+            if (!MPBBridgeApproachFeasibility.canConnectBridgeApproaches(sampler, span, approachBlocks + 2, roadType)) {
                 cost += 120.0;
             }
 
@@ -1856,7 +1872,7 @@ public final class AStarPathfinder {
                 int priorEnd = Math.min(bridgePathStartIndices.get(b), path.size() - 1);
                 if (priorEnd < 0) continue;
 
-                int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span, sampler);
+                int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
 
                 for (int ci = startGrace; ci < span.centerline.size(); ci++) {
                     BlockPos bridgePoint = span.centerline.get(ci);
@@ -1916,7 +1932,7 @@ public final class AStarPathfinder {
                     spans.add(span);
                     bridgePathStartIndices.add(out.isEmpty() ? 0 : out.size() - 1);
 
-                    int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span, sampler);
+                    int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
 
                     if (!out.isEmpty() && span.centerline != null && !span.centerline.isEmpty()) {
                         BlockPos firstBridge = span.centerline.get(0);
@@ -2255,12 +2271,9 @@ public final class AStarPathfinder {
             int startHalf = BridgeGeometry.naturalSurfaceHalfY(first.surfaceY);
             int endHalf = BridgeGeometry.naturalSurfaceHalfY(last.surfaceY);
 
-            int cutHalf = MPBConfig.PATHFINDING.allowEarthworks
-                    ? Math.max(0, MPBConfig.PAINTING.earthworksMaxCut + pfTolerance) * 2
-                    : 0;
-            int fillHalf = MPBConfig.PATHFINDING.allowEarthworks
-                    ? Math.max(0, MPBConfig.PAINTING.earthworksMaxFill + pfTolerance) * 2
-                    : 0;
+            boolean earthworks = roadType.allowsEarthworks();
+            int cutHalf = earthworks ? Math.max(0, MPBConfig.PAINTING.earthworksMaxCut + pfTolerance) * 2 : 0;
+            int fillHalf = earthworks ? Math.max(0, MPBConfig.PAINTING.earthworksMaxFill + pfTolerance) * 2 : 0;
             int maxStepHalf = Math.max(1, MPBConfig.PAINTING.maxRoadStepHalfPerBlock);
 
             boolean gradeFeasible = MPBRoadHalfConstraintSolver.isLineFeasible(
@@ -2268,7 +2281,7 @@ public final class AStarPathfinder {
                     sampler,
                     startHalf,
                     endHalf,
-                    MPBConfig.PATHFINDING.allowEarthworks,
+                    earthworks,
                     cutHalf,
                     fillHalf,
                     maxStepHalf

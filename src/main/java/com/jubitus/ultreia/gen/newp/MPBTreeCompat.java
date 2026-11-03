@@ -195,7 +195,11 @@ public final class MPBTreeCompat {
         Material m = st.getMaterial();
 
         if (b.isWood(world, pos)) return true;
-        if (m == Material.WOOD) return true;
+        // Modded logs that do not extend BlockLog; planks, fences and doors share Material.WOOD but are built.
+        if (m == Material.WOOD) {
+            ResourceLocation id = b.getRegistryName();
+            return id != null && id.getPath().toLowerCase().contains("log");
+        }
 
         return false;
     }

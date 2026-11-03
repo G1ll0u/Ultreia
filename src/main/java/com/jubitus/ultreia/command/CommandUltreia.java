@@ -169,14 +169,11 @@ public final class CommandUltreia extends CommandBase {
                 int toZ   = seg.toVillage   != null ? seg.toVillage.getZ()   : PacketOpenMapGui.ABSENT;
                 int wc = seg.waypoints.size();
                 int[] wp = new int[wc * 3];
-                int[] ty = new int[wc];
                 int wi = 0;
-                for (int k = 0; k < wc; k++) {
-                    RoadWaypoint wpt = seg.waypoints.get(k);
+                for (RoadWaypoint wpt : seg.waypoints) {
                     wp[wi++] = wpt.x; wp[wi++] = wpt.y; wp[wi++] = wpt.z;
-                    ty[k] = world.getTopSolidOrLiquidBlock(new BlockPos(wpt.x, 0, wpt.z)).getY();
                 }
-                segData.add(new PacketOpenMapGui.SegmentData(seg.id, seg.isBridge, fromX, fromZ, toX, toZ, wp, ty));
+                segData.add(new PacketOpenMapGui.SegmentData(seg.id, seg.isBridge, fromX, fromZ, toX, toZ, wp));
             }
             MPBNetworkHandler.CHANNEL.sendTo(new PacketOpenMapGui(px, pz, guiRadius, segData), player);
             sender.sendMessage(new TextComponentString(

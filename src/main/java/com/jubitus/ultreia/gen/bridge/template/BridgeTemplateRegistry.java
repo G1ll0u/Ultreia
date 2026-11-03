@@ -1,5 +1,9 @@
 package com.jubitus.ultreia.gen.bridge.template;
 
+import com.jubitus.jubiconfig.ConfigReflector;
+import com.jubitus.jubiconfig.JubiConfig;
+import com.jubitus.jubiconfig.ModConfig;
+
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.Tags;
 import com.jubitus.ultreia.config.MPBConfig;
@@ -97,7 +101,11 @@ public final class BridgeTemplateRegistry {
         if (!getTemplateFile(name).isFile()) return false;
 
         MPBConfig.BRIDGES.defaultTemplateName = name;
-        ConfigManager.sync(Tags.MOD_ID, Config.Type.INSTANCE);
+        ModConfig mod = JubiConfig.get();
+        if (mod != null) {
+            mod.persistence.save(ConfigReflector.toOverrideMap(
+                    ConfigReflector.buildEntries(mod.configClass, mod.dynamicCategorySource)));
+        }
         return true;
     }
 

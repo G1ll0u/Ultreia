@@ -48,10 +48,14 @@ public final class RoadSegment {
     public int endX()   { return waypoints.isEmpty() ? 0 : waypoints.get(waypoints.size() - 1).x; }
     public int endZ()   { return waypoints.isEmpty() ? 0 : waypoints.get(waypoints.size() - 1).z; }
 
+    /** Length along the waypoints (not the straight start-to-end distance). */
     public int lengthBlocks() {
-        if (waypoints.size() < 2) return 0;
-        RoadWaypoint a = waypoints.get(0), b = waypoints.get(waypoints.size() - 1);
-        int dx = b.x - a.x, dz = b.z - a.z;
-        return (int) Math.round(Math.sqrt(dx * dx + dz * dz));
+        double len = 0.0;
+        for (int i = 1; i < waypoints.size(); i++) {
+            RoadWaypoint a = waypoints.get(i - 1), b = waypoints.get(i);
+            double dx = b.x - a.x, dz = b.z - a.z;
+            len += Math.sqrt(dx * dx + dz * dz);
+        }
+        return (int) Math.round(len);
     }
 }

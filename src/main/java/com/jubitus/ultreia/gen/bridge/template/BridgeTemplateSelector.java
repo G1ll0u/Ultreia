@@ -12,6 +12,8 @@ import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.Locale;
 import java.util.Set;
 
@@ -19,6 +21,24 @@ public final class BridgeTemplateSelector {
 
     private BridgeTemplateSelector() {}
 
+    // Templates are validated once per loaded instance (a reload creates new instances), so errors are logged once.
+    private static final Map<BridgeTemplate, BridgeTemplateValidator.ValidationResult> VALIDATED = new WeakHashMap<>();
+
+    private static BridgeTemplateValidator.ValidationResult validateOnce(BridgeTemplate t) {
+        BridgeTemplateValidator.ValidationResult result = VALIDATED.get(t);
+        if (result != null) return result;
+        result = BridgeTemplateValidator.validate(t);
+        for (String err : result.errors) {
+            Ultreia.LOGGER.error("[MPB] Bridge template '{}' error: {}", t.name, err);
+        }
+        for (String w : result.warnings) {
+            Ultreia.LOGGER.warn("[MPB] Bridge template '{}': {}", t.name, w);
+        }
+        VALIDATED.put(t, result);
+        return result;
+    }
+
+    /** Called for every bridge candidate of the A*: no logging here. */
     @Nullable
     public static BridgeTemplate select(WorldServer world, BridgeSpan span) {
         List<BridgeTemplate> all = BridgeTemplateRegistry.loadAllTemplates();
@@ -30,23 +50,14 @@ public final class BridgeTemplateSelector {
         List<BridgeTemplate> candidates = new ArrayList<BridgeTemplate>();
 
         for (BridgeTemplate t : all) {
-            BridgeTemplateValidator.ValidationResult result = BridgeTemplateValidator.validate(t);
+            BridgeTemplateValidator.ValidationResult result = validateOnce(t);
 
             if (result.hasErrors()) {
-                for (String err : result.errors) {
-                    Ultreia.LOGGER.error("[MPB] Bridge template '{}' error: {}", t.name, err);
-                }
                 // Still keep a critically-invalid default so the path is never silently blocked
                 if (t.name != null && t.name.equals(defaultName)) {
                     defaultTemplate = t;
                 }
                 continue;
-            }
-
-            if (result.hasWarnings()) {
-                for (String w : result.warnings) {
-                    Ultreia.LOGGER.warn("[MPB] Bridge template '{}': {}", t.name, w);
-                }
             }
 
             if (t.name != null && t.name.equals(defaultName)) {
@@ -56,19 +67,7 @@ public final class BridgeTemplateSelector {
             }
         }
 
-        if (candidates.isEmpty()) {
-            if (defaultTemplate == null && !defaultName.isEmpty()) {
-                Ultreia.LOGGER.warn(
-                        "[MPB] No bridge template matched and default '{}' not found — bridge skipped.", defaultName);
-            }
-            if (MPBConfig.DEBUG.logBridgeTemplateSelection) {
-                Ultreia.LOGGER.info(
-                        "[MPB] Bridge ({} blocks, water={}, waterDominant={}): no conditional template matched, using default '{}'",
-                        span.lengthBlocks(), span.hasWaterCrossing, span.waterDominant,
-                        defaultTemplate != null ? defaultTemplate.name : "null");
-            }
-            return defaultTemplate;
-        }
+        if (candidates.isEmpty()) return defaultTemplate;
 
         // Most specific conditions win; stable sort by name as tiebreaker
         BridgeTemplate best = candidates.get(0);
@@ -79,11 +78,6 @@ public final class BridgeTemplateSelector {
             if (cs > bs || (cs == bs && c.name.compareTo(best.name) < 0)) {
                 best = c;
             }
-        }
-        if (MPBConfig.DEBUG.logBridgeTemplateSelection) {
-            Ultreia.LOGGER.info(
-                    "[MPB] Bridge ({} blocks, water={}, waterDominant={}): selected template '{}'",
-                    span.lengthBlocks(), span.hasWaterCrossing, span.waterDominant, best.name);
         }
         return best;
     }

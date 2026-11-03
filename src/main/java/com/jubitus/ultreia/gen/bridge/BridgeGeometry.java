@@ -4,6 +4,7 @@ import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.TerrainSampler;
 import net.minecraft.util.math.BlockPos;
 
+import javax.annotation.Nullable;
 import java.util.List;
 
 public final class BridgeGeometry {
@@ -106,38 +107,31 @@ public final class BridgeGeometry {
         return surfaceHalfY / 2;
     }
 
-    public static int[] buildDeckHalfProfile(int startHalf, int endHalf, List<BlockPos> line, TerrainSampler sampler) {
-        int crown = Math.max(0, MPBConfig.BRIDGES.bridgeCrownHalfBlocks);
-        if (crown > 0 && MPBConfig.BRIDGES.extraWaterBridgeCrown && hasMeaningfulWaterInterior(line, sampler)) {
-            crown += 2;
-        }
-        return computeDeckProfile(startHalf, endHalf, line, crown, MPBConfig.BRIDGES.bridgeCrownMinLenBlocks);
-    }
-
-    public static int[] buildDeckHalfProfile(BridgeSpan span, TerrainSampler sampler) {
-        return buildDeckHalfProfile(span, sampler, null, null);
-    }
-
-    /**
-     * Builds the deck half-Y profile with optional per-template crown overrides.
-     * Null override → use the global MPBConfig value.
-     */
-    public static int[] buildDeckHalfProfile(BridgeSpan span, TerrainSampler sampler,
-                                              Integer crownHalfOverride, Integer crownMinLenOverride) {
+    /** The deck profile of a span, in half-blocks, one value per centerline cell. */
+    public static int[] buildDeckHalfProfile(BridgeSpan span) {
         if (span == null) return new int[0];
+        return computeDeckProfile(span.startDeckSurfaceHalfY, span.endDeckSurfaceHalfY, span.centerline,
+                span.crownHalf, span.crownMinLen);
+    }
 
-        int crown = crownHalfOverride != null ? Math.max(0, crownHalfOverride)
+    /** Deck profile for a candidate that is not a span yet (feasibility). */
+    public static int[] buildDeckHalfProfile(int startHalf, int endHalf, List<BlockPos> line, int crown, int crownMinLen) {
+        return computeDeckProfile(startHalf, endHalf, line, crown, crownMinLen);
+    }
+
+    /** Crown height in half-blocks: the template's value, else the global one, plus the water bonus. */
+    public static int effectiveCrownHalf(@Nullable Integer templateCrown, List<BlockPos> line, TerrainSampler sampler) {
+        int crown = templateCrown != null ? Math.max(0, templateCrown)
                 : Math.max(0, MPBConfig.BRIDGES.bridgeCrownHalfBlocks);
-        int crownMin = crownMinLenOverride != null ? Math.max(2, crownMinLenOverride)
-                : Math.max(2, MPBConfig.BRIDGES.bridgeCrownMinLenBlocks);
-
-        if (crown > 0 && MPBConfig.BRIDGES.extraWaterBridgeCrown && sampler != null
-                && hasMeaningfulWaterInterior(span.centerline, sampler)) {
+        if (crown > 0 && MPBConfig.BRIDGES.extraWaterBridgeCrown && hasMeaningfulWaterInterior(line, sampler)) {
             crown += 1;
         }
+        return crown;
+    }
 
-        return computeDeckProfile(span.startDeckSurfaceHalfY, span.endDeckSurfaceHalfY, span.centerline,
-                crown, crownMin);
+    public static int effectiveCrownMinLen(@Nullable Integer templateMinLen) {
+        return templateMinLen != null ? Math.max(2, templateMinLen)
+                : Math.max(2, MPBConfig.BRIDGES.bridgeCrownMinLenBlocks);
     }
 
     // Returns the max allowed endpoint height delta (in half-blocks) for a given bridge length.

@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.command;
 
+import com.jubitus.jubiconfig.JubiConfig;
+
 import com.jubitus.ultreia.Tags;
 import com.jubitus.ultreia.gen.bridge.template.*;
 import net.minecraft.command.CommandException;
@@ -123,9 +125,9 @@ public final class BridgeTemplateCommands {
         }
 
         if ("reloadconfig".equals(sub)) {
-            ConfigManager.sync(Tags.MOD_ID, Config.Type.INSTANCE);
+            JubiConfig.applyOnStartup();
             BridgeTemplateRegistry.invalidateTemplateCache();
-            sender.sendMessage(new TextComponentString("Bridge templates reloaded from disk."));
+            sender.sendMessage(new TextComponentString("Config and bridge templates reloaded from disk."));
             return;
         }
 

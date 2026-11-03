@@ -27,6 +27,7 @@ public class MPBPathSlabBlock extends Block {
     public MPBPathSlabBlock() {
         super(Material.GROUND);
         setRegistryName("ultreia", "path_slab");
+        setTranslationKey("ultreia.path_slab");
         setHardness(0.8F);
         setResistance(1.0F);
         setSoundType(SoundType.GROUND);

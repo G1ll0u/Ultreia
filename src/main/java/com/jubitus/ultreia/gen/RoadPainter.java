@@ -108,6 +108,15 @@ public final class RoadPainter {
         // Elbow fill cells for 1-wide paths: painted directly after the main loop (cursor never reaches them).
         private List<int[]> elbowFillList = null;
         private boolean elbowFillsPainted = false;
+        private boolean forcedLeftoversPainted = false;
+        // Talus work list, built once at the end of the edge and applied over several ticks.
+        private long[] talusCells = null;
+        private int talusCursor = 0;
+        private it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap talusDist;
+        private it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap talusNearestRoad;
+        private it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap roadSurfaceY;
+        private double talusSlopeRatio;
+        private int talusMaxCut, talusMaxFill;
 
         private boolean mergeStopArmed = false;
         private int mergeStopAt = Integer.MAX_VALUE;
@@ -193,7 +202,7 @@ public final class RoadPainter {
 
                     detectEarlyMergeOnce();
 
-                    if (MPBConfig.PATHFINDING.allowEarthworks) {
+                    if (roadType.allowsEarthworks()) {
                         this.gradeY = buildGradeProfile();
                         if (failed) {
                             return PaintResult.FAILED;
@@ -241,9 +250,13 @@ public final class RoadPainter {
                         elbowFillsPainted = true;
                         paintElbowFillsDirect();
                     }
+                    if (!forcedLeftoversPainted) {
+                        forcedLeftoversPainted = true;
+                        paintForcedLeftovers();
+                    }
                     if (!talusPassDone) {
+                        if (!talusStep(deadlineNs)) return PaintResult.RUNNING;
                         talusPassDone = true;
-                        applyTalusPass();
                     }
                     registerRoadSegment();
                     return PaintResult.OK;
@@ -263,9 +276,13 @@ public final class RoadPainter {
                         elbowFillsPainted = true;
                         paintElbowFillsDirect();
                     }
+                    if (!forcedLeftoversPainted) {
+                        forcedLeftoversPainted = true;
+                        paintForcedLeftovers();
+                    }
                     if (!talusPassDone) {
+                        if (!talusStep(deadlineNs)) return PaintResult.RUNNING;
                         talusPassDone = true;
-                        applyTalusPass();
                     }
                     registerRoadSegment();
                     return PaintResult.OK;
@@ -472,11 +489,13 @@ public final class RoadPainter {
                 // Other road types require connectivity to the destination before the standard minimum.
                 if (!isLoneTrail && idx < standardMin && !isRoadConnectedToDestination(near.getX(), near.getZ())) continue;
 
+                // The connector climbs at most one half-block per cell, so the height gap is capped by its length.
+                int connectorCells = Math.max(Math.abs(p.getX() - near.getX()), Math.abs(p.getZ() - near.getZ()));
                 if (!MPBRoadConnectionHelper.canMergeCleanlyToRoad(
                         world, sampler, roadIndex,
                         p.getX(), p.getY(), p.getZ(),
                         near.getX(), near.getZ(),
-                        maxJoinDeltaHalf
+                        Math.min(maxJoinDeltaHalf, connectorCells)
                 )) {
                     continue;
                 }
@@ -676,7 +695,8 @@ public final class RoadPainter {
                     continue;
                 }
 
-                for (int k = 1; k < line.size() && System.nanoTime() < deadlineNs; k++) {
+                // Always finish the segment: densifyIndex only advances per whole segment.
+                for (int k = 1; k < line.size(); k++) {
                     BlockPos p = line.get(k);
                     TerrainSampler.Sample sm = sampler.sample(p.getX(), p.getZ());
                     path.add(new BlockPos(p.getX(), sm.surfaceY, p.getZ()));
@@ -703,7 +723,7 @@ public final class RoadPainter {
             }
 
             try {
-                centerHalf = MPBRoadHalfProfile.build(path, forcedBridges, sampler);
+                centerHalf = MPBRoadHalfProfile.build(path, forcedBridges, sampler, roadType);
             } catch (IllegalStateException ex) {
                 failed = true;
                 failReason = "No feasible final road profile with max 0.5-block steps: " + ex.getMessage();
@@ -847,6 +867,42 @@ public final class RoadPainter {
                 cells.add(new int[]{x, z, s.surfaceY, targetHalf});
             }
             return cells;
+        }
+
+        /**
+         * Forced cells (junction disks, gap connectors, bridge exits) can lie outside the sweep radius.
+         * They continue the height of a planned 4-neighbour, spreading outward; cells with none stay unpainted.
+         */
+        private void paintForcedLeftovers() {
+            it.unimi.dsi.fastutil.longs.LongArrayList pending = new it.unimi.dsi.fastutil.longs.LongArrayList();
+            for (long k : forcePaint) {
+                if (!painted.contains(k)) pending.add(k);
+            }
+            boolean progress = true;
+            while (progress && !pending.isEmpty()) {
+                progress = false;
+                for (int pi = pending.size() - 1; pi >= 0; pi--) {
+                    long k = pending.getLong(pi);
+                    int x = (int) (k >> 32);
+                    int z = (int) k;
+                    int half = neighbourPlannedHalf(x, z);
+                    if (half == Integer.MIN_VALUE) continue;
+                    plannedHalfByXZ.put(k, half);
+                    paintSingle(x, z, sampler.sample(x, z).surfaceY);
+                    painted.add(k);
+                    pending.removeLong(pi);
+                    progress = true;
+                }
+            }
+        }
+
+        private int neighbourPlannedHalf(int x, int z) {
+            int[][] n4 = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+            for (int[] d : n4) {
+                int h = plannedHalfByXZ.get(xzKey(x + d[0], z + d[1]));
+                if (h != Integer.MIN_VALUE) return h;
+            }
+            return Integer.MIN_VALUE;
         }
 
         private void paintMergeConnectorDirect() {
@@ -1537,6 +1593,8 @@ public final class RoadPainter {
 
         private void paintSingle(int x, int z, int surfaceY) {
             if (isBridgeProtectedCell(x, z)) return;
+            // INVARIANT: no painting, clearing or earthworks inside protected areas or on Millénaire paths.
+            if (protectedAreas != null && protectedAreas.contains(x, z)) return;
             // Never touch any column that belongs to an existing bridge volume (deck, supports, lateral blocks).
             if (roadIndex != null && roadIndex.isBridgeVolumeXZ(x, z)) return;
             if (roadIndex != null && roadIndex.isBridgeXZ(x, z)) return;
@@ -1550,6 +1608,11 @@ public final class RoadPainter {
             BridgeGeometry.SlabPlacement sp = BridgeGeometry.slabPlacementForSurfaceHalfY(targetHalf);
             boolean useSlab = (targetHalf & 1) != 0;
             int supportTopY = useSlab ? (sp.blockY - 1) : sp.blockY;
+
+            if (columnHasAnyMillPath(new BlockPos(x, sp.blockY, z))) {
+                if (roadIndex != null && !dryRun) roadIndex.markRoad(x, z);
+                return;
+            }
 
             boolean earthworks = earthworksEnabled();
             if (isBridgeJoinIndex(i)) {
@@ -1588,8 +1651,10 @@ public final class RoadPainter {
                 int dx0 = x - cx;
                 int dz0 = z - cz;
                 int dist = (int) Math.round(Math.sqrt((double) dx0 * (double) dx0 + (double) dz0 * (double) dz0));
+                // A painted cell is road surface: graded to the road height; the talus pass shapes beyond it.
+                dist = Math.min(dist, rr);
 
-                supportTopY = Earthworks.gradeCell(world, sampler, x, z, supportTopY, dist, st, dryRun);
+                Earthworks.gradeCell(world, sampler, x, z, supportTopY, dist, st, dryRun);
                 sampler.invalidateAround(x, z, 1);
             }
 
@@ -1600,11 +1665,7 @@ public final class RoadPainter {
                 MPBRoadColumns.clearAtAndAbove(world, supportTop.up(), 2, false, true);
             }
 
-            IBlockState ground = world.getBlockState(supportTop);
-            if (!earthworks) {
-                if (ground == null) return;
-                if (!isNaturalGround(ground) && !MPBMillPathPalette.isMillPath(ground.getBlock())) return;
-            }
+            if (!hasSupportWithinOneBlock(supportTop)) return;
 
             MPBMillPathPalette.Kind kind = pickKindAveraged(x, z);
             placeRoadBlockFromHalf(supportTop, kind, targetHalf, earthworks);
@@ -1619,12 +1680,7 @@ public final class RoadPainter {
             BridgeGeometry.SlabPlacement sp = BridgeGeometry.slabPlacementForSurfaceHalfY(targetHalf);
             boolean useBottomSlab = (targetHalf & 1) != 0;
 
-            BlockPos placePos = useBottomSlab ? new BlockPos(x, sp.blockY, z) : new BlockPos(x, sp.blockY, z);
-
-            if (columnHasAnyMillPath(placePos)) {
-                if (roadIndex != null) roadIndex.markRoad(x, z);
-                return;
-            }
+            BlockPos placePos = new BlockPos(x, sp.blockY, z);
 
             if (useBottomSlab) {
                 ensureSolidSupportUnderBottomSlab(placePos.down(), kind);
@@ -1662,6 +1718,16 @@ public final class RoadPainter {
             sampler.invalidateAround(x, z, 1);
         }
 
+        // INVARIANT: a road block never floats: at most one block is filled under it, else the cell is skipped.
+        private boolean hasSupportWithinOneBlock(BlockPos supportTop) {
+            IBlockState ground = world.getBlockState(supportTop);
+            if (isNaturalGround(ground) || MPBMillPathPalette.isMillPath(ground.getBlock())) return true;
+            Material m = ground.getMaterial();
+            if (m == Material.WATER) return true; // small streams are paved over
+            if (m == Material.LAVA || !m.isReplaceable()) return false;
+            return world.getBlockState(supportTop.down()).getMaterial().isSolid();
+        }
+
         private void ensureSolidSupportUnderBottomSlab(BlockPos supportPos, MPBMillPathPalette.Kind kind) {
             IBlockState st = world.getBlockState(supportPos);
             Material m = st.getMaterial();
@@ -1690,9 +1756,7 @@ public final class RoadPainter {
         }
 
         private boolean earthworksEnabled() {
-            if (!MPBConfig.PATHFINDING.allowEarthworks) return false;
-            if (MPBConfig.ROAD_HIERARCHY.enabled && roadType == RoadType.LONE_TRAIL
-                    && !MPBConfig.ROAD_HIERARCHY.loneTrailEarthworksEnabled) return false;
+            if (!roadType.allowsEarthworks()) return false;
             return gradeY != null && i >= 0 && i < gradeY.length;
         }
 
@@ -1708,22 +1772,22 @@ public final class RoadPainter {
          * For each newly-placed road cell, BFS outward to talusRadius and cut/fill
          * terrain to a natural slope rather than leaving vertical walls.
          */
-        private void applyTalusPass() {
-            if (dryRun) return;
-            if (!MPBConfig.PATHFINDING.allowEarthworks) return;
-            if (newlyPlaced.isEmpty()) return;
+        /** Builds the talus work list once; returns false when there is nothing to do. */
+        private boolean prepareTalus() {
+            if (dryRun) return false;
+            if (!roadType.allowsEarthworks()) return false;
+            if (newlyPlaced.isEmpty()) return false;
 
             double slopeRatio = effectiveSlopeRatio();
             int maxCut = Math.max(0, MPBConfig.PAINTING.earthworksMaxCut);
             int maxFill = Math.max(0, MPBConfig.PAINTING.earthworksMaxFill);
-            if (slopeRatio <= 0.0 || (maxCut == 0 && maxFill == 0)) return;
+            if (slopeRatio <= 0.0 || (maxCut == 0 && maxFill == 0)) return false;
 
             int talusRadius = (int) Math.ceil(Math.max(maxCut, maxFill) * slopeRatio) + 1;
-            if (talusRadius <= 0) return;
+            if (talusRadius <= 0) return false;
 
             // Build road surface Y lookup for newly placed cells.
-            it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap roadSurfaceY =
-                    new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap(newlyPlaced.size());
+            roadSurfaceY = new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap(newlyPlaced.size());
             roadSurfaceY.defaultReturnValue(Integer.MIN_VALUE);
 
             for (it.unimi.dsi.fastutil.longs.LongIterator rit = newlyPlaced.iterator(); rit.hasNext(); ) {
@@ -1735,11 +1799,11 @@ public final class RoadPainter {
             }
 
             // BFS: propagate distance and nearest-road-cell from all newly placed cells.
-            it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap distMap =
-                    new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
+            talusDist = new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
+            it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap distMap = talusDist;
             distMap.defaultReturnValue(-1);
-            it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap nearestRoad =
-                    new it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap();
+            talusNearestRoad = new it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap();
+            it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap nearestRoad = talusNearestRoad;
             nearestRoad.defaultReturnValue(Long.MIN_VALUE);
 
             java.util.ArrayDeque<Long> queue = new java.util.ArrayDeque<>(newlyPlaced.size() * 4);
@@ -1770,9 +1834,26 @@ public final class RoadPainter {
                 }
             }
 
-            // Apply talus to non-road cells in the BFS zone.
-            long[] talusCells = distMap.keySet().toLongArray();
-            for (long k : talusCells) {
+            talusSlopeRatio = slopeRatio;
+            talusMaxCut = maxCut;
+            talusMaxFill = maxFill;
+            talusCells = distMap.keySet().toLongArray();
+            talusCursor = 0;
+            return true;
+        }
+
+        /** Applies the talus within the tick budget; returns true when finished. */
+        private boolean talusStep(long deadlineNs) {
+            if (talusCells == null) {
+                if (!prepareTalus()) return true;
+            }
+            it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap distMap = talusDist;
+            it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap nearestRoad = talusNearestRoad;
+            double slopeRatio = talusSlopeRatio;
+            int maxCut = talusMaxCut;
+            int maxFill = talusMaxFill;
+            while (talusCursor < talusCells.length && System.nanoTime() < deadlineNs) {
+                long k = talusCells[talusCursor++];
                 int d = distMap.get(k);
                 if (d <= 0) continue;                // road cell itself
                 if (newlyPlaced.contains(k)) continue;
@@ -1788,6 +1869,7 @@ public final class RoadPainter {
                 if (nr == Long.MIN_VALUE) continue;
                 int roadY = roadSurfaceY.get(nr);
                 if (roadY == Integer.MIN_VALUE) continue;
+                if (columnHasAnyMillPath(new BlockPos(tx, roadY, tz))) continue;
 
                 int rx = keyX(nr);
                 int rz = keyZ(nr);
@@ -1797,10 +1879,12 @@ public final class RoadPainter {
                         lateralDist, slopeRatio, maxCut, maxFill, dryRun);
             }
 
+            if (talusCursor < talusCells.length) return false;
             if (MPBConfig.DEBUG.debugRoadPainting) {
-                Ultreia.LOGGER.info("[MPB] Talus pass: {} road cells, talusRadius={}, slopeRatio={}",
-                        newlyPlaced.size(), talusRadius, slopeRatio);
+                Ultreia.LOGGER.info("[MPB] Talus pass: {} road cells, {} talus cells, slopeRatio={}",
+                        newlyPlaced.size(), talusCells.length, slopeRatio);
             }
+            return true;
         }
 
         private static int keyX(long k) { return (int) (k >> 32); }
@@ -1812,7 +1896,7 @@ public final class RoadPainter {
 
             try {
                 if (centerHalf == null || centerHalf.length != n) {
-                    centerHalf = MPBRoadHalfProfile.build(path, forcedBridges, sampler);
+                    centerHalf = MPBRoadHalfProfile.build(path, forcedBridges, sampler, roadType);
                 }
             } catch (IllegalStateException ex) {
                 failed = true;
@@ -1940,7 +2024,7 @@ public final class RoadPainter {
             if (isBridgeAlreadyAt(span)) {
                 if (!dryRun) {
                     if (roadNetwork != null) {
-                        int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span, sampler);
+                        int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
                         roadNetwork.addBridgeSegment(span, deckHalf, roadIndex, fromVillage, toVillage, roadType);
                     }
                     if (roadIndex != null) markBridgeVolumeInIndex(span, roadIndex);
@@ -1956,7 +2040,7 @@ public final class RoadPainter {
             boolean built = BridgeBuildService.build(world, sampler, span, dryRun);
 
             if (built && !dryRun && (roadIndex != null || roadNetwork != null)) {
-                int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span, sampler);
+                int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
                 if (roadNetwork != null) {
                     roadNetwork.addBridgeSegment(span, deckHalf, roadIndex, fromVillage, toVillage, roadType);
                 } else if (roadIndex != null) {
@@ -1986,7 +2070,7 @@ public final class RoadPainter {
 
             if (dx == 0 && dz == 0) return;
 
-            int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span, sampler);
+            int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
             int exitHalf = deckHalf[deckHalf.length - 1];
 
             int maxHalfStep = Math.max(1, MPBConfig.PAINTING.maxRoadStepHalfPerBlock);

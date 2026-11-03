@@ -17,7 +17,7 @@ There is no `src/test` yet.
 
 General rules are in `~/.claude/CLAUDE.md`, rules shared by all mods in `/home/user/IdeaProjects/CLAUDE.md`. Ultreïa specifics:
 
-- **For procedural bugs**, build the diagnostic (debug trace) before the fix.
+- **For procedural bugs** whose cause is not certain from the code, build the diagnostic (debug trace) before the fix.
 - **`// INVARIANT:` comments** must stay true: fix or delete one whenever you change the code it guards.
 - **Travellers** (`/home/user/IdeaProjects/Travellers`) reads `api/MPBRoadAPI` by reflection: never rename a public method there or change its signature (Travellers would break with no compile error).
 - **Code style**: split tangled classes, but before adding a class check whether an existing one already owns the concern. Refactor freely, but saved worlds must still load: add new save keys, keep reading the old ones. Comment tunable constants only. Ignore unused imports. Prefer FastUtil (`it.unimi.dsi.fastutil`) collections in generation hot paths.
@@ -63,7 +63,7 @@ Packages under `src/main/java/com/jubitus/ultreia/`. This map is provisional unt
 - **Chunks.** Always go through `MPBChunkManager` (force-load before touching, bounded count, per-edge lifecycle, unload pressure); never load chunks directly.
 - **Never paint** inside `MPBProtectedAreas` (building footprints) or over existing Millénaire path blocks.
 - **Bridge moves are part of A\*** — the pathfinder emits bridge nodes that `RoadPainter` later materialises; do not add a post-pass that invents bridges.
-- **Millénaire is optional.** Nothing outside `integration/`, `gen/mill/` and `mixin/` may require it at class-load time; use `MillPresence`. In the mixin plugin, detect classes with `getResource()`, never `Class.forName()` (it triggers `MixinTargetAlreadyLoadedException`).
+- **Millénaire is optional.** Nothing outside `integration/`, `gen/mill/` and `mixin/` may require it at class-load time; use `MillPresence`. The late mixin loader queues the mixins only when Millénaire is present; detect it with `getResource()`, never `Class.forName()` (it triggers `MixinTargetAlreadyLoadedException`).
 - **Mixin targets are Millénaire internals**: any change to a mixin means re-checking the target's obfuscated names.
 - **Road types** (`RoadType`: village main vs lone trail) change A* costs, width and earthworks; any new road behaviour must say which types it applies to.
 

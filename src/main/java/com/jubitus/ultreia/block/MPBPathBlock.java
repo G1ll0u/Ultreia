@@ -10,6 +10,7 @@ public class MPBPathBlock extends Block {
     public MPBPathBlock() {
         super(Material.GROUND);
         setRegistryName("ultreia", "path_block");
+        setTranslationKey("ultreia.path_block");
         setHardness(0.8F);
         setResistance(1.0F);
         setSoundType(SoundType.GROUND);

@@ -29,6 +29,8 @@ public final class PacketRequestPreview implements IMessage {
         public IMessage onMessage(PacketRequestPreview msg, MessageContext ctx) {
             EntityPlayerMP player = ctx.getServerHandler().player;
             WorldServer world = player.getServerWorld();
+            // Same permission as the command that opens the map: building the network is expensive.
+            if (!player.canUseCommand(2, "ultreia")) return null;
 
             world.addScheduledTask(() -> {
                 List<BlockPos> nodes = MillIntegration.getAllNodePositions(world);

@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.gen.mill;
 
+import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.MPBProtectedAreas;
 import com.jubitus.ultreia.integration.MillIntegration;
 import net.minecraft.util.math.BlockPos;
@@ -12,6 +13,32 @@ import java.util.List;
 
 public final class MillBuildingObstacles2 {
     private MillBuildingObstacles2() {}
+
+    /** Soft penalty squares around village and lone-building centres, plus every building's box as no-paint. */
+    public static void addMillenaireZones(WorldServer world, MPBProtectedAreas pa) {
+        MillWorldData data = MillIntegration.ensureLoaded(world);
+
+        int vR = Math.max(0, MPBConfig.GENERAL.villageNoPaintRadius);
+        int lR = Math.max(0, MPBConfig.GENERAL.loneBuildingNoPaintRadius);
+        int penalty = (int) Math.max(0.0, MPBConfig.PATHFINDING.protectedZonePenalty);
+
+        if (data != null) {
+            if (data.villagesList != null && data.villagesList.pos != null) {
+                for (Point p : data.villagesList.pos) {
+                    if (p == null) continue;
+                    pa.addPenaltySquare(p.getiX(), p.getiZ(), vR, penalty);
+                }
+            }
+            if (data.loneBuildingsList != null && data.loneBuildingsList.pos != null) {
+                for (Point p : data.loneBuildingsList.pos) {
+                    if (p == null) continue;
+                    pa.addPenaltySquare(p.getiX(), p.getiZ(), lR, penalty);
+                }
+            }
+        }
+
+        addBuildingsFromLocationsAsNoPaint(world, pa, 1, penalty + 5000);
+    }
 
     public static void addBuildingsFromLocationsAsNoPaint(
             WorldServer world,

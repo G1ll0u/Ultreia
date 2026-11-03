@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.gen.newp;
 
+import com.jubitus.ultreia.gen.RoadType;
+
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.TerrainSampler;
 import com.jubitus.ultreia.gen.bridge.BridgeGeometry;
@@ -15,29 +17,27 @@ public final class MPBBridgeApproachFeasibility {
 
     public static boolean canConnectBridgeApproaches(TerrainSampler sampler,
                                                      BridgeSpan span,
-                                                     int approachBlocks) {
+                                                     int approachBlocks,
+                                                     RoadType roadType) {
         if (sampler == null || span == null || span.centerline == null || span.centerline.size() < 2) {
             return false;
         }
 
         int n = span.centerline.size();
-        int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span, sampler);
+        int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
 
         int maxStepHalf = Math.max(1, MPBConfig.PAINTING.maxRoadStepHalfPerBlock);
-        int cutHalf = MPBConfig.PATHFINDING.allowEarthworks
-                ? Math.max(0, MPBConfig.PAINTING.earthworksMaxCut) * 2
-                : 0;
-        int fillHalf = MPBConfig.PATHFINDING.allowEarthworks
-                ? Math.max(0, MPBConfig.PAINTING.earthworksMaxFill) * 2
-                : 0;
+        boolean earthworks = roadType.allowsEarthworks();
+        int cutHalf = earthworks ? Math.max(0, MPBConfig.PAINTING.earthworksMaxCut) * 2 : 0;
+        int fillHalf = earthworks ? Math.max(0, MPBConfig.PAINTING.earthworksMaxFill) * 2 : 0;
 
         int need = Math.max(1, approachBlocks);
 
-        if (!checkOneSide(sampler, span.centerline.get(0), span.centerline.get(1), deckHalf[0], need, false, cutHalf, fillHalf, maxStepHalf)) {
+        if (!checkOneSide(sampler, span.centerline.get(0), span.centerline.get(1), deckHalf[0], need, earthworks, cutHalf, fillHalf, maxStepHalf)) {
             return false;
         }
 
-        if (!checkOneSide(sampler, span.centerline.get(n - 1), span.centerline.get(n - 2), deckHalf[n - 1], need, true, cutHalf, fillHalf, maxStepHalf)) {
+        if (!checkOneSide(sampler, span.centerline.get(n - 1), span.centerline.get(n - 2), deckHalf[n - 1], need, earthworks, cutHalf, fillHalf, maxStepHalf)) {
             return false;
         }
 
@@ -49,17 +49,13 @@ public final class MPBBridgeApproachFeasibility {
                                         BlockPos inwardNeighbor,
                                         int bridgeDeckHalf,
                                         int neededBlocks,
-                                        boolean outwardFromEnd,
+                                        boolean earthworks,
                                         int cutHalf,
                                         int fillHalf,
                                         int maxStepHalf) {
+        // Away from the bridge, on both sides.
         int dx = Integer.signum(bridgeEnd.getX() - inwardNeighbor.getX());
         int dz = Integer.signum(bridgeEnd.getZ() - inwardNeighbor.getZ());
-
-        if (!outwardFromEnd) {
-            dx = -dx;
-            dz = -dz;
-        }
 
         if (dx == 0 && dz == 0) {
             return false;
@@ -92,7 +88,7 @@ public final class MPBBridgeApproachFeasibility {
                 sampler,
                 bridgeDeckHalf,
                 farHalf,
-                MPBConfig.PATHFINDING.allowEarthworks,
+                earthworks,
                 cutHalf,
                 fillHalf,
                 maxStepHalf

@@ -58,8 +58,7 @@ public final class BridgeTemplateBridgeBuilder {
         int maxLen = Math.max(5, MPBConfig.BRIDGES.maxBridgeLenBlocks);
         if (len > maxLen) return false;
 
-        int[] deckHalfY = BridgeGeometry.buildDeckHalfProfile(span, sampler,
-                template.bridgeCrownHalfBlocks, template.bridgeCrownMinLenBlocks);
+        int[] deckHalfY = BridgeGeometry.buildDeckHalfProfile(span);
         LongOpenHashSet deckXZ = new LongOpenHashSet(Math.max(128, span.centerline.size() * 8));
 
         IBlockState deckBaseState = template.deckSlab.toState();

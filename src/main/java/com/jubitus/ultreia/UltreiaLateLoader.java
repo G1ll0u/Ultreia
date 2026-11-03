@@ -9,7 +9,13 @@ public class UltreiaLateLoader implements ILateMixinLoader {
 
     @Override
     public List<String> getMixinConfigs() {
-        System.out.println("[Ultreïa] ILateMixinLoader called! Queuing Ultreïa.millmix.json");
         return Collections.singletonList("mixins.ultreia.json");
+    }
+
+    @Override
+    public boolean shouldMixinConfigQueue(String mixinConfig) {
+        // INVARIANT: resource lookup, never Class.forName (it would load the mixin target early).
+        return getClass().getClassLoader()
+                .getResource("org/millenaire/common/world/MillWorldData.class") != null;
     }
 }

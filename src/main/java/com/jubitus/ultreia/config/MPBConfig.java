@@ -65,8 +65,9 @@ public class MPBConfig {
 
 
 
-        @Config.Comment("Time budget per server tick for generation (ms).")
-        public int tickBudgetMs = 365;
+        @Config.Comment("Time per server tick spent building roads (ms). Higher builds faster but makes the server lag; 20 keeps it smooth.")
+        @Config.RangeInt(min = 1, max = 1000)
+        public int tickBudgetMs = 20;
 
         @Config.Comment("Do not paint/clear inside this radius (blocks) around Millenaire village nodes.")
         public int villageNoPaintRadius = 2;

@@ -1,5 +1,8 @@
 package com.jubitus.ultreia.gen.bridge;
 
+import com.jubitus.ultreia.gen.bridge.template.BridgeTemplate;
+import com.jubitus.ultreia.gen.bridge.template.BridgeTemplateSelector;
+
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.MPBGround;
 import com.jubitus.ultreia.gen.TerrainSampler;
@@ -26,7 +29,16 @@ public final class BridgeFeasibility {
                                        BlockPos start,
                                        BlockPos end,
                                        boolean micro) {
-        return evaluate(world, sampler, start, end, micro).span;
+        // The template depends on the span (length, water), its crown changes the deck: check with the
+        // global crown, pick the template, then check again with the deck that will really be built.
+        BridgeSpan first = evaluate(world, sampler, start, end, micro, null).span;
+        if (first == null) return null;
+        BridgeTemplate template = BridgeTemplateSelector.select(world, first);
+        if (template == null) return first;
+        int crown = BridgeGeometry.effectiveCrownHalf(template.bridgeCrownHalfBlocks, first.centerline, sampler);
+        int crownMin = BridgeGeometry.effectiveCrownMinLen(template.bridgeCrownMinLenBlocks);
+        if (crown == first.crownHalf && crownMin == first.crownMinLen) return first.withTemplate(template);
+        return evaluate(world, sampler, start, end, micro, template).span;
     }
 
     public static String debugTryCreateReason(WorldServer world,
@@ -34,7 +46,7 @@ public final class BridgeFeasibility {
                                               BlockPos start,
                                               BlockPos end,
                                               boolean micro) {
-        return evaluate(world, sampler, start, end, micro).reason;
+        return evaluate(world, sampler, start, end, micro, null).reason;
     }
 
     private static final class BridgeEval {
@@ -59,7 +71,8 @@ public final class BridgeFeasibility {
                                        TerrainSampler sampler,
                                        BlockPos start,
                                        BlockPos end,
-                                       boolean micro) {
+                                       boolean micro,
+                                       @Nullable BridgeTemplate template) {
         if (!MPBConfig.BRIDGES.enabled) return fail("bridges disabled");
         if (!MPBConfig.BRIDGE_AWARE_PATHFINDING.enabled) return fail("bridge-aware pathfinding disabled");
         if (start == null || end == null) return fail("start/end null");
@@ -126,7 +139,11 @@ public final class BridgeFeasibility {
             return fail("endpoint delta too high startHalf=" + startHalf + " endHalf=" + endHalf + " max=" + maxDeltaHalf);
         }
 
-        int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(startHalf, endHalf, line, sampler);
+        int crownHalf = BridgeGeometry.effectiveCrownHalf(
+                template != null ? template.bridgeCrownHalfBlocks : null, line, sampler);
+        int crownMinLen = BridgeGeometry.effectiveCrownMinLen(
+                template != null ? template.bridgeCrownMinLenBlocks : null);
+        int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(startHalf, endHalf, line, crownHalf, crownMinLen);
 
         final int minGroundGap = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.minGroundClearanceBelowDeck);
         final int minWaterGap = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.minWaterClearanceBelowDeck);
@@ -355,7 +372,8 @@ public final class BridgeFeasibility {
             return fail("exitCorridorIsBuildable failed");
         }
 
-        return ok(new BridgeSpan(start, end, line, startHalf, endHalf, micro, waterDominant, validWaterBridge));
+        return ok(new BridgeSpan(start, end, line, startHalf, endHalf, micro, waterDominant, validWaterBridge,
+                template, crownHalf, crownMinLen));
     }
 
     private static final class TrimmedBridgeCandidate {

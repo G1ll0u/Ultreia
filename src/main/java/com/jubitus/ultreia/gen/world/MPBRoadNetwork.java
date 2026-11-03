@@ -44,9 +44,12 @@ public final class MPBRoadNetwork extends WorldSavedData {
         public final int endX, endZ;
         public final int segmentId;
         public final int lengthBlocks;
+        /** Deck surface block Y at the entrance. */
+        public final int startY;
 
-        BridgeCrossing(int startX, int startZ, int endX, int endZ, int segmentId, int lengthBlocks) {
+        BridgeCrossing(int startX, int startZ, int startY, int endX, int endZ, int segmentId, int lengthBlocks) {
             this.startX = startX; this.startZ = startZ;
+            this.startY = startY;
             this.endX = endX; this.endZ = endZ;
             this.segmentId = segmentId;
             this.lengthBlocks = lengthBlocks;
@@ -208,10 +211,10 @@ public final class MPBRoadNetwork extends WorldSavedData {
             int dex = ex - x, dez = ez - z;
 
             if (dsx * dsx + dsz * dsz <= radiusSq) {
-                result.add(new BridgeCrossing(sx, sz, ex, ez, seg.id, len));
+                result.add(new BridgeCrossing(sx, sz, seg.waypoints.get(0).y, ex, ez, seg.id, len));
             }
             if (dex * dex + dez * dez <= radiusSq) {
-                result.add(new BridgeCrossing(ex, ez, sx, sz, seg.id, len));
+                result.add(new BridgeCrossing(ex, ez, seg.waypoints.get(seg.waypoints.size() - 1).y, sx, sz, seg.id, len));
             }
         }
         return result;

@@ -17,6 +17,7 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.PlayerEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -34,7 +35,7 @@ public final class MPBSpeedBoostHandler {
         float boost = 0f;  // 0.0 = no boost applied, 1.0 = full config bonus applied
         int linger = 0;
         // Entity currently holding the applied AttributeModifier (player, or the mount when riding).
-        UUID targetUuid = null;
+        WeakReference<EntityLivingBase> target = null;
         float lastAppliedAmount = 0f;
     }
 
@@ -59,12 +60,15 @@ public final class MPBSpeedBoostHandler {
     }
 
     @SubscribeEvent
+    public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
+        // Older versions saved the modifier with the player: drop any leftover.
+        removeModifier(event.player);
+    }
+
+    @SubscribeEvent
     public void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
-        UUID id = event.player.getUniqueID();
-        State state = states.remove(id);
-        if (state != null && state.targetUuid != null) {
-            removeModifierFromUuid(event.player.world, state.targetUuid);
-        }
+        State state = states.remove(event.player.getUniqueID());
+        if (state != null) removeModifier(currentTarget(state));
     }
 
     private void tickPlayer(EntityPlayerMP player, WorldServer world, MPBRoadIndexData roadIndex, MPBConfig.SpeedBoost cfg) {
@@ -80,7 +84,7 @@ public final class MPBSpeedBoostHandler {
             }
         }
 
-        boolean onRoad = cfg.enabled && detectOnRoad(target, world, roadIndex, cfg.detectionRadius, cfg.debugLog);
+        boolean onRoad = cfg.enabled && detectOnRoad(target, world, roadIndex, cfg.detectionRadius);
 
         if (onRoad) {
             state.linger = cfg.lingerTicks;
@@ -92,35 +96,33 @@ public final class MPBSpeedBoostHandler {
             state.boost = Math.max(0.0f, state.boost - 1.0f / Math.max(1, cfg.rampDownTicks));
         }
 
-        UUID targetUuid = target.getUniqueID();
-        if (state.targetUuid != null && !state.targetUuid.equals(targetUuid)) {
+        EntityLivingBase previous = currentTarget(state);
+        if (previous != null && previous != target) {
             // Mount/dismount, or the ridden entity changed: clean up the old target's modifier.
             // The boost/linger ramp itself is kept continuous across the switch.
             if (cfg.debugLog) Ultreia.LOGGER.debug(
-                    "[SpeedBoost] {} target switched from {} to {}", player.getName(), state.targetUuid, targetUuid);
-            removeModifierFromUuid(world, state.targetUuid);
+                    "[SpeedBoost] {} target switched from {} to {}", player.getName(), previous.getName(), target.getName());
+            removeModifier(previous);
             state.lastAppliedAmount = 0f;
         }
-        state.targetUuid = targetUuid;
+        state.target = new WeakReference<>(target);
 
         applyModifier(target, state, state.boost * (float) cfg.speedBonus, cfg.debugLog);
 
         if (state.boost <= 0f && state.linger <= 0) {
-            removeModifierFromUuid(world, state.targetUuid);
+            removeModifier(target);
             states.remove(id);
         }
     }
 
     private boolean detectOnRoad(EntityLivingBase target, WorldServer world, MPBRoadIndexData roadIndex,
-                                  int radius, boolean debug) {
+                                  int radius) {
         int px = (int) Math.floor(target.posX);
         int py = (int) Math.floor(target.posY);
         int pz = (int) Math.floor(target.posZ);
 
         // Fast path: block directly under the target's feet is a path block
         if (MPBMillPathPalette.isMillPath(world.getBlockState(new BlockPos(px, py - 1, pz)).getBlock())) {
-            if (debug) Ultreia.LOGGER.debug(
-                    "[SpeedBoost] {} on direct path block at {},{},{}", target.getName(), px, py - 1, pz);
             return true;
         }
 
@@ -144,9 +146,6 @@ public final class MPBSpeedBoostHandler {
                 // Player feet (py) sit one block above the road surface (py == roadY + 1 for full blocks,
                 // py == roadY for bottom slabs). Accept within ±1 block to cover both cases cleanly.
                 if (Math.abs(py - (roadY + 1)) <= 1) {
-                    if (debug) Ultreia.LOGGER.debug(
-                            "[SpeedBoost] {} near road index ({},{}) roadY={} targetY={}",
-                            target.getName(), x, z, roadY, py);
                     return true;
                 }
             }
@@ -160,27 +159,24 @@ public final class MPBSpeedBoostHandler {
         IAttributeInstance attr = target.getAttributeMap().getAttributeInstance(SharedMonsterAttributes.MOVEMENT_SPEED);
         if (attr == null) return;
 
-        if (Math.abs(amount - state.lastAppliedAmount) <= APPLY_THRESHOLD) {
-            if (debug) Ultreia.LOGGER.debug(
-                    "[SpeedBoost] {} apply skipped (unchanged, amount={})", target.getName(), amount);
-            return;
-        }
+        if (Math.abs(amount - state.lastAppliedAmount) <= APPLY_THRESHOLD) return;
 
         attr.removeModifier(MODIFIER_UUID);
         if (amount > APPLY_THRESHOLD) {
-            attr.applyModifier(new AttributeModifier(MODIFIER_UUID, MODIFIER_NAME, amount, MULTIPLY_TOTAL));
+            attr.applyModifier(new AttributeModifier(MODIFIER_UUID, MODIFIER_NAME, amount, MULTIPLY_TOTAL).setSaved(false));
         }
         if (debug) Ultreia.LOGGER.debug(
                 "[SpeedBoost] {} apply performed: {} -> {}", target.getName(), state.lastAppliedAmount, amount);
         state.lastAppliedAmount = amount;
     }
 
-    private void removeModifierFromUuid(net.minecraft.world.World world, UUID entityUuid) {
-        if (entityUuid == null || !(world instanceof WorldServer)) return;
-        Entity e = ((WorldServer) world).getEntityFromUuid(entityUuid);
-        if (e instanceof EntityLivingBase) {
-            IAttributeInstance attr = ((EntityLivingBase) e).getAttributeMap().getAttributeInstance(SharedMonsterAttributes.MOVEMENT_SPEED);
-            if (attr != null) attr.removeModifier(MODIFIER_UUID);
-        }
+    private static EntityLivingBase currentTarget(State state) {
+        return state.target != null ? state.target.get() : null;
+    }
+
+    private static void removeModifier(EntityLivingBase e) {
+        if (e == null) return;
+        IAttributeInstance attr = e.getAttributeMap().getAttributeInstance(SharedMonsterAttributes.MOVEMENT_SPEED);
+        if (attr != null) attr.removeModifier(MODIFIER_UUID);
     }
 }

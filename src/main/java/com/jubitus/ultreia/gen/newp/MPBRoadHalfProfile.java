@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.gen.newp;
 
+import com.jubitus.ultreia.gen.RoadType;
+
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.TerrainSampler;
 import com.jubitus.ultreia.gen.bridge.BridgeGeometry;
@@ -21,7 +23,7 @@ public final class MPBRoadHalfProfile {
 
     private MPBRoadHalfProfile() {}
 
-    public static int[] build(List<BlockPos> path, List<BridgeSpan> bridges, TerrainSampler sampler) {
+    public static int[] build(List<BlockPos> path, List<BridgeSpan> bridges, TerrainSampler sampler, RoadType roadType) {
         int n = path == null ? 0 : path.size();
         if (n <= 0) return new int[0];
 
@@ -32,13 +34,9 @@ public final class MPBRoadHalfProfile {
 
         int[] fixedHalf = buildExactBridgeHalfByPathIndex(path, bridges, sampler);
 
-        int cutHalf = MPBConfig.PATHFINDING.allowEarthworks
-                ? Math.max(0, MPBConfig.PAINTING.earthworksMaxCut) * 2
-                : 0;
-
-        int fillHalf = MPBConfig.PATHFINDING.allowEarthworks
-                ? Math.max(0, MPBConfig.PAINTING.earthworksMaxFill) * 2
-                : 0;
+        boolean earthworks = roadType.allowsEarthworks();
+        int cutHalf = earthworks ? Math.max(0, MPBConfig.PAINTING.earthworksMaxCut) * 2 : 0;
+        int fillHalf = earthworks ? Math.max(0, MPBConfig.PAINTING.earthworksMaxFill) * 2 : 0;
 
         int maxStepHalf = Math.max(1, MPBConfig.PAINTING.maxRoadStepHalfPerBlock);
         int smoothRadius = Math.max(0, MPBConfig.PAINTING.verticalSmoothRadius);
@@ -74,7 +72,7 @@ public final class MPBRoadHalfProfile {
         for (BridgeSpan span : bridges) {
             if (span == null || span.centerline == null || span.centerline.isEmpty()) continue;
 
-            int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span, sampler);
+            int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
 
             int from = 0;
             for (int j = 0; j < span.centerline.size() && j < deckHalf.length; j++) {

@@ -19,4 +19,11 @@ public enum RoadType {
         if (this == LONE_TRAIL && MPBConfig.ROAD_HIERARCHY.enabled) w = Math.max(1, w - 2);
         return w;
     }
+
+    /** Whether roads of this type may cut and fill terrain (pathfinding, profile and painting alike). */
+    public boolean allowsEarthworks() {
+        if (!MPBConfig.PATHFINDING.allowEarthworks) return false;
+        return !(this == LONE_TRAIL && MPBConfig.ROAD_HIERARCHY.enabled
+                && !MPBConfig.ROAD_HIERARCHY.loneTrailEarthworksEnabled);
+    }
 }

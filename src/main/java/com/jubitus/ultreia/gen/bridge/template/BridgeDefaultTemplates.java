@@ -25,7 +25,7 @@ public final class BridgeDefaultTemplates {
             File dest = BridgeTemplateRegistry.getTemplateFile(name);
             if (dest.exists()) continue;
 
-            String resource = "/assets/millpathbuilder/default_templates/" + name + ".json";
+            String resource = "/assets/ultreia/default_templates/" + name + ".json";
             try {
                 copyResource(resource, dest);
                 Ultreia.LOGGER.info("Deployed default bridge template: {}", name);

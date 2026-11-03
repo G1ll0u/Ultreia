@@ -1,5 +1,8 @@
 package com.jubitus.ultreia.gen;
 
+import net.minecraft.block.BlockWall;
+import net.minecraft.block.BlockStairs;
+import net.minecraft.block.BlockSlab;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
 import com.jubitus.ultreia.gen.newp.MPBTreeCompat;
 import net.minecraft.block.Block;
@@ -41,7 +44,8 @@ public final class MPBGround {
         if (b == Blocks.OBSIDIAN) return false;
 
         if (b == Blocks.GRASS || b == Blocks.DIRT || b == Blocks.GRAVEL || b == Blocks.SAND || b == Blocks.CLAY) return true;
-        if (b == Blocks.STONE || b == Blocks.STONEBRICK || b == Blocks.COBBLESTONE) return true;
+        if (b == Blocks.STONE) return true;
+        if (isBuiltStone(b)) return false;
         if (b == Blocks.MYCELIUM) return true;
         if (b == Blocks.SNOW || b == Blocks.SNOW_LAYER) return true;
         if (b == Blocks.HARDENED_CLAY || b == Blocks.STAINED_HARDENED_CLAY) return true;
@@ -63,6 +67,13 @@ public final class MPBGround {
         }
 
         return false;
+    }
+
+    /** Stone blocks that only appear in structures: never treated as natural ground. */
+    private static boolean isBuiltStone(Block b) {
+        if (b == Blocks.STONEBRICK || b == Blocks.COBBLESTONE || b == Blocks.MOSSY_COBBLESTONE) return true;
+        if (b == Blocks.BRICK_BLOCK || b == Blocks.NETHER_BRICK) return true;
+        return b instanceof BlockStairs || b instanceof BlockWall || b instanceof BlockSlab;
     }
 
     /**

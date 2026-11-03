@@ -156,15 +156,9 @@ public final class MPBRoadConnectionHelper {
             Block b = st.getBlock();
             if (!MPBMillPathPalette.isMillPath(b)) continue;
 
-            if (b instanceof BlockSlab) {
-                try {
-                    BlockSlab.EnumBlockHalf half = st.getValue(BlockSlab.HALF);
-                    if (half == BlockSlab.EnumBlockHalf.TOP) {
-                        return y * 2 + 2;
-                    }
-                    return y * 2 + 1;
-                } catch (Throwable ignored) {
-                }
+            // Path slabs (ours and Millénaire's) carry the slab HALF property without extending BlockSlab.
+            if (st.getPropertyKeys().contains(BlockSlab.HALF)) {
+                return st.getValue(BlockSlab.HALF) == BlockSlab.EnumBlockHalf.TOP ? y * 2 + 2 : y * 2 + 1;
             }
 
             return y * 2 + 2;

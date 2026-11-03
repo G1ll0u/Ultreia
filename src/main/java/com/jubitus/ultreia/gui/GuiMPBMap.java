@@ -282,11 +282,11 @@ public final class GuiMPBMap extends GuiScreen {
         GlStateManager.enableTexture2D();
         GlStateManager.disableBlend();
 
-        // ---------------------------------------------------------
-        // Coordonnées sur grosses lignes seulement
-        // ---------------------------------------------------------
+        // Coordinate labels on major lines only (aligned to the major spacing, not the minor one).
         if (zoom >= 0.08f) {
-            for (int wx = startX; wx <= (int) maxWX + majorSpacing; wx += majorSpacing) {
+            int majorStartX = (int) Math.floor(minWX / majorSpacing) * majorSpacing;
+            int majorStartZ = (int) Math.floor(minWZ / majorSpacing) * majorSpacing;
+            for (int wx = majorStartX; wx <= (int) maxWX + majorSpacing; wx += majorSpacing) {
                 int sx = (int) worldToScreenX(wx);
                 if (sx < 2 || sx > width - 20) continue;
 
@@ -297,7 +297,7 @@ public final class GuiMPBMap extends GuiScreen {
                         0x55AACCFF);
             }
 
-            for (int wz = startZ; wz <= (int) maxWZ + majorSpacing; wz += majorSpacing) {
+            for (int wz = majorStartZ; wz <= (int) maxWZ + majorSpacing; wz += majorSpacing) {
                 int sy = (int) worldToScreenZ(wz);
                 if (sy < 10 || sy > mapH - 10) continue;
 
@@ -499,11 +499,6 @@ public final class GuiMPBMap extends GuiScreen {
             int wi = hoveredWptIdx;
             lines.add("§7--- waypoint #" + wi + " / " + (wc - 1) + " ---");
             lines.add("Pos: (" + seg.wx(wi) + ", " + seg.wy(wi) + ", " + seg.wz(wi) + ")");
-            if (seg.hasTerrainY()) {
-                int ty = seg.terrainAt(wi);
-                int delta = seg.wy(wi) - ty;
-                lines.add("Terrain Y: " + ty + "  ΔY: " + (delta >= 0 ? "+" : "") + delta);
-            }
         }
         if (seg.fromX != PacketOpenMapGui.ABSENT)
             lines.add("From-village: (" + seg.fromX + ", " + seg.fromZ + ")");
@@ -697,7 +692,6 @@ public final class GuiMPBMap extends GuiScreen {
 
             for (PacketOpenMapGui.SegmentData seg : segments) {
                 int wc = seg.waypointCount();
-                boolean hasT = seg.hasTerrainY();
                 pw.println("== SEGMENT " + seg.id + " [" + (seg.isBridge ? "BRIDGE" : "ROAD") + "] ==");
                 pw.println("From-village: " + (seg.fromX != PacketOpenMapGui.ABSENT
                         ? "(" + seg.fromX + ", " + seg.fromZ + ")" : "none"));
@@ -708,20 +702,9 @@ public final class GuiMPBMap extends GuiScreen {
                     pw.println("Start: (" + seg.wx(0) + ", " + seg.wy(0) + ", " + seg.wz(0) + ")");
                     pw.println("End:   (" + seg.wx(wc-1) + ", " + seg.wy(wc-1) + ", " + seg.wz(wc-1) + ")");
                 }
-                if (hasT) {
-                    pw.println("# idx |     X |  Ypath | Yterrain |     Z |   dY");
-                } else {
-                    pw.println("# idx |     X |  Ypath |     Z");
-                }
+                pw.println("# idx |     X |  Ypath |     Z");
                 for (int i = 0; i < wc; i++) {
-                    if (hasT) {
-                        int delta = seg.wy(i) - seg.terrainAt(i);
-                        pw.printf("  %4d | %6d | %6d | %8d | %6d | %+4d%n",
-                                i, seg.wx(i), seg.wy(i), seg.terrainAt(i), seg.wz(i), delta);
-                    } else {
-                        pw.printf("  %4d | %6d | %6d | %6d%n",
-                                i, seg.wx(i), seg.wy(i), seg.wz(i));
-                    }
+                    pw.printf("  %4d | %6d | %6d | %6d%n", i, seg.wx(i), seg.wy(i), seg.wz(i));
                 }
                 pw.println();
             }

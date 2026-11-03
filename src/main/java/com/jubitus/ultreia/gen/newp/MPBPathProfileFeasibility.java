@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.gen.newp;
 
+import com.jubitus.ultreia.gen.RoadType;
+
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.TerrainSampler;
 import com.jubitus.ultreia.gen.bridge.BridgeSpan;
@@ -17,7 +19,8 @@ public final class MPBPathProfileFeasibility {
 
     public static boolean isFullPathFeasible(List<BlockPos> coarsePath,
                                              List<BridgeSpan> bridges,
-                                             TerrainSampler sampler) {
+                                             TerrainSampler sampler,
+                                             RoadType roadType) {
         if (coarsePath == null || coarsePath.isEmpty() || sampler == null) {
             return false;
         }
@@ -28,7 +31,7 @@ public final class MPBPathProfileFeasibility {
         }
 
         try {
-            int[] half = MPBRoadHalfProfile.build(dense, bridges, sampler);
+            int[] half = MPBRoadHalfProfile.build(dense, bridges, sampler, roadType);
             if (half == null || half.length != dense.size()) {
                 return false;
             }

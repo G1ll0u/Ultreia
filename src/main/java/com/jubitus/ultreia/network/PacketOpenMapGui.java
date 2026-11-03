@@ -20,25 +20,20 @@ public final class PacketOpenMapGui implements IMessage {
         public final int toX, toZ;
         // flat: x0,y0,z0, x1,y1,z1, ...
         public final int[] waypoints;
-        // natural terrain height per waypoint (same length as waypointCount, or 0-length if unavailable)
-        public final int[] terrainY;
 
         public SegmentData(int id, boolean isBridge,
                            int fromX, int fromZ, int toX, int toZ,
-                           int[] waypoints, int[] terrainY) {
+                           int[] waypoints) {
             this.id = id; this.isBridge = isBridge;
             this.fromX = fromX; this.fromZ = fromZ;
             this.toX = toX; this.toZ = toZ;
             this.waypoints = waypoints;
-            this.terrainY  = terrainY != null ? terrainY : new int[0];
         }
 
         public int waypointCount()    { return waypoints.length / 3; }
         public int wx(int i)          { return waypoints[i * 3]; }
         public int wy(int i)          { return waypoints[i * 3 + 1]; }
         public int wz(int i)          { return waypoints[i * 3 + 2]; }
-        public boolean hasTerrainY()  { return terrainY.length == waypointCount(); }
-        public int terrainAt(int i)   { return hasTerrainY() ? terrainY[i] : wy(i); }
     }
 
     private static GuiOpener guiOpener;
@@ -73,13 +68,7 @@ public final class PacketOpenMapGui implements IMessage {
             int wc = buf.readInt();
             int[] wp = new int[wc * 3];
             for (int j = 0; j < wp.length; j++) wp[j] = buf.readInt();
-            boolean hasT = buf.readBoolean();
-            int[] ty = new int[0];
-            if (hasT) {
-                ty = new int[wc];
-                for (int j = 0; j < wc; j++) ty[j] = buf.readShort();
-            }
-            segments.add(new SegmentData(id, br, fx, fz, tx, tz, wp, ty));
+            segments.add(new SegmentData(id, br, fx, fz, tx, tz, wp));
         }
     }
 
@@ -94,11 +83,6 @@ public final class PacketOpenMapGui implements IMessage {
             buf.writeInt(sd.toX);  buf.writeInt(sd.toZ);
             buf.writeInt(sd.waypointCount());
             for (int v : sd.waypoints) buf.writeInt(v);
-            boolean hasT = sd.hasTerrainY();
-            buf.writeBoolean(hasT);
-            if (hasT) {
-                for (int t : sd.terrainY) buf.writeShort(t);
-            }
         }
     }
 

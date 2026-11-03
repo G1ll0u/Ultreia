@@ -41,25 +41,17 @@ public final class MPBMillPathPalette {
             return MPBBlocks.PATH_SLAB.getDefaultState()
                     .withProperty(MPBPathSlabBlock.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
         }
-        IBlockState st;
+        Block slab;
         switch (k) {
-            case GRAVEL:
-                st = MillBlocks.PATHGRAVEL_SLAB.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
-                break;
-            case SANDSTONE:
-                st = MillBlocks.PATHDIRT_SLAB.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
-                break;
-            case SLABS:
-                st = MillBlocks.PATHGRAVEL.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
-                break;
-            case SNOW:
-                st = MillBlocks.PATHSNOW_SLAB.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
-                break;
+            case GRAVEL:    slab = MillBlocks.PATHGRAVEL_SLAB; break;
+            case SANDSTONE: slab = MillBlocks.PATHSANDSTONE_SLAB; break;
+            case SLABS:     slab = MillBlocks.PATHSLABS_SLAB; break;
+            case OCHRE:     slab = MillBlocks.PATHOCHRESLABS_SLAB; break;
+            case SNOW:      slab = MillBlocks.PATHSNOW_SLAB; break;
             case DIRT:
-            default:
-                st = MillBlocks.PATHDIRT_SLAB.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
-                break;
+            default:        slab = MillBlocks.PATHDIRT_SLAB; break;
         }
+        IBlockState st = slab.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
         return MPBMillenairePathCompat.stabilizeIfPossible(st);
     }
 
@@ -70,6 +62,21 @@ public final class MPBMillPathPalette {
                 || b == MillBlocks.PATHSLABS || b == MillBlocks.PATHOCHRESLABS || b == MillBlocks.PATHSNOW
                 || b == MillBlocks.PATHDIRT_SLAB || b == MillBlocks.PATHGRAVEL_SLAB || b == MillBlocks.PATHSANDSTONE_SLAB
                 || b == MillBlocks.PATHSLABS_SLAB || b == MillBlocks.PATHOCHRESLABS_SLAB || b == MillBlocks.PATHSNOW_SLAB;
+    }
+
+    /** Path kind of an existing path block, or null when the block is not a path. */
+    public static Kind kindFromState(IBlockState st) {
+        if (st == null) return null;
+        Block b = st.getBlock();
+        if (b == MPBBlocks.PATH_BLOCK || b == MPBBlocks.PATH_SLAB) return Kind.DIRT;
+        if (!MillPresence.isPresent()) return null;
+        if (b == MillBlocks.PATHDIRT || b == MillBlocks.PATHDIRT_SLAB) return Kind.DIRT;
+        if (b == MillBlocks.PATHGRAVEL || b == MillBlocks.PATHGRAVEL_SLAB) return Kind.GRAVEL;
+        if (b == MillBlocks.PATHSNOW || b == MillBlocks.PATHSNOW_SLAB) return Kind.SNOW;
+        if (b == MillBlocks.PATHSANDSTONE || b == MillBlocks.PATHSANDSTONE_SLAB) return Kind.SANDSTONE;
+        if (b == MillBlocks.PATHSLABS || b == MillBlocks.PATHSLABS_SLAB) return Kind.SLABS;
+        if (b == MillBlocks.PATHOCHRESLABS || b == MillBlocks.PATHOCHRESLABS_SLAB) return Kind.OCHRE;
+        return null;
     }
 
     public static Kind pickKind(World world, BlockPos pos, IBlockState ground) {

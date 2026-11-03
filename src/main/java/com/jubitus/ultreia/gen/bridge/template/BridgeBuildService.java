@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.gen.bridge.template;
 
+import com.jubitus.ultreia.Ultreia;
+import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.TerrainSampler;
 import com.jubitus.ultreia.gen.bridge.BridgeSpan;
 import net.minecraft.world.WorldServer;
@@ -12,7 +14,16 @@ public final class BridgeBuildService {
                                 TerrainSampler sampler,
                                 BridgeSpan span,
                                 boolean dryRun) {
-        BridgeTemplate template = BridgeTemplateSelector.select(world, span);
+        BridgeTemplate template = span.template;
+        if (template == null) {
+            Ultreia.LOGGER.warn("[MPB] No bridge template matched and default '{}' not found — bridge skipped.",
+                    MPBConfig.BRIDGES.defaultTemplateName);
+            return false;
+        }
+        if (MPBConfig.DEBUG.logBridgeTemplateSelection) {
+            Ultreia.LOGGER.info("[MPB] Bridge ({} blocks, water={}, waterDominant={}): template '{}'",
+                    span.lengthBlocks(), span.hasWaterCrossing, span.waterDominant, template.name);
+        }
         return BridgeTemplateBridgeBuilder.build(world, sampler, span, template, dryRun);
     }
 }

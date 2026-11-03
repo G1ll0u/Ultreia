@@ -164,6 +164,7 @@ public final class MPBRoadColumns {
         Block b = st.getBlock();
 
         if (m == Material.AIR) return false;
+        if (m == Material.LAVA) return false;
         if (b == Blocks.SNOW_LAYER) return true;
         if (m.isReplaceable()) return true;
         if (b.isReplaceable(world, pos)) return true;
@@ -190,14 +191,7 @@ public final class MPBRoadColumns {
         if (m == Material.LEAVES) return false;
         if (m == Material.WOOD) return false;
 
-        if (MPBGround.isRoadReplaceableGround(st)) return true;
-
-        if (m == Material.ROCK || m == Material.GROUND || m == Material.GRASS || m == Material.SAND || m == Material.CLAY) return true;
-
-        String name = (st.getBlock().getRegistryName() != null) ? st.getBlock().getRegistryName().toString() : "";
-        if (name.contains("stone") || name.contains("rock") || name.contains("dirt") || name.contains("gravel") || name.contains("sand")) return true;
-
-        return false;
+        return MPBGround.isRoadReplaceableGround(st);
     }
 
     private static void clearWithPairIfNeeded(World world, BlockPos pos, IBlockState st) {

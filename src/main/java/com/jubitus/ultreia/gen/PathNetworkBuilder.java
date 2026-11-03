@@ -114,7 +114,6 @@ public final class PathNetworkBuilder {
         // 4. Lone buildings: connect to nearest village only
         for (BlockPos lb : lone) {
             BlockPos target = nearest(lb, villages, maxDistSq);
-            if (target == null && !villages.isEmpty()) target = villages.get(0);
             if (target == null) continue;
             Edge e = new Edge(lb, target, true);
             if (e.distSq() <= maxDistSq) edgesMap.put(e.key(), e);

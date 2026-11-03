@@ -18,7 +18,6 @@ import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 import net.minecraft.world.storage.MapStorage;
 import net.minecraft.world.storage.WorldSavedData;
-import org.millenaire.common.block.MillBlocks;
 
 import javax.annotation.Nullable;
 
@@ -217,19 +216,19 @@ public class MPBRoadIndexData extends WorldSavedData {
         for (int cx = cminX; cx <= cmaxX; cx++) {
             for (int cz = cminZ; cz <= cmaxZ; cz++) {
                 long ck = chunkKey(cx, cz);
-                if (scannedChunks.add(ck)) scanChunk(world, cx, cz);
+                if (!scannedChunks.contains(ck) && scanChunk(world, cx, cz)) scannedChunks.add(ck);
             }
         }
     }
 
-    private void scanChunk(WorldServer world, int cx, int cz) {
+    /** Returns false when the chunk could not be read; it is then scanned again on a later request. */
+    private boolean scanChunk(WorldServer world, int cx, int cz) {
         int wx0 = cx << 4, wz0 = cz << 4;
 
-        if (chunkManager != null) {
-            chunkManager.ensureLoaded(world, wx0, wz0);
-        } else {
-            if (!world.isBlockLoaded(new BlockPos(wx0, 0, wz0))) return;
-        }
+        boolean loaded = chunkManager != null
+                ? chunkManager.ensureLoaded(world, wx0, wz0)
+                : world.isBlockLoaded(new BlockPos(wx0, 0, wz0));
+        if (!loaded) return false;
 
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
 
@@ -258,6 +257,7 @@ public class MPBRoadIndexData extends WorldSavedData {
                 }
             }
         }
+        return true;
     }
 
     private int findSurfaceYForScan(World world, int x, int startY, int z, BlockPos.MutableBlockPos pos) {
@@ -294,26 +294,12 @@ public class MPBRoadIndexData extends WorldSavedData {
             if (yy < 1 || yy > 255) continue;
             p.setPos(x, yy, z);
             IBlockState st = world.getBlockState(p);
-            MPBMillPathPalette.Kind k = kindFromState(st);
+            MPBMillPathPalette.Kind k = MPBMillPathPalette.kindFromState(st);
             if (k != null) return k;
         }
         return null;
     }
 
-    @Nullable
-    public static MPBMillPathPalette.Kind kindFromState(IBlockState st) {
-        if (st == null) return null;
-        Block b = st.getBlock();
-        if (b == MPBBlocks.PATH_BLOCK || b == MPBBlocks.PATH_SLAB) return MPBMillPathPalette.Kind.DIRT;
-        if (!MillPresence.isPresent()) return null;
-        if (b == MillBlocks.PATHDIRT || b == MillBlocks.PATHDIRT_SLAB) return MPBMillPathPalette.Kind.DIRT;
-        if (b == MillBlocks.PATHGRAVEL || b == MillBlocks.PATHGRAVEL_SLAB) return MPBMillPathPalette.Kind.GRAVEL;
-        if (b == MillBlocks.PATHSNOW || b == MillBlocks.PATHSNOW_SLAB) return MPBMillPathPalette.Kind.SNOW;
-        if (b == MillBlocks.PATHSANDSTONE || b == MillBlocks.PATHSANDSTONE_SLAB) return MPBMillPathPalette.Kind.SANDSTONE;
-        if (b == MillBlocks.PATHSLABS || b == MillBlocks.PATHSLABS_SLAB) return MPBMillPathPalette.Kind.SLABS;
-        if (b == MillBlocks.PATHOCHRESLABS || b == MillBlocks.PATHOCHRESLABS_SLAB) return MPBMillPathPalette.Kind.OCHRE;
-        return null;
-    }
 
     // --- Approx nearest road dist (unchanged) ---
 

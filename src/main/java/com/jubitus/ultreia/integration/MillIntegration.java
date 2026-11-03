@@ -19,6 +19,12 @@ public final class MillIntegration {
 
     private MillIntegration() {}
 
+    /** Forgets the previous world's data, so the next world opened in the same session loads its own. */
+    public static void clear() {
+        BY_DIM.clear();
+        LOAD_TRIED_DIM.clear();
+    }
+
     public static void register(MillWorldData data) {
         if (data == null || data.world == null) return;
         int dim = data.world.provider.getDimension();

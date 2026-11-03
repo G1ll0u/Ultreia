@@ -159,7 +159,8 @@ public final class MPBGenerationManager {
 
         if (JOBS.isEmpty()) return;
 
-        long budgetNs = Math.max(1, MPBConfig.GENERAL.tickBudgetMs) * 1_000_000L;
+        // The budget is shared by every dimension's job, so two jobs never cost more than one.
+        long budgetNs = Math.max(1, MPBConfig.GENERAL.tickBudgetMs) * 1_000_000L / JOBS.size();
 
         for (MPBAsyncJob job : JOBS.values()) {
             long start = System.nanoTime();

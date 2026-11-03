@@ -259,7 +259,9 @@ public final class MPBEndpointResolver {
     @Nullable
     private static Integer findMillPathY(WorldServer world, int x, int z, int surfaceY) {
         int maxY = Math.min(255, surfaceY + 5);
-        BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
+        BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos(x, 0, z);
+        // A chunk the chunk manager refused must not be loaded here behind its back.
+        if (!world.isBlockLoaded(p)) return null;
         for (int y = 4; y <= maxY; y++) {
             p.setPos(x, y, z);
             IBlockState st = world.getBlockState(p);

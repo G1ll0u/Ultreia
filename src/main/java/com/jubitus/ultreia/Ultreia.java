@@ -16,6 +16,7 @@ import net.minecraftforge.fml.common.SidedProxy;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
 import net.minecraftforge.fml.common.event.FMLServerStoppingEvent;
+import com.jubitus.ultreia.integration.MillIntegration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -68,5 +69,6 @@ public class Ultreia {
     @Mod.EventHandler
     public void serverStopping(FMLServerStoppingEvent event) {
         MPBGenerationManager.onServerStopping();
+        if (MillPresence.isPresent()) MillIntegration.clear();
     }
 }

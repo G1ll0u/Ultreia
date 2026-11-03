@@ -314,14 +314,9 @@ public final class MPBRoadNavigator {
         int toIdx = nearestWaypointIndex(seg, to.x, to.z);
         if (toIdx < 0) return Collections.emptyList();
 
-        int startIdx;
-        if (prevEnd != null) {
-            int fromStart = distSq(seg.startX(), seg.startZ(), prevEnd.x, prevEnd.z);
-            int fromEnd   = distSq(seg.endX(), seg.endZ(), prevEnd.x, prevEnd.z);
-            startIdx = fromStart <= fromEnd ? 0 : seg.waypoints.size() - 1;
-        } else {
-            startIdx = 0;
-        }
+        // Enter where the previous segment actually joins (may be mid-segment after an early merge).
+        int startIdx = prevEnd != null ? nearestWaypointIndex(seg, prevEnd.x, prevEnd.z) : 0;
+        if (startIdx < 0) startIdx = 0;
 
         List<RoadWaypoint> result = new ArrayList<>();
         if (startIdx <= toIdx) {

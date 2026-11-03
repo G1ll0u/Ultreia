@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.gen;
 
+import com.jubitus.ultreia.MillPresence;
+
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.bridge.BridgeAwarePathResult;
@@ -16,8 +18,6 @@ import net.minecraft.command.ICommandSender;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.world.WorldServer;
-import org.millenaire.common.utilities.Point;
-import org.millenaire.common.world.MillWorldData;
 
 import javax.annotation.Nullable;
 import java.lang.ref.WeakReference;
@@ -37,7 +37,6 @@ public final class MPBGenerationJob implements MPBAsyncJob {
     private final MPBProtectedAreas protectedAreas;
 
     private final List<BlockPos> nodes;
-    private final Long2ObjectOpenHashMap<BlockPos> anchorByXZ = new Long2ObjectOpenHashMap<>();
     private final VillageGateTracker gateTracker = new VillageGateTracker();
     private final List<PathNetworkBuilder.Edge> edges;
 
@@ -90,10 +89,6 @@ public final class MPBGenerationJob implements MPBAsyncJob {
         this.protectedAreas = buildProtectedAreas(world, sampler);
         this.sampler.setProtectedAreas(this.protectedAreas);
 
-        for (BlockPos n : nodes) {
-            anchorByXZ.put(xzKey(n), findAnchor(world, n, sampler, 32));
-        }
-
         if (nodes.size() < 2) {
             msg("Not enough nodes (need at least 2).");
             this.edges = new ArrayList<>();
@@ -140,10 +135,6 @@ public final class MPBGenerationJob implements MPBAsyncJob {
 
         this.protectedAreas = buildProtectedAreas(world, sampler);
         this.sampler.setProtectedAreas(this.protectedAreas);
-
-        for (BlockPos n : nodes) {
-            anchorByXZ.put(xzKey(n), findAnchor(world, n, sampler, 32));
-        }
 
         // Rebuild edges from persisted BlockPos pairs instead of re-running the network builder.
         List<BlockPos[]> stored = cp.getEdges();
@@ -241,17 +232,15 @@ public final class MPBGenerationJob implements MPBAsyncJob {
                     msg("  anchorB " + MPBEndpointResolver.debugResolveEndpointAnchor(world, e.b, e.a, sampler, protectedAreas));
                 }
 
-                anchorByXZ.put(xzKey(e.a), a0);
-                anchorByXZ.put(xzKey(e.b), b0);
-
+                // 0 turns lone-building spurs off.
                 int snapR = Math.max(0, MPBConfig.GENERAL.snapToExistingRoadRadius);
-                if (snapR <= 0) snapR = 48;
-
-                roadIndex.ensureScannedRadius(world, a0.getX(), a0.getZ(), snapR + 8);
-                roadIndex.ensureScannedRadius(world, b0.getX(), b0.getZ(), snapR + 8);
-
-                BlockPos nearA = roadIndex.findNearestRoad(a0.getX(), a0.getZ(), snapR);
-                BlockPos nearB = roadIndex.findNearestRoad(b0.getX(), b0.getZ(), snapR);
+                BlockPos nearA = null, nearB = null;
+                if (snapR > 0) {
+                    roadIndex.ensureScannedRadius(world, a0.getX(), a0.getZ(), snapR + 8);
+                    roadIndex.ensureScannedRadius(world, b0.getX(), b0.getZ(), snapR + 8);
+                    nearA = roadIndex.findNearestRoad(a0.getX(), a0.getZ(), snapR);
+                    nearB = roadIndex.findNearestRoad(b0.getX(), b0.getZ(), snapR);
+                }
 
 // Lone building rule: if a lone endpoint is near an existing road, build a short spur to it.
                 if (aIsLone && nearA != null && (protectedAreas == null || !protectedAreas.contains(nearA.getX(), nearA.getZ()))) {
@@ -424,39 +413,9 @@ public final class MPBGenerationJob implements MPBAsyncJob {
         if (sender != null) sender.sendMessage(new TextComponentString(s));
     }
 
-    private static long xzKey(BlockPos p) {
-        return (((long) p.getX()) << 32) ^ (p.getZ() & 0xffffffffL);
-    }
-
     static MPBProtectedAreas buildProtectedAreas(WorldServer world, TerrainSampler sampler) {
         MPBProtectedAreas pa = new MPBProtectedAreas();
-
-        MillWorldData data = MillIntegration.ensureLoaded(world);
-
-        int vR = Math.max(0, MPBConfig.GENERAL.villageNoPaintRadius);
-        int lR = Math.max(0, MPBConfig.GENERAL.loneBuildingNoPaintRadius);
-        int penalty = (int) Math.max(0.0, MPBConfig.PATHFINDING.protectedZonePenalty);
-
-        if (data != null) {
-            // penalty-only zones (NOT hard)
-            if (data.villagesList != null && data.villagesList.pos != null) {
-                for (Point p : data.villagesList.pos) {
-                    if (p == null) continue;
-                    pa.addPenaltySquare(p.getiX(), p.getiZ(), vR, penalty);
-                }
-            }
-            if (data.loneBuildingsList != null && data.loneBuildingsList.pos != null) {
-                for (Point p : data.loneBuildingsList.pos) {
-                    if (p == null) continue;
-                    pa.addPenaltySquare(p.getiX(), p.getiZ(), lR, penalty);
-                }
-            }
-        }
-
-        // hard obstacles: each building bbox (exact) from BuildingLocation
-        int hardPenalty = Math.max(0, penalty) + 5000;
-        MillBuildingObstacles2.addBuildingsFromLocationsAsNoPaint(world, pa, 1, hardPenalty);
-
+        if (MillPresence.isPresent()) MillBuildingObstacles2.addMillenaireZones(world, pa);
         return pa;
     }
 
@@ -510,10 +469,5 @@ public final class MPBGenerationJob implements MPBAsyncJob {
             saved.markDirty();
         } catch (Throwable ignored) {
         }
-    }
-
-    private BlockPos anchorFromXZ(int x, int z) {
-        BlockPos raw = new BlockPos(x, 0, z);
-        return findAnchor(world, raw, sampler, 12);
     }
 }

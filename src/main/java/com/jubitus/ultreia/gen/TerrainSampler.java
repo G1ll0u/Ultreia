@@ -641,6 +641,8 @@ public class TerrainSampler {
     private boolean isSkippableTop(IBlockState st, BlockPos pos) {
         Material m = st.getMaterial();
         Block b = st.getBlock();
+        // Lava is "replaceable" in vanilla: stop on it so the column reads as lava, not as the pool floor.
+        if (m == Material.LAVA) return false;
 
         if (MPBTreeCompat.isTreeFoliageLike(world, pos, st)) return true;
         if (m.isReplaceable()) return true;
@@ -826,6 +828,7 @@ public class TerrainSampler {
         Material m = st.getMaterial();
         Block b = st.getBlock();
         if (m == Material.AIR) return true;
+        if (m == Material.LAVA) return false;
 
         if (MPBTreeCompat.isTreeFoliageLike(world, pos, st)) return true;
         if (m.isReplaceable()) return true;
