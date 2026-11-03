@@ -177,7 +177,7 @@ final class VillageNetworkSource implements EdgeSource {
         curBIsVillage = bIsVillage;
 
         // LONE_TRAIL: A* ends at the nearest existing road instead of the destination.
-        boolean endAtRoad = roadType == RoadType.LONE_TRAIL && RoadType.ROAD_HIERARCHY_ENABLED;
+        boolean endAtRoad = roadType == RoadType.LONE_TRAIL;
         return new EdgeRequest(a0, b0, roadType, e.a, e.b, gateFieldB[0], endAtRoad);
     }
 

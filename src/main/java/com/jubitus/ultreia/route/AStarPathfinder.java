@@ -5,8 +5,6 @@ import com.jubitus.ultreia.bridge.BridgeDeckProfile;
 import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.geom.LineRaster;
 import com.jubitus.ultreia.terrain.TerrainView;
-import com.jubitus.ultreia.bridge.BridgeFeasibility;
-import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
@@ -25,7 +23,6 @@ import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.WorldServer;
 
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -38,8 +35,6 @@ import java.util.PriorityQueue;
 
 import static com.jubitus.ultreia.route.GridMoves.DIR_NONE;
 import static com.jubitus.ultreia.route.GridMoves.NEIGHBOR_DIRS;
-import static com.jubitus.ultreia.route.GridMoves.nearestDirIndex;
-import static com.jubitus.ultreia.route.GridMoves.normalizedDot;
 import static com.jubitus.ultreia.route.GridMoves.snap;
 import static com.jubitus.ultreia.route.GridMoves.turnCost;
 
@@ -59,8 +54,6 @@ public final class AStarPathfinder {
     private static final int MAX_SEGMENT_ROUGHNESS = 4;
     // Extra margin around the start-goal bounding box (blocks).
     private static final int SEARCH_MARGIN = 230;
-    // Hard cap radius from start (blocks).
-    private static final int MAX_SEARCH_RADIUS = 0;
     // Maximum half-width of the A* search corridor (blocks).
     private static final int CORRIDOR_HALF_WIDTH_MAX = 256;
     // Minimum total rise within lookahead before a straight uphill is considered 'direct climb'.
@@ -79,22 +72,100 @@ public final class AStarPathfinder {
     private static final double ENCLOSED_CUT_PENALTY = 150.0;
     // Extra penalty per additional enclosed cell in a sustained enclosed cut run.
     private static final double SUSTAINED_ENCLOSED_CUT_PENALTY = 100.0;
+    // Penalty per block of the lower wall in an enclosed cut cell of the move itself.
+    private static final double ENCLOSED_WALL_PENALTY_PER_BLOCK = 8.0;
     // Forward lookahead used to discourage direct enclosed mountain ascent.
     private static final int MOUNTAIN_ASCENT_LOOKAHEAD = 4;
     // Penalty for continuing into a sustained enclosed uphill push.
     private static final double MOUNTAIN_ASCENT_PENALTY = 50.0;
+    // Penalty per block of sustained rise or drop ahead while the look-ahead is enclosed.
+    private static final double VERTICAL_COMMIT_PENALTY_PER_BLOCK = 8.0;
     // Cut cost multiplier applied when the terrain being cut is hard rock (stone, granite, etc.).
     private static final double HARD_ROCK_CUT_MULTIPLIER = 1.5;
+    // Light-sample hardness category from which the surface counts as hard rock (2 = stone).
+    private static final int HARD_ROCK_CATEGORY = 2;
+    // Look-ahead weights: cut cost, enclosed entry, per enclosed cell, sustained run, per block of wall.
+    private static final double LOOKAHEAD_CUT_WEIGHT = 0.75;
+    private static final double LOOKAHEAD_ENCLOSED_WEIGHT = 0.5;
+    private static final double LOOKAHEAD_ENCLOSED_CELL_PENALTY = 26.0;
+    private static final double LOOKAHEAD_SUSTAINED_WEIGHT = 0.6;
+    private static final double LOOKAHEAD_WALL_PENALTY_PER_BLOCK = 10.0;
+    // Cost per squared block of look-ahead cut deeper than PREDICTED_MAX_CUT_DEPTH.
+    private static final double LOOKAHEAD_OVER_CUT_PENALTY = 120.0;
+    // Look-ahead cut cost factor with terrain on one side only; rises linearly to 1 when fully enclosed.
+    private static final double OPEN_HILLSIDE_CUT_FACTOR = 0.3;
+    // Cost per squared block of height step beyond the grade limit.
+    private static final double OVER_GRADE_PENALTY = 30.0;
+    // Slack over the roughness and cut-depth limits before a move is rejected.
+    private static final int ROUGHNESS_SLACK = 2;
+    private static final int CUT_DEPTH_SLACK = 1;
+    // A move with an enclosed run this long that also cuts beyond the limit is rejected.
+    private static final int SEVERE_ENCLOSED_MIN_RUN = 2;
     // Maximum number of full-path profile rejections before A* gives up.
     private static final int PROFILE_REJECTION_LIMIT = 300;
-    // If true, multiply the stagnation-abort threshold when the route has a large elevation change.
-    private static final boolean SWITCHBACK_STAGNATION_BOOST = true;
     // Extra earthworks tolerance (blocks) added at pathfinding time only, on top of earthworksMaxCut/Fill.
     private static final int PATHFINDING_EARTHWORKS_TOLERANCE = 4;
-    // If true, automatically increases gridStep for very long routes to limit search space.
-    private static final boolean ADAPTIVE_GRID_STEP = true;
+    // Routes longer than this (blocks) use a coarser grid step, up to MAX_ADAPTIVE_STEP.
+    private static final int LONG_ROUTE_DIST = 1200;
+    private static final int LONG_ROUTE_STEP_INCREASE = 2;
+    private static final int MAX_ADAPTIVE_STEP = 10;
+    // On the coarser grid the iteration budget grows with the step, up to this factor.
+    private static final int ADAPTIVE_MAX_ITERATIONS_FACTOR = 2;
+    // Smallest corridor half-width on the coarser grid.
+    private static final int ADAPTIVE_CORRIDOR_MIN = 128;
+    // Corridor half-width gained per block of height difference between start and goal.
+    private static final int CORRIDOR_PER_CLIMB_BLOCK = 8;
+    // Long routes get routeLength / divisor as corridor half-width, within these bounds.
+    private static final int LONG_ROUTE_CORRIDOR_DIVISOR = 3;
+    private static final int LONG_ROUTE_CORRIDOR_MIN = 128;
+    private static final int LONG_ROUTE_CORRIDOR_MAX = 768;
+    // Bounding-box margin gained per block of height difference, and its cap.
+    private static final int MARGIN_PER_CLIMB_BLOCK = 6;
+    private static final int MAX_CLIMB_MARGIN = 2048;
     // Cost discount applied to normal A* moves that step closer to a known existing bridge crossing's entrance,...
     private static final double BRIDGE_ENDPOINT_MAGNETISM_BONUS = 12.0;
+    // Road distance scan step of road magnetism.
+    private static final int MAGNETISM_SCAN_STEP = 2;
+    // Road-snap only triggers this many grid steps away from the start.
+    private static final double SNAP_MIN_DIST_STEPS = 6.0;
+    // Weight of the remaining distance in the score that picks the partial-path end point.
+    private static final double BEST_APPROX_DISTANCE_WEIGHT = 0.25;
+    // A partial path must get this much closer to the goal: blocks, or fraction of the start distance.
+    private static final double PARTIAL_MIN_GAIN_BLOCKS = 64.0;
+    private static final double PARTIAL_MIN_GAIN_FRACTION = 0.18;
+    // Progress that resets the stagnation counter: grid steps, or fraction of the start distance.
+    private static final double STAGNATION_MIN_GAIN_STEPS = 3.0;
+    private static final double STAGNATION_MIN_GAIN_FRACTION = 0.03;
+    // Stagnation abort threshold (expansions) by route length (blocks); the last threshold is for longer routes.
+    private static final int[] STAGNATION_ROUTE_LENGTHS = {256, 512, 1024};
+    private static final int[] STAGNATION_THRESHOLDS = {6000, 9000, 14000, 22000};
+    // Stagnation threshold bounds: a floor, and a fraction (1/divisor) of the iteration budget.
+    private static final int STAGNATION_MIN_THRESHOLD = 4000;
+    private static final int STAGNATION_MAX_IT_DIVISOR = 12;
+    // Steep routes multiply the stagnation threshold to leave room for switchbacks.
+    private static final int STEEP_ROUTE_MIN_DY = 12;
+    private static final int STEEP_ROUTE_DY_PER_BOOST = 16;
+    private static final int STEEP_ROUTE_MAX_BOOST = 4;
+    private static final int STEEP_ROUTE_MAX_IT_DIVISOR = 4;
+    // The frontier still counts as promising when this many grid steps closer than the best point.
+    private static final int FRONTIER_PROMISE_STEPS = 2;
+    // Climbing or descending this fraction of the height difference counts as progress (switchbacks).
+    private static final int ALTITUDE_PROGRESS_MIN_DY = 8;
+    private static final double ALTITUDE_PROGRESS_FRACTION = 0.20;
+    // Endpoint snap: search radius (blocks, or grid steps) and score bonuses (squared blocks).
+    private static final int ENDPOINT_SNAP_MIN_RADIUS = 24;
+    private static final int ENDPOINT_SNAP_RADIUS_STEPS = 8;
+    private static final double ENDPOINT_ON_ROAD_BONUS = 64.0;
+    private static final double ENDPOINT_FREE_EXIT_BONUS = 6.0;
+    private static final int MIN_FREE_EXITS = 2;
+
+    private static final double SCORE_EPSILON = 0.001;
+    private static final int RECONSTRUCT_GUARD = 600_000;
+    private static final long ABSURD_JUMP_BLOCKS = 2048L;
+    private static final long PROGRESS_LOG_INTERVAL_NS = 10_000_000_000L;
+    // distSinceBridge value meaning "no bridge yet on this path"; real distances stay capped far below it.
+    private static final int NO_BRIDGE_YET = Integer.MAX_VALUE / 4;
+    private static final int DIST_SINCE_BRIDGE_CAP = 1_000_000;
 
     public enum StepResult { RUNNING, FOUND, PARTIAL, FAILED }
 
@@ -114,12 +185,9 @@ public final class AStarPathfinder {
     public static final class Session {
         private int minX, maxX, minZ, maxZ;
         private int sx, sz;
-        private int maxRadSq;
 
-        private final WorldServer world;
         private final TerrainView sampler;
         private final int step;
-        private final int configStep;
         private final BridgeMoveGenerator bridgeMoves;
         private int gx, gz;
 
@@ -175,8 +243,8 @@ public final class AStarPathfinder {
 
         private int skipOcean = 0, skipBlacklist = 0, skipBlocked = 0, skipSlope = 0, skipBridge = 0;
 
+        // Corridor around the start-goal segment.
         private int corridorHalfWidth;
-        private long ax, az, bx, bz;
         private long segDx, segDz;
         private long segLenSq;
 
@@ -199,27 +267,13 @@ public final class AStarPathfinder {
         private int bridgeDebugPrinted = 0;
         private int bridgeDebugSuppressed = 0;
 
-        Session(WorldServer world, BlockPos start, BlockPos goal, TerrainView sampler) {
-            this.world = world;
+        Session(BlockPos start, BlockPos goal, TerrainView sampler) {
             this.sampler = sampler;
 
-            this.configStep = Math.max(2, GRID_STEP);
-            {
-                if (ADAPTIVE_GRID_STEP) {
-                    double roughDist = Math.sqrt(
-                        (double)(start.getX() - goal.getX()) * (double)(start.getX() - goal.getX()) +
-                        (double)(start.getZ() - goal.getZ()) * (double)(start.getZ() - goal.getZ())
-                    );
-                    // +2 only for routes > 1200 blocks; grade penalty is rescaled below
-                    if (roughDist > 1200) {
-                        this.step = Math.min(10, configStep + 2);
-                    } else {
-                        this.step = configStep;
-                    }
-                } else {
-                    this.step = configStep;
-                }
-            }
+            double roughDist = Math.sqrt(Pos2D.distSq(start.getX(), start.getZ(), goal.getX(), goal.getZ()));
+            this.step = roughDist > LONG_ROUTE_DIST
+                    ? Math.min(MAX_ADAPTIVE_STEP, GRID_STEP + LONG_ROUTE_STEP_INCREASE)
+                    : GRID_STEP;
             this.bridgeMoves = new BridgeMoveGenerator(sampler, step, this::baseXZChecks, this::debugBridge);
 
             int sx0 = snap(start.getX(), step);
@@ -231,13 +285,11 @@ public final class AStarPathfinder {
             int[] gFix = nearestValidGrid(gx0, gz0, step, sampler);
 
             if (sFix == null) {
-                failed = true;
-                failReason = "start forbidden (no valid grid point near snapped start)";
+                fail("start forbidden (no valid grid point near snapped start)");
                 return;
             }
             if (gFix == null) {
-                failed = true;
-                failReason = "goal forbidden (no valid grid point near snapped goal)";
+                fail("goal forbidden (no valid grid point near snapped goal)");
                 return;
             }
 
@@ -247,98 +299,78 @@ public final class AStarPathfinder {
             this.gz = gFix[1];
 
             if (sampler.isProtectedNoPaint(this.sx, this.sz) || sampler.isProtectedNoPaint(this.gx, this.gz)) {
-                failed = true;
-                failReason = "start/goal snapped inside protected no-paint zone";
+                fail("start/goal snapped inside protected no-paint zone");
                 return;
             }
 
-            int startFree = countLocalFreeNeighbors(this.sx, this.sz, step, sampler);
-            int goalFree = countLocalFreeNeighbors(this.gx, this.gz, step, sampler);
-
-            if (startFree <= 0) {
-                failed = true;
-                failReason = "start snapped into blocked pocket";
+            if (countLocalFreeNeighbors(this.sx, this.sz, step, sampler) <= 0) {
+                fail("start snapped into blocked pocket");
                 return;
             }
-            if (goalFree <= 0) {
-                failed = true;
-                failReason = "goal snapped into blocked pocket";
+            if (countLocalFreeNeighbors(this.gx, this.gz, step, sampler) <= 0) {
+                fail("goal snapped into blocked pocket");
                 return;
             }
 
-            this.ax = this.sx;
-            this.az = this.sz;
-            this.bx = this.gx;
-            this.bz = this.gz;
-
-            this.segDx = bx - ax;
-            this.segDz = bz - az;
+            this.segDx = (long) gx - (long) sx;
+            this.segDz = (long) gz - (long) sz;
             this.segLenSq = segDx * segDx + segDz * segDz;
-
-            int marginBase = Math.max(48, SEARCH_MARGIN);
 
             TerrainSampler.Sample ss = sampler.sample(this.sx, this.sz);
             TerrainSampler.Sample gs = sampler.sample(this.gx, this.gz);
             int dyGoal = Math.abs(gs.surfaceY - ss.surfaceY);
-            this.startY = (ss != null) ? ss.surfaceY : 64;
-            this.goalY  = (gs != null) ? gs.surfaceY : 64;
+            this.startY = ss.surfaceY;
+            this.goalY = gs.surfaceY;
 
-            int m = Math.max(64, SEARCH_MARGIN / 2);
+            int corridorBase = SEARCH_MARGIN / 2;
             // climbBoost scales up to corridorHalfWidthMax so the corridor covers full switchback room.
-            int climbBoost = Math.min(Math.max(256, CORRIDOR_HALF_WIDTH_MAX), dyGoal * 8);
+            int climbBoost = Math.min(CORRIDOR_HALF_WIDTH_MAX, dyGoal * CORRIDOR_PER_CLIMB_BLOCK);
 
             int routeLen = (int) Math.round(Math.sqrt((double) segLenSq));
-            int longRouteAllowance = Math.min(768, Math.max(128, routeLen / 3));
+            int longRouteAllowance = Math.min(LONG_ROUTE_CORRIDOR_MAX,
+                    Math.max(LONG_ROUTE_CORRIDOR_MIN, routeLen / LONG_ROUTE_CORRIDOR_DIVISOR));
 
-            this.corridorHalfWidth = Math.max(m + climbBoost, longRouteAllowance);
-
-            // Apply user-configured cap before adaptive step scaling.
-            int configuredMax = Math.max(64, CORRIDOR_HALF_WIDTH_MAX);
-            this.corridorHalfWidth = Math.min(this.corridorHalfWidth, configuredMax);
+            this.corridorHalfWidth = Math.max(corridorBase + climbBoost, longRouteAllowance);
+            this.corridorHalfWidth = Math.min(this.corridorHalfWidth, CORRIDOR_HALF_WIDTH_MAX);
 
             // When using an adaptive larger step, tighten the corridor so the total
             // state count stays within the iteration budget.
-            if (step > configStep) {
+            if (step > GRID_STEP) {
                 int scaledCorridor = (int) Math.round((double) this.corridorHalfWidth
-                        * (double) configStep / (double) step);
-                this.corridorHalfWidth = Math.max(Math.max(128, m), scaledCorridor);
+                        * (double) GRID_STEP / (double) step);
+                this.corridorHalfWidth = Math.max(ADAPTIVE_CORRIDOR_MIN, scaledCorridor);
             }
 
-            int margin = marginBase + Math.min(2048, dyGoal * 6);
+            int margin = SEARCH_MARGIN + Math.min(MAX_CLIMB_MARGIN, dyGoal * MARGIN_PER_CLIMB_BLOCK);
 
             this.minX = Math.min(sx, gx) - margin;
             this.maxX = Math.max(sx, gx) + margin;
             this.minZ = Math.min(sz, gz) - margin;
             this.maxZ = Math.max(sz, gz) + margin;
 
-            int mr = Math.max(0, MAX_SEARCH_RADIUS);
-            this.maxRadSq = (mr > 0) ? (mr * mr) : -1;
-
             // For adaptive step: increase iteration budget proportionally to step ratio,
             // since each iteration covers more ground and the search finishes faster per cell.
-            int configMaxIt = MAX_ITERATIONS;
-            this.maxIt = (step == configStep)
-                    ? configMaxIt
-                    : (int) Math.min((long) configMaxIt * 2L, (long) configMaxIt * (long) step / (long) configStep);
+            this.maxIt = (step == GRID_STEP)
+                    ? MAX_ITERATIONS
+                    : (int) Math.min((long) MAX_ITERATIONS * ADAPTIVE_MAX_ITERATIONS_FACTOR,
+                                     (long) MAX_ITERATIONS * (long) step / (long) GRID_STEP);
 
             gScore.defaultReturnValue(Double.POSITIVE_INFINITY);
             cameFrom.defaultReturnValue(Long.MIN_VALUE);
             distSinceBridge.defaultReturnValue(Integer.MAX_VALUE);
 
             if (sampler.forbidden(ss, TerrainSampler.Mode.PATHFINDING)) {
-                failed = true;
-                failReason = "start forbidden: " + sampler.describeForbidden(ss, TerrainSampler.Mode.PATHFINDING);
+                fail("start forbidden: " + sampler.describeForbidden(ss, TerrainSampler.Mode.PATHFINDING));
                 return;
             }
             if (sampler.forbidden(gs, TerrainSampler.Mode.PATHFINDING)) {
-                failed = true;
-                failReason = "goal forbidden: " + sampler.describeForbidden(gs, TerrainSampler.Mode.PATHFINDING);
+                fail("goal forbidden: " + sampler.describeForbidden(gs, TerrainSampler.Mode.PATHFINDING));
                 return;
             }
 
             long startState = stateKey(sx, sz, DIR_NONE);
             gScore.put(startState, 0.0);
-            distSinceBridge.put(startState, Integer.MAX_VALUE / 4);
+            distSinceBridge.put(startState, NO_BRIDGE_YET);
 
             double h0 = heuristic(sx, sz, gx, gz); // primary goal used until destGates is set
             bestApproxState = startState;
@@ -375,8 +407,8 @@ public final class AStarPathfinder {
         public void setSnapToRoad(@javax.annotation.Nullable RoadIndex index, int radius) {
             this.snapRoadIndex = index;
             this.snapRadius = Math.max(1, radius);
-            // Don't snap within the first ~6 A* steps to avoid immediate self-termination.
-            double minDist = step * 6.0;
+            // Not right at the start, to avoid immediate self-termination.
+            double minDist = step * SNAP_MIN_DIST_STEPS;
             this.snapMinDistSq = minDist * minDist;
         }
 
@@ -393,20 +425,13 @@ public final class AStarPathfinder {
                 long nowNs = System.nanoTime();
 
                 // Wall-clock timeout guard — prevents infinite-seeming hangs on impossible terrain.
-                int maxWallSec = Math.max(30, MAX_WALL_TIME_SECONDS);
-                if (nowNs - sessionStartNs > (long) maxWallSec * 1_000_000_000L) {
-                    if (beginPartialReconstruction("wall-clock timeout (" + maxWallSec + "s)")) {
-                        return StepResult.RUNNING;
-                    }
-                    failed = true;
-                    failReason = "wall-clock timeout (" + maxWallSec + "s)";
-                    flushBridgeDebugSummary();
-                    return StepResult.FAILED;
+                if (nowNs - sessionStartNs > (long) MAX_WALL_TIME_SECONDS * 1_000_000_000L) {
+                    return failOrPartial("wall-clock timeout (" + MAX_WALL_TIME_SECONDS + "s)");
                 }
 
                 // Periodic progress log so the user can see A* is still alive.
                 if (UltreiaConfig.DEBUG.logPathfinding
-                        && nowNs - lastProgressLogNs > 10_000_000_000L) {
+                        && nowNs - lastProgressLogNs > PROGRESS_LOG_INTERVAL_NS) {
                     lastProgressLogNs = nowNs;
                     long elapsedSec = (nowNs - sessionStartNs) / 1_000_000_000L;
                     Ultreia.LOGGER.info(
@@ -426,24 +451,14 @@ public final class AStarPathfinder {
                     updateBestApprox(ck, cur.x, cur.z);
 
                     if (Pos2D.distSq(cur.x, cur.z, gx, gz) <= (double) step * (double) step) {
-                        foundState = ck;
-                        reconstructing = true;
-                        recCur = ck;
-                        recGuard = 0;
-                        partialResult = false;
-                        partialReason = null;
+                        beginReconstruction(ck);
                         break;
                     }
 
                     // Multi-gate termination: also stop when reaching any destination gate.
                     if (destGates != null && destGates.isAtGate(cur.x, cur.z, step)) {
                         reachedGate = destGates.nearestGate(cur.x, cur.z);
-                        foundState = ck;
-                        reconstructing = true;
-                        recCur = ck;
-                        recGuard = 0;
-                        partialResult = false;
-                        partialReason = null;
+                        beginReconstruction(ck);
                         break;
                     }
 
@@ -460,12 +475,7 @@ public final class AStarPathfinder {
                             Ultreia.LOGGER.info(
                                     "[Ultreia A*] Road-snap: ({},{}) snapped to road at ({},{})",
                                     cur.x, cur.z, nearRoad.getX(), nearRoad.getZ());
-                            foundState = ck;
-                            reconstructing = true;
-                            recCur = ck;
-                            recGuard = 0;
-                            partialResult = false;
-                            partialReason = null;
+                            beginReconstruction(ck);
                             break;
                         }
                     }
@@ -481,35 +491,9 @@ public final class AStarPathfinder {
                 }
 
                 if (!reconstructing) {
-                    if (open.isEmpty()) {
-                        if (beginPartialReconstruction("open exhausted")) {
-                            return StepResult.RUNNING;
-                        }
-                        failed = true;
-                        failReason = "open exhausted";
-                        flushBridgeDebugSummary();
-                        return StepResult.FAILED;
-                    }
-
-                    if (shouldAbortForNoProgress()) {
-                        if (beginPartialReconstruction("no meaningful progress toward goal")) {
-                            return StepResult.RUNNING;
-                        }
-                        failed = true;
-                        failReason = "no meaningful progress toward goal";
-                        flushBridgeDebugSummary();
-                        return StepResult.FAILED;
-                    }
-
-                    if (it >= maxIt) {
-                        if (beginPartialReconstruction("max iterations reached")) {
-                            return StepResult.RUNNING;
-                        }
-                        failed = true;
-                        failReason = "max iterations reached";
-                        flushBridgeDebugSummary();
-                        return StepResult.FAILED;
-                    }
+                    if (open.isEmpty()) return failOrPartial("open exhausted");
+                    if (shouldAbortForNoProgress()) return failOrPartial("no meaningful progress toward goal");
+                    if (it >= maxIt) return failOrPartial("max iterations reached");
                     return StepResult.RUNNING;
                 }
             }
@@ -523,81 +507,65 @@ public final class AStarPathfinder {
                 recCur = prev == Long.MIN_VALUE ? Long.MIN_VALUE : prev;
 
                 recGuard++;
-                if (recGuard > 600_000) {
-                    failed = true;
-                    failReason = "reconstruct guard hit (cycle?)";
+                if (recGuard > RECONSTRUCT_GUARD) {
                     reconstructing = false;
-                    flushBridgeDebugSummary();
-                    return StepResult.FAILED;
+                    return fail("reconstruct guard hit (cycle?)");
                 }
 
                 if (recCur == Long.MIN_VALUE) {
                     reconstructing = false;
                     Collections.reverse(revStates);
                     buildResultFromReconstruction();
+                    if (failed) return fail(failReason);
 
-                    if (!failed) {
-                        PathResult rr = result;
-                        if (rr == null || rr.getPath() == null || rr.getPath().isEmpty()) {
-                            failed = true;
-                            failReason = "reconstruction produced empty path";
-                            return StepResult.FAILED;
-                        }
+                    PathResult rr = result;
+                    if (rr == null || rr.getPath() == null || rr.getPath().isEmpty()) {
+                        return fail("reconstruction produced empty path");
+                    }
 
-                        boolean fullProfileOk = PathProfileCheck.isFullPathFeasible(
-                                rr.getPath(),
-                                rr.getBridges(),
-                                sampler,
-                                roadType
+                    boolean fullProfileOk = PathProfileCheck.isFullPathFeasible(
+                            rr.getPath(),
+                            rr.getBridges(),
+                            sampler,
+                            roadType
+                    );
+                    boolean clearanceOk = bridgesHaveApproachPathClearance(rr.getPath(), rr.getBridges());
+
+                    if (!fullProfileOk || !clearanceOk) {
+                        long badState = foundState;
+                        boolean wasPartial = partialResult;
+                        profileRejectionCount++;
+
+                        reconstructing = false;
+                        foundState = Long.MIN_VALUE;
+                        recCur = Long.MIN_VALUE;
+                        recGuard = 0;
+                        revStates.clear();
+
+                        closed.add(badState);
+                        result = new PathResult(
+                                Collections.<BlockPos>emptyList(),
+                                Collections.<BridgeSpan>emptyList()
                         );
-                        boolean clearanceOk = bridgesHaveApproachPathClearance(rr.getPath(), rr.getBridges());
 
-                        if (!fullProfileOk || !clearanceOk) {
-                            long badState = foundState;
-                            boolean wasPartial = partialResult;
-                            profileRejectionCount++;
-
-                            reconstructing = false;
-                            foundState = Long.MIN_VALUE;
-                            recCur = Long.MIN_VALUE;
-                            recGuard = 0;
-                            revStates.clear();
-
-                            closed.add(badState);
-                            result = new PathResult(
-                                    Collections.<BlockPos>emptyList(),
-                                    Collections.<BridgeSpan>emptyList()
-                            );
-
-                            // If the partial fallback itself fails profile, bestApproxState hasn't
-                            // changed (search never ran since reconstructing=true the whole time),
-                            // so calling beginPartialReconstruction again would loop forever silently.
-                            if (wasPartial) {
-                                failed = true;
-                                failReason = "partial fallback also failed profile feasibility (" + profileRejectionCount + " total rejections)";
-                                flushBridgeDebugSummary();
-                                return StepResult.FAILED;
-                            }
-
-                            // Guard: after too many full-path rejections, try a partial fallback.
-                            // Note: beginPartialReconstruction must only be called here (not from
-                            // inside a partial reconstruction) or it would loop silently.
-                            int maxRejections = Math.max(24, PROFILE_REJECTION_LIMIT);
-                            if (profileRejectionCount >= maxRejections) {
-                                if (beginPartialReconstruction("non-feasible road profile after " + profileRejectionCount + " attempts")) {
-                                    return StepResult.RUNNING;
-                                }
-                                failed = true;
-                                failReason = "non-feasible road profile after " + profileRejectionCount + " attempts";
-                                flushBridgeDebugSummary();
-                                return StepResult.FAILED;
-                            }
-
-                            // Return RUNNING without calling beginPartialReconstruction here.
-                            // The next advance() enters !reconstructing, fires the progress log,
-                            // and handles "open exhausted" through the normal path.
-                            return StepResult.RUNNING;
+                        // If the partial fallback itself fails profile, bestApproxState hasn't
+                        // changed (search never ran since reconstructing=true the whole time),
+                        // so calling beginPartialReconstruction again would loop forever silently.
+                        if (wasPartial) {
+                            return fail("partial fallback also failed profile feasibility (" + profileRejectionCount + " total rejections)");
                         }
+
+                        // Guard: after too many full-path rejections, try a partial fallback.
+                        // Note: beginPartialReconstruction must only be called here (not from
+                        // inside a partial reconstruction) or it would loop silently.
+                        if (profileRejectionCount >= PROFILE_REJECTION_LIMIT) {
+                            return failOrPartial("non-feasible road profile after " + profileRejectionCount + " attempts");
+                        }
+
+                        // Return RUNNING without calling beginPartialReconstruction here.
+                        // The next advance() enters !reconstructing, fires the progress log,
+                        // and handles "open exhausted" through the normal path.
+                        return StepResult.RUNNING;
                     }
 
                     flushBridgeDebugSummary();
@@ -608,6 +576,27 @@ public final class AStarPathfinder {
             return StepResult.RUNNING;
         }
 
+        private StepResult fail(String reason) {
+            failed = true;
+            failReason = reason;
+            flushBridgeDebugSummary();
+            return StepResult.FAILED;
+        }
+
+        private StepResult failOrPartial(String reason) {
+            if (beginPartialReconstruction(reason)) return StepResult.RUNNING;
+            return fail(reason);
+        }
+
+        private void beginReconstruction(long state) {
+            foundState = state;
+            reconstructing = true;
+            recCur = state;
+            recGuard = 0;
+            partialResult = false;
+            partialReason = null;
+        }
+
         private void updateBestApprox(long state, int x, int z) {
             double h = heuristicToGoal(x, z);
             double g = gScore.get(state);
@@ -615,16 +604,16 @@ public final class AStarPathfinder {
             if (state == Long.MIN_VALUE) return;
             if (!Double.isFinite(h) || !Double.isFinite(g)) return;
 
+            double score = g + h * BEST_APPROX_DISTANCE_WEIGHT;
+
             if (bestApproxState == Long.MIN_VALUE) {
                 bestApproxState = state;
                 bestApproxHeuristic = h;
-                bestApproxScore = g + h * 0.25;
+                bestApproxScore = score;
                 return;
             }
 
-            double score = g + h * 0.25;
-
-            if (h + 0.001 < bestApproxHeuristic) {
+            if (h + SCORE_EPSILON < bestApproxHeuristic) {
                 bestApproxState = state;
                 bestApproxHeuristic = h;
                 bestApproxScore = score;
@@ -632,7 +621,7 @@ public final class AStarPathfinder {
             }
 
             if (Math.abs(h - bestApproxHeuristic) <= (double) step) {
-                if (score + 0.001 < bestApproxScore) {
+                if (score + SCORE_EPSILON < bestApproxScore) {
                     bestApproxState = state;
                     bestApproxHeuristic = h;
                     bestApproxScore = score;
@@ -644,13 +633,9 @@ public final class AStarPathfinder {
             if (!UltreiaConfig.PATHFINDING.allowPartialPathFallback) return false;
             if (!hasUsefulPartialFallback()) return false;
 
+            beginReconstruction(bestApproxState);
             partialResult = true;
             partialReason = reason;
-
-            foundState = bestApproxState;
-            reconstructing = true;
-            recCur = bestApproxState;
-            recGuard = 0;
             revStates.clear();
 
             return true;
@@ -659,26 +644,26 @@ public final class AStarPathfinder {
         private boolean hasUsefulPartialFallback() {
             if (bestApproxState == Long.MIN_VALUE) return false;
 
-            int bx = stateX(bestApproxState);
-            int bz = stateZ(bestApproxState);
+            int bestX = stateX(bestApproxState);
+            int bestZ = stateZ(bestApproxState);
 
             double startH = heuristicToGoal(sx, sz);
             double gain = startH - bestApproxHeuristic;
 
-            if (bx == sx && bz == sz) {
+            if (bestX == sx && bestZ == sz) {
                 return false;
             }
 
-            return gain >= Math.max(64.0, startH * 0.18);
+            return gain >= Math.max(PARTIAL_MIN_GAIN_BLOCKS, startH * PARTIAL_MIN_GAIN_FRACTION);
         }
 
         public String partialSummary() {
             if (!partialResult) return "";
-            int bx = bestApproxState == Long.MIN_VALUE ? sx : stateX(bestApproxState);
-            int bz = bestApproxState == Long.MIN_VALUE ? sz : stateZ(bestApproxState);
-            int dist = (int) Math.round(heuristic(bx, bz, gx, gz));
+            int bestX = bestApproxState == Long.MIN_VALUE ? sx : stateX(bestApproxState);
+            int bestZ = bestApproxState == Long.MIN_VALUE ? sz : stateZ(bestApproxState);
+            int dist = (int) Math.round(heuristic(bestX, bestZ, gx, gz));
             return "partial=true reason=" + partialReason
-                    + " best=(" + bx + "," + bz + ")"
+                    + " best=(" + bestX + "," + bestZ + ")"
                     + " goal=(" + gx + "," + gz + ")"
                     + " remaining=" + dist;
         }
@@ -693,21 +678,21 @@ public final class AStarPathfinder {
             return heuristic(x, z, gx, gz);
         }
 
+        /** Scales a per-grid-step limit to the adaptive step, rounding up. */
+        private int scaleUpToStep(int perGridStep) {
+            return (step == GRID_STEP)
+                    ? perGridStep
+                    : (int) Math.ceil((double) perGridStep * (double) step / (double) GRID_STEP);
+        }
+
         private void expandNormalMoves(Node cur, long ck, TerrainSampler.Sample cs) {
-            final int configMaxDy = Math.max(1, MAX_YDELTA_PER_STEP);
-            // LONE_TRAIL: no earthworks → path follows terrain strictly.
-            final boolean isLoneTrail = RoadType.ROAD_HIERARCHY_ENABLED && roadType == RoadType.LONE_TRAIL;
             final boolean earthworks = roadType.allowsEarthworks();
 
-            // Scale maxDy proportionally when using an adaptive (larger) step,
-            // so the grade limit stays the same regardless of step size.
-            final int configStep = Math.max(2, GRID_STEP);
-            final int effectiveMaxDy = (step == configStep)
-                    ? configMaxDy
-                    : (int) Math.ceil((double) configMaxDy * (double) step / (double) configStep);
+            // The grade limit stays the same whatever the step size.
+            final int effectiveMaxDy = scaleUpToStep(MAX_YDELTA_PER_STEP);
 
             // LONE_TRAIL uses a higher slope multiplier to make the trail wind around hills.
-            final double slopeMultiplier = (isLoneTrail)
+            final double slopeMultiplier = (roadType == RoadType.LONE_TRAIL)
                     ? Math.max(1.0, UltreiaConfig.ROAD_HIERARCHY.loneTrailSlopePenaltyMultiplier)
                     : 1.0;
 
@@ -718,10 +703,8 @@ public final class AStarPathfinder {
             // Bridge-endpoint magnetism: pulls the search toward a known existing bridge crossing's
             // entrance from a distance, so buildExistingBridgeMoves' validated single-cell snap
             // (bug A fix) actually has a real adjacent node to trigger from instead of drifting past it.
-            final int bridgeReuseRadius = Math.max(0, BridgeMoveGenerator.BRIDGE_REUSE_SEARCH_RADIUS);
-            final double bridgeMagnetismBonus = Math.max(0.0, BRIDGE_ENDPOINT_MAGNETISM_BONUS);
-            boolean bridgeMagnetismActive = UltreiaConfig.BRIDGES.enabled
-                    && roadNetwork != null && bridgeReuseRadius > 0 && bridgeMagnetismBonus > 0.0;
+            final int bridgeReuseRadius = BridgeMoveGenerator.BRIDGE_REUSE_SEARCH_RADIUS;
+            boolean bridgeMagnetismActive = UltreiaConfig.BRIDGES.enabled && roadNetwork != null;
             List<RoadNetwork.BridgeCrossing> nearbyCrossings = null;
             double curDistToCrossingStart = Double.POSITIVE_INFINITY;
             if (bridgeMagnetismActive) {
@@ -769,7 +752,7 @@ public final class AStarPathfinder {
 
                 if (earthworks && dy > effectiveMaxDy) {
                     double extra = (double) (dy - effectiveMaxDy);
-                    slopeCost += extra * extra * 30.0;
+                    slopeCost += extra * extra * OVER_GRADE_PENALTY;
                 } else if (!earthworks && dy > effectiveMaxDy) {
                     skipSlope++;
                     continue;
@@ -793,10 +776,10 @@ public final class AStarPathfinder {
 
                 // Road magnetism: direction-aware attraction/repulsion around existing roads.
                 // Moving toward an existing road is discounted; moving away is penalised.
-                if (magnetismActive && magRadius > 0) {
-                    int distNeighbor = sampler.nearestRoadDistManhattan(nx, nz, magRadius, 2);
+                if (magnetismActive) {
+                    int distNeighbor = sampler.nearestRoadDistManhattan(nx, nz, magRadius, MAGNETISM_SCAN_STEP);
                     if (distNeighbor < magRadius) {
-                        int distCurrent = sampler.nearestRoadDistManhattan(cur.x, cur.z, magRadius, 2);
+                        int distCurrent = sampler.nearestRoadDistManhattan(cur.x, cur.z, magRadius, MAGNETISM_SCAN_STEP);
                         double scale = (double) magRadius;
                         if (distNeighbor < distCurrent) {
                             // Moving toward road → attraction bonus, strongest when almost on it.
@@ -815,7 +798,7 @@ public final class AStarPathfinder {
                     double distNeighborBridge = nearestCrossingStartDist(nx, nz, nearbyCrossings);
                     if (distNeighborBridge < bridgeReuseRadius && distNeighborBridge < curDistToCrossingStart) {
                         double frac = 1.0 - distNeighborBridge / (double) bridgeReuseRadius;
-                        tentative -= bridgeMagnetismBonus * frac;
+                        tentative -= BRIDGE_ENDPOINT_MAGNETISM_BONUS * frac;
                     }
                 }
 
@@ -826,9 +809,9 @@ public final class AStarPathfinder {
                     gScore.put(nk, tentative);
 
                     int prevDist = distSinceBridge.get(ck);
-                    int nextDist = (prevDist >= Integer.MAX_VALUE / 8)
+                    int nextDist = (prevDist >= NO_BRIDGE_YET)
                             ? prevDist
-                            : Math.min(1000000, prevDist + (int) Math.round(base));
+                            : Math.min(DIST_SINCE_BRIDGE_CAP, prevDist + (int) Math.round(base));
                     distSinceBridge.put(nk, nextDist);
 
                     double f = tentative + heuristicToGoal(nx, nz);
@@ -838,14 +821,8 @@ public final class AStarPathfinder {
         }
 
         private double mountainTraversePenalty(int x, int z, int dirIdx, int curY, int nextY) {
-            if (dirIdx < 0 || dirIdx >= NEIGHBOR_DIRS.length) return 0.0;
-
-            int lookahead = Math.max(1, MOUNTAIN_ASCENT_LOOKAHEAD);
+            int lookahead = MOUNTAIN_ASCENT_LOOKAHEAD;
             int[] dir = NEIGHBOR_DIRS[dirIdx];
-
-            int wallMinHeight = Math.max(1, ENCLOSED_WALL_MIN_HEIGHT);
-            int uphillMinRise = Math.max(1, UPHILL_LOOKAHEAD_MIN_RISE);
-            int allowedCut = Math.max(0, PREDICTED_MAX_CUT_DEPTH);
 
             int stepDy = nextY - curY;
 
@@ -897,7 +874,7 @@ public final class AStarPathfinder {
                     int wallMin = Math.min(walls[0], walls[1]);
                     if (wallMin > maxWallMin) maxWallMin = wallMin;
 
-                    boolean enclosed = walls[0] >= wallMinHeight && walls[1] >= wallMinHeight;
+                    boolean enclosed = walls[0] >= ENCLOSED_WALL_MIN_HEIGHT && walls[1] >= ENCLOSED_WALL_MIN_HEIGHT;
                     if (enclosed) {
                         enclosedAhead++;
                         currentEnclosedRun++;
@@ -917,48 +894,43 @@ public final class AStarPathfinder {
             double penalty = 0.0;
 
             // Hard rock (stone, granite, etc.) multiplies cut cost — soft terrain (dirt, snow) stays at 1x.
-            double hardnessMult = (maxHardnessCat >= 2)
-                    ? Math.max(1.0, HARD_ROCK_CUT_MULTIPLIER)
-                    : 1.0;
+            double hardnessMult = (maxHardnessCat >= HARD_ROCK_CATEGORY) ? HARD_ROCK_CUT_MULTIPLIER : 1.0;
 
             // Open hillside cuts (terrain only on one side = natural embankment/talus) look realistic
             // and are much cheaper than enclosed trench cuts (terrain on both sides = saw-effect through a ridge).
-            // Scale base cut penalty 0.3x when fully open, linearly up to 1.0x when fully enclosed.
-            double enclosedFraction = (enclosedAhead > 0 && lookahead > 0)
+            double enclosedFraction = (enclosedAhead > 0)
                     ? Math.min(1.0, (double) enclosedAhead / (double) lookahead)
                     : 0.0;
-            double openHillsideFactor = 0.3 + 0.7 * enclosedFraction;
-            penalty += (double) sumPredictedCut * Math.max(0.0, PREDICTED_CUT_PENALTY_PER_BLOCK) * 0.75 * hardnessMult * openHillsideFactor;
+            double openHillsideFactor = OPEN_HILLSIDE_CUT_FACTOR + (1.0 - OPEN_HILLSIDE_CUT_FACTOR) * enclosedFraction;
+            penalty += (double) sumPredictedCut * PREDICTED_CUT_PENALTY_PER_BLOCK * LOOKAHEAD_CUT_WEIGHT * hardnessMult * openHillsideFactor;
 
-            if (maxPredictedCut > allowedCut) {
-                double extra = (double) (maxPredictedCut - allowedCut);
-                penalty += extra * extra * 120.0;
+            if (maxPredictedCut > PREDICTED_MAX_CUT_DEPTH) {
+                double extra = (double) (maxPredictedCut - PREDICTED_MAX_CUT_DEPTH);
+                penalty += extra * extra * LOOKAHEAD_OVER_CUT_PENALTY;
             }
 
             if (enclosedAhead > 0) {
-                penalty += Math.max(0.0, ENCLOSED_CUT_PENALTY) * 0.5;
-                penalty += (double) enclosedAhead * 26.0;
+                penalty += ENCLOSED_CUT_PENALTY * LOOKAHEAD_ENCLOSED_WEIGHT;
+                penalty += (double) enclosedAhead * LOOKAHEAD_ENCLOSED_CELL_PENALTY;
                 penalty += (double) Math.max(0, longestEnclosedRun - 1)
-                        * Math.max(0.0, SUSTAINED_ENCLOSED_CUT_PENALTY) * 0.6;
-                penalty += (double) maxWallMin * 10.0;
+                        * SUSTAINED_ENCLOSED_CUT_PENALTY * LOOKAHEAD_SUSTAINED_WEIGHT;
+                penalty += (double) maxWallMin * LOOKAHEAD_WALL_PENALTY_PER_BLOCK;
             }
 
-            boolean sustainedDirectAscent = nextY > curY && maxRiseAhead >= uphillMinRise;
-            boolean sustainedDirectDescent = nextY < curY && maxDropAhead >= uphillMinRise;
+            boolean sustainedDirectAscent = nextY > curY && maxRiseAhead >= UPHILL_LOOKAHEAD_MIN_RISE;
+            boolean sustainedDirectDescent = nextY < curY && maxDropAhead >= UPHILL_LOOKAHEAD_MIN_RISE;
 
             if ((sustainedDirectAscent || sustainedDirectDescent) && enclosedAhead > 0) {
-                penalty += Math.max(0.0, MOUNTAIN_ASCENT_PENALTY);
+                penalty += MOUNTAIN_ASCENT_PENALTY;
 
                 int verticalCommit = Math.max(maxRiseAhead, maxDropAhead);
-                penalty += (double) verticalCommit * 8.0;
+                penalty += (double) verticalCommit * VERTICAL_COMMIT_PENALTY_PER_BLOCK;
             }
 
             return penalty;
         }
 
         private int[] lateralWallHeights(int x, int z, int roadY, int dirDx, int dirDz) {
-            int r = Math.max(1, ENCLOSED_CUT_SCAN_RADIUS);
-
             double len = Math.sqrt((double) dirDx * (double) dirDx + (double) dirDz * (double) dirDz);
             if (len <= 0.0) return new int[]{0, 0};
 
@@ -968,7 +940,7 @@ public final class AStarPathfinder {
             int leftWall = 0;
             int rightWall = 0;
 
-            for (int off = 1; off <= r; off++) {
+            for (int off = 1; off <= ENCLOSED_CUT_SCAN_RADIUS; off++) {
                 int lx = (int) Math.round((double) x + px * (double) off);
                 int lz = (int) Math.round((double) z + pz * (double) off);
                 int lv = sampler.sampleLightIfLoaded(lx, lz);
@@ -994,15 +966,15 @@ public final class AStarPathfinder {
         }
 
         private double segmentParam01(double px, double pz,
-                                      double ax, double az,
-                                      double bx, double bz) {
-            double dx = bx - ax;
-            double dz = bz - az;
+                                      double segStartX, double segStartZ,
+                                      double segEndX, double segEndZ) {
+            double dx = segEndX - segStartX;
+            double dz = segEndZ - segStartZ;
             double lenSq = dx * dx + dz * dz;
 
             if (lenSq <= 1.0e-9) return 0.0;
 
-            double t = ((px - ax) * dx + (pz - az) * dz) / lenSq;
+            double t = ((px - segStartX) * dx + (pz - segStartZ) * dz) / lenSq;
             if (t < 0.0) return 0.0;
             if (t > 1.0) return 1.0;
             return t;
@@ -1011,9 +983,8 @@ public final class AStarPathfinder {
         private void expandBridgeMoves(Node cur, long ck, TerrainSampler.Sample cs) {
             if (!UltreiaConfig.BRIDGES.enabled) return;
 
-            int minSpacing = Math.max(0, BridgeMoveGenerator.MIN_DISTANCE_BETWEEN_BRIDGES_BLOCKS);
             int distFromLastBridge = distSinceBridge.get(ck);
-            if (distFromLastBridge < minSpacing) return;
+            if (distFromLastBridge < BridgeMoveGenerator.MIN_DISTANCE_BETWEEN_BRIDGES_BLOCKS) return;
 
             final double bridgeMult = BridgeMoveCost.newBridgeMultiplier(roadType);
 
@@ -1082,15 +1053,7 @@ public final class AStarPathfinder {
 
         private boolean baseXZChecks(int nx, int nz) {
             if (!inCorridor(nx, nz)) return false;
-            if (nx < minX || nx > maxX || nz < minZ || nz > maxZ) return false;
-
-            if (maxRadSq > 0) {
-                long dx0 = (long) nx - (long) sx;
-                long dz0 = (long) nz - (long) sz;
-                if ((dx0 * dx0 + dz0 * dz0) > (long) maxRadSq) return false;
-            }
-
-            return true;
+            return nx >= minX && nx <= maxX && nz >= minZ && nz <= maxZ;
         }
 
         /**
@@ -1103,11 +1066,10 @@ public final class AStarPathfinder {
         private boolean bridgesHaveApproachPathClearance(List<BlockPos> path, List<BridgeSpan> spans) {
             if (spans.isEmpty() || bridgePathStartIndices.size() != spans.size()) return true;
 
-            int minClearance = Math.max(0, BridgeClearanceCheck.UNDER_BRIDGE_ROAD_MIN_CLEARANCE_BLOCKS);
-            if (minClearance <= 0) return true;
+            int minClearance = BridgeClearanceCheck.UNDER_BRIDGE_ROAD_MIN_CLEARANCE_BLOCKS;
 
             // Skip the launch-ramp zone so the bridge connection point never triggers a false reject.
-            final int startGrace = Math.max(step, 2);
+            final int startGrace = step;
             // Tight XZ match: 1 block tolerance avoids false matches with off-axis approach nodes.
             final int xzRadius = 1;
 
@@ -1207,7 +1169,7 @@ public final class AStarPathfinder {
                         long ddz = (long) cz - (long) prev.getZ();
                         long manhattan = Math.abs(ddx) + Math.abs(ddz);
 
-                        if (manhattan > 2048L) {
+                        if (manhattan > ABSURD_JUMP_BLOCKS) {
                             failed = true;
                             failReason = "reconstructed path contains absurd jump: (" + prev.getX() + "," + prev.getZ() + ") -> (" + cx + "," + cz + ")";
                             result = new PathResult(Collections.<BlockPos>emptyList(), Collections.<BridgeSpan>emptyList());
@@ -1261,7 +1223,7 @@ public final class AStarPathfinder {
         }
 
         private static int[] nearestValidGrid(int x0, int z0, int step, TerrainView sampler) {
-            int maxR = Math.max(24, step * 8);
+            int maxR = Math.max(ENDPOINT_SNAP_MIN_RADIUS, step * ENDPOINT_SNAP_RADIUS_STEPS);
 
             int bestX = 0, bestZ = 0;
             double best = Double.POSITIVE_INFINITY;
@@ -1275,19 +1237,15 @@ public final class AStarPathfinder {
                         int x = x0 + dx;
                         int z = z0 + dz;
 
-                        TerrainSampler.Sample s = sampler.sample(x, z);
-                        if (s == null) continue;
-                        if (sampler.forbidden(s, TerrainSampler.Mode.PATHFINDING)) continue;
-                        if (s.isOcean || s.isWater) continue;
-                        if (sampler.isProtectedNoPaint(x, z)) continue;
-                        if (!hasLocalExitFreedom(x, z, step, sampler)) continue;
+                        if (!isOpenCell(x, z, sampler)) continue;
+                        int exits = countLocalFreeNeighbors(x, z, step, sampler);
+                        if (exits < MIN_FREE_EXITS) continue;
 
                         double d2 = (double) dx * (double) dx + (double) dz * (double) dz;
 
-                        if (sampler.isExistingRoadXZ(x, z)) d2 -= 64.0;
+                        if (sampler.isExistingRoadXZ(x, z)) d2 -= ENDPOINT_ON_ROAD_BONUS;
 
-                        int exits = countLocalFreeNeighbors(x, z, step, sampler);
-                        d2 -= exits * 6.0;
+                        d2 -= exits * ENDPOINT_FREE_EXIT_BONUS;
 
                         if (d2 < best) {
                             best = d2;
@@ -1301,11 +1259,7 @@ public final class AStarPathfinder {
                 if (found) return new int[]{bestX, bestZ};
             }
 
-            return found ? new int[]{bestX, bestZ} : null;
-        }
-
-        private static boolean hasLocalExitFreedom(int x, int z, int step, TerrainView sampler) {
-            return countLocalFreeNeighbors(x, z, step, sampler) >= 2;
+            return null;
         }
 
         private static int countLocalFreeNeighbors(int x, int z, int step, TerrainView sampler) {
@@ -1339,60 +1293,46 @@ public final class AStarPathfinder {
         }
 
         private static final class SegmentWalkability {
+            static final SegmentWalkability TRIVIAL = new SegmentWalkability(true, false, 0, 0.0);
+            static final SegmentWalkability WATER = new SegmentWalkability(false, true, Integer.MAX_VALUE, 0.0);
+
             final boolean walkable;
             final boolean crossesWater;
-            final int worstStepDy;
             final int roughness;
             final double terrainPenalty;
-            final int maxPredictedCut;
-            final int enclosedCells;
-            final int longestEnclosedRun;
 
-            SegmentWalkability(boolean walkable,
-                               boolean crossesWater,
-                               int worstStepDy,
-                               int roughness,
-                               double terrainPenalty,
-                               int maxPredictedCut,
-                               int enclosedCells,
-                               int longestEnclosedRun) {
+            SegmentWalkability(boolean walkable, boolean crossesWater, int roughness, double terrainPenalty) {
                 this.walkable = walkable;
                 this.crossesWater = crossesWater;
-                this.worstStepDy = worstStepDy;
                 this.roughness = roughness;
                 this.terrainPenalty = terrainPenalty;
-                this.maxPredictedCut = maxPredictedCut;
-                this.enclosedCells = enclosedCells;
-                this.longestEnclosedRun = longestEnclosedRun;
             }
         }
 
         private SegmentWalkability segmentWalkability(int x0, int z0, int x1, int z1) {
             List<BlockPos> line = LineRaster.supercover(x0, z0, x1, z1, 0);
             if (line == null || line.size() < 2) {
-                return new SegmentWalkability(true, false, 0, 0, 0.0, 0, 0, 0);
+                return SegmentWalkability.TRIVIAL;
             }
 
             TerrainSampler.Sample first = sampler.sample(line.get(0).getX(), line.get(0).getZ());
             TerrainSampler.Sample last = sampler.sample(line.get(line.size() - 1).getX(), line.get(line.size() - 1).getZ());
             if (first == null || last == null) {
-                return new SegmentWalkability(false, true, Integer.MAX_VALUE, Integer.MAX_VALUE, 0.0, Integer.MAX_VALUE, 0, 0);
+                return SegmentWalkability.WATER;
             }
 
             int prevY = first.surfaceY;
-            int worst = 0;
             int roughness = 0;
 
             double terrainPenalty = 0.0;
             int maxPredictedCut = 0;
-            int enclosedCells = 0;
             int currentEnclosedRun = 0;
             int longestEnclosedRun = 0;
 
-            double ax = (double) x0 + 0.5;
-            double az = (double) z0 + 0.5;
-            double bx = (double) x1 + 0.5;
-            double bz = (double) z1 + 0.5;
+            double segStartX = (double) x0 + 0.5;
+            double segStartZ = (double) z0 + 0.5;
+            double segEndX = (double) x1 + 0.5;
+            double segEndZ = (double) z1 + 0.5;
 
             for (int i = 1; i < line.size(); i++) {
                 BlockPos p = line.get(i);
@@ -1409,7 +1349,7 @@ public final class AStarPathfinder {
                     if (lv == TerrainSampler.LIGHT_NOT_LOADED) {
                         // Chunk not loaded yet — fall back to full sample (will load chunk).
                         TerrainSampler.Sample fs = sampler.sample(p.getX(), p.getZ());
-                        if (fs == null) return new SegmentWalkability(false, true, Integer.MAX_VALUE, Integer.MAX_VALUE, 0.0, Integer.MAX_VALUE, 0, 0);
+                        if (fs == null) return SegmentWalkability.WATER;
                         pSurfaceY = fs.surfaceY;
                         pIsWater  = fs.isWater;
                         pIsOcean  = fs.isOcean;
@@ -1421,25 +1361,24 @@ public final class AStarPathfinder {
                 } else {
                     // Last point — use full sample (= grid node, already cached).
                     TerrainSampler.Sample s = sampler.sample(p.getX(), p.getZ());
-                    if (s == null) return new SegmentWalkability(false, true, Integer.MAX_VALUE, Integer.MAX_VALUE, 0.0, Integer.MAX_VALUE, 0, 0);
+                    if (s == null) return SegmentWalkability.WATER;
                     pSurfaceY = s.surfaceY;
                     pIsWater  = s.isWater;
                     pIsOcean  = s.isOcean;
                 }
 
                 if (pIsOcean || pIsWater) {
-                    return new SegmentWalkability(false, true, Integer.MAX_VALUE, Integer.MAX_VALUE, 0.0, Integer.MAX_VALUE, 0, 0);
+                    return SegmentWalkability.WATER;
                 }
 
                 int d = Math.abs(pSurfaceY - prevY);
-                if (d > worst) worst = d;
                 if (d > 1) roughness += (d - 1);
                 prevY = pSurfaceY;
 
                 if (isInterior) {
                     double ppx = (double) p.getX() + 0.5;
                     double ppz = (double) p.getZ() + 0.5;
-                    double t = segmentParam01(ppx, ppz, ax, az, bx, bz);
+                    double t = segmentParam01(ppx, ppz, segStartX, segStartZ, segEndX, segEndZ);
 
                     int roadY = (int) Math.round((1.0 - t) * (double) first.surfaceY + t * (double) last.surfaceY);
                     int predictedCut = Math.max(0, pSurfaceY - roadY);
@@ -1448,24 +1387,22 @@ public final class AStarPathfinder {
                     if (predictedCut > maxPredictedCut) maxPredictedCut = predictedCut;
 
                     if (predictedFill > 0) {
-                        terrainPenalty += (double) predictedFill * Math.max(0.0, PREDICTED_FILL_PENALTY_PER_BLOCK);
+                        terrainPenalty += (double) predictedFill * PREDICTED_FILL_PENALTY_PER_BLOCK;
                     }
 
                     if (predictedCut > 0) {
-                        terrainPenalty += (double) predictedCut * Math.max(0.0, PREDICTED_CUT_PENALTY_PER_BLOCK);
+                        terrainPenalty += (double) predictedCut * PREDICTED_CUT_PENALTY_PER_BLOCK;
 
                         // Only probe lateral walls when terrain actually needs cutting.
-                        int wallMinHeight = Math.max(1, ENCLOSED_WALL_MIN_HEIGHT);
                         int[] walls = lateralWallHeights(p.getX(), p.getZ(), roadY, x1 - x0, z1 - z0);
 
-                        boolean enclosed = walls[0] >= wallMinHeight && walls[1] >= wallMinHeight;
+                        boolean enclosed = walls[0] >= ENCLOSED_WALL_MIN_HEIGHT && walls[1] >= ENCLOSED_WALL_MIN_HEIGHT;
                         if (enclosed) {
                             int wallMin = Math.min(walls[0], walls[1]);
-                            enclosedCells++;
                             currentEnclosedRun++;
                             if (currentEnclosedRun > longestEnclosedRun) longestEnclosedRun = currentEnclosedRun;
-                            terrainPenalty += Math.max(0.0, ENCLOSED_CUT_PENALTY);
-                            terrainPenalty += (double) wallMin * 8.0;
+                            terrainPenalty += ENCLOSED_CUT_PENALTY;
+                            terrainPenalty += (double) wallMin * ENCLOSED_WALL_PENALTY_PER_BLOCK;
                         } else {
                             currentEnclosedRun = 0;
                         }
@@ -1476,32 +1413,25 @@ public final class AStarPathfinder {
             }
 
             if (longestEnclosedRun > 1) {
-                terrainPenalty += (double) (longestEnclosedRun - 1) * Math.max(0.0, SUSTAINED_ENCLOSED_CUT_PENALTY);
+                terrainPenalty += (double) (longestEnclosedRun - 1) * SUSTAINED_ENCLOSED_CUT_PENALTY;
             }
-
-            int maxRough = Math.max(0, MAX_SEGMENT_ROUGHNESS);
-            int maxPredictedCutAllowed = Math.max(0, PREDICTED_MAX_CUT_DEPTH);
 
             // Extra tolerance applied only during pathfinding — lets A* find routes through steeper terrain
             // without changing what the painter actually does. Painter always uses its own earthworks limits.
-            int pfTolerance = Math.max(0, PATHFINDING_EARTHWORKS_TOLERANCE);
+            int pfTolerance = PATHFINDING_EARTHWORKS_TOLERANCE;
 
-            // Scale roughness limit proportionally with adaptive step (more raster points = higher budget).
-            int baseStep = Math.max(2, GRID_STEP);
-            int scaledMaxRough = (step == baseStep)
-                    ? maxRough
-                    : (int) Math.ceil((double) maxRough * (double) step / (double) baseStep);
+            // More raster points on a larger step: the roughness budget grows with it.
+            int scaledMaxRough = scaleUpToStep(MAX_SEGMENT_ROUGHNESS);
 
-            boolean severeEnclosedCut = longestEnclosedRun >= 2
-                    && enclosedCells >= 2
-                    && maxPredictedCut > Math.max(1, maxPredictedCutAllowed + pfTolerance);
+            boolean severeEnclosedCut = longestEnclosedRun >= SEVERE_ENCLOSED_MIN_RUN
+                    && maxPredictedCut > PREDICTED_MAX_CUT_DEPTH + pfTolerance;
 
-            boolean coarseTerrainOk = roughness <= (scaledMaxRough + 2)
-                    && maxPredictedCut <= (maxPredictedCutAllowed + 1 + pfTolerance)
+            boolean coarseTerrainOk = roughness <= (scaledMaxRough + ROUGHNESS_SLACK)
+                    && maxPredictedCut <= (PREDICTED_MAX_CUT_DEPTH + CUT_DEPTH_SLACK + pfTolerance)
                     && !severeEnclosedCut;
 
             if (!coarseTerrainOk) {
-                return new SegmentWalkability(false, false, worst, roughness, terrainPenalty, maxPredictedCut, enclosedCells, longestEnclosedRun);
+                return new SegmentWalkability(false, false, roughness, terrainPenalty);
             }
 
             int startHalf = HalfY.ofBlockTop(first.surfaceY);
@@ -1510,7 +1440,6 @@ public final class AStarPathfinder {
             boolean earthworks = roadType.allowsEarthworks();
             int cutHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxCut + pfTolerance) * 2 : 0;
             int fillHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxFill + pfTolerance) * 2 : 0;
-            int maxStepHalf = Math.max(1, HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK);
 
             boolean gradeFeasible = RoadHeightSolver.isLineFeasible(
                     line,
@@ -1520,14 +1449,10 @@ public final class AStarPathfinder {
                     earthworks,
                     cutHalf,
                     fillHalf,
-                    maxStepHalf
+                    HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK
             );
 
-            if (!gradeFeasible) {
-                return new SegmentWalkability(false, false, worst, roughness, terrainPenalty, maxPredictedCut, enclosedCells, longestEnclosedRun);
-            }
-
-            return new SegmentWalkability(true, false, worst, roughness, terrainPenalty, maxPredictedCut, enclosedCells, longestEnclosedRun);
+            return new SegmentWalkability(gradeFeasible, false, roughness, terrainPenalty);
         }
 
         private void bumpForbidden(TerrainSampler.Sample s) {
@@ -1535,34 +1460,31 @@ public final class AStarPathfinder {
             if (r == TerrainSampler.ForbiddenReason.OCEAN) skipOcean++;
             else if (r == TerrainSampler.ForbiddenReason.BLACKLIST) skipBlacklist++;
             else if (r == TerrainSampler.ForbiddenReason.WATER) skipBridge++;
-            else if (r == TerrainSampler.ForbiddenReason.BLOCKED) skipBlocked++;
             else skipBlocked++;
         }
 
         private boolean inCorridor(int x, int z) {
             if (segLenSq <= 0) return true;
 
-            long px = x;
-            long pz = z;
-
-            long apx = px - ax;
-            long apz = pz - az;
+            long apx = (long) x - (long) sx;
+            long apz = (long) z - (long) sz;
 
             double t = (double) (apx * segDx + apz * segDz) / (double) segLenSq;
             if (t < 0.0) t = 0.0;
             else if (t > 1.0) t = 1.0;
 
-            double cx = (double) ax + t * (double) segDx;
-            double cz = (double) az + t * (double) segDz;
+            double cx = (double) sx + t * (double) segDx;
+            double cz = (double) sz + t * (double) segDz;
 
-            double dx = (double) px - cx;
-            double dz = (double) pz - cz;
+            double dx = (double) x - cx;
+            double dz = (double) z - cz;
 
             double d2 = dx * dx + dz * dz;
             double r = (double) corridorHalfWidth;
 
             return d2 <= r * r;
         }
+
         public String debugStartArea() {
             return debugAreaAround(sx, sz, "start");
         }
@@ -1572,33 +1494,24 @@ public final class AStarPathfinder {
         }
 
         private String debugAreaAround(int x, int z, String label) {
-            int step = Math.max(2, this.step);
-
             int free1 = AStarPathfinder.countFreeNeighbors(x, z, step, sampler, 1);
             int free2 = AStarPathfinder.countFreeNeighbors(x, z, step, sampler, 2);
             int free3 = AStarPathfinder.countFreeNeighbors(x, z, step, sampler, 3);
 
-            int blocked1 = AStarPathfinder.countBlockedNeighbors(x, z, step, sampler, 1);
-            int blocked2 = AStarPathfinder.countBlockedNeighbors(x, z, step, sampler, 2);
-            int blocked3 = AStarPathfinder.countBlockedNeighbors(x, z, step, sampler, 3);
-
             TerrainSampler.Sample s = sampler.sample(x, z);
             TerrainSampler.ForbiddenReason fr = sampler.forbiddenReason(s, TerrainSampler.Mode.PATHFINDING);
 
-            int roadNear = Integer.MAX_VALUE;
-            if (sampler.findNearestExistingRoad(x, z, 16) != null) {
-                BlockPos p = sampler.findNearestExistingRoad(x, z, 16);
-                roadNear = Math.abs(p.getX() - x) + Math.abs(p.getZ() - z);
-            }
+            BlockPos near = sampler.findNearestExistingRoad(x, z, 16);
+            int roadNear = near == null ? -1 : Math.abs(near.getX() - x) + Math.abs(near.getZ() - z);
 
             return label
                     + "=(" + x + "," + z + ")"
                     + " surfY=" + (s != null ? s.surfaceY : -1)
                     + " forbidden=" + fr
                     + " protected=" + sampler.isProtectedNoPaint(x, z)
-                    + " roadNear=" + (roadNear == Integer.MAX_VALUE ? -1 : roadNear)
+                    + " roadNear=" + roadNear
                     + " free{r1=" + free1 + ",r2=" + free2 + ",r3=" + free3 + "}"
-                    + " blocked{r1=" + blocked1 + ",r2=" + blocked2 + ",r3=" + blocked3 + "}"
+                    + " blocked{r1=" + (ringSize(1) - free1) + ",r2=" + (ringSize(2) - free2) + ",r3=" + (ringSize(3) - free3) + "}"
                     + " closed=" + closed.size()
                     + " open=" + open.size();
         }
@@ -1607,7 +1520,7 @@ public final class AStarPathfinder {
             if (bestApproxState == Long.MIN_VALUE) return false;
             if (!Double.isFinite(bestApproxHeuristic) || !Double.isFinite(startHeuristic)) return false;
 
-            double minMeaningfulGain = Math.max((double) step * 3.0, startHeuristic * 0.03);
+            double minMeaningfulGain = Math.max((double) step * STAGNATION_MIN_GAIN_STEPS, startHeuristic * STAGNATION_MIN_GAIN_FRACTION);
             boolean improved = (lastProgressHeuristic - bestApproxHeuristic) >= minMeaningfulGain;
 
             if (improved) {
@@ -1617,8 +1530,7 @@ public final class AStarPathfinder {
             }
 
             // Altitude progress: A* may be executing a switchback (lateral traversal with no XZ gain).
-            // If it has climbed/descended at least 20% of the needed altitude, don't count as stagnant.
-            if (SWITCHBACK_STAGNATION_BOOST && hasAltitudeProgressTowardGoal()) {
+            if (hasAltitudeProgressTowardGoal()) {
                 stagnationSteps = 0;
                 return false;
             }
@@ -1627,41 +1539,28 @@ public final class AStarPathfinder {
 
             int routeLen = (int) Math.round(startHeuristic);
 
-            int threshold;
-            if (routeLen <= 256) {
-                threshold = 6000;
-            } else if (routeLen <= 512) {
-                threshold = 9000;
-            } else if (routeLen <= 1024) {
-                threshold = 14000;
-            } else {
-                threshold = 22000;
-            }
-
-            threshold = Math.min(threshold, Math.max(4000, maxIt / 12));
-
-            // On steep mountain routes, switchbacks require more lateral exploration before making XZ progress.
-            // Multiply the stagnation threshold so A* doesn't abort mid-switchback.
-            if (SWITCHBACK_STAGNATION_BOOST) {
-                int totalDY = Math.abs(goalY - startY);
-                if (totalDY >= 12) {
-                    int boostFactor = Math.min(4, 1 + totalDY / 16);
-                    threshold = Math.min(threshold * boostFactor, maxIt / 4);
+            int threshold = STAGNATION_THRESHOLDS[STAGNATION_ROUTE_LENGTHS.length];
+            for (int i = 0; i < STAGNATION_ROUTE_LENGTHS.length; i++) {
+                if (routeLen <= STAGNATION_ROUTE_LENGTHS[i]) {
+                    threshold = STAGNATION_THRESHOLDS[i];
+                    break;
                 }
             }
 
-            if (open.isEmpty()) {
-                return true;
+            threshold = Math.min(threshold, Math.max(STAGNATION_MIN_THRESHOLD, maxIt / STAGNATION_MAX_IT_DIVISOR));
+
+            // On steep mountain routes, switchbacks require more lateral exploration before making XZ progress.
+            int totalDY = Math.abs(goalY - startY);
+            if (totalDY >= STEEP_ROUTE_MIN_DY) {
+                int boostFactor = Math.min(STEEP_ROUTE_MAX_BOOST, 1 + totalDY / STEEP_ROUTE_DY_PER_BOOST);
+                threshold = Math.min(threshold * boostFactor, maxIt / STEEP_ROUTE_MAX_IT_DIVISOR);
             }
 
+            // Only called with a non-empty open set.
             Node bestOpen = open.peek();
-            if (bestOpen == null) {
-                return true;
-            }
-
             double bestOpenH = heuristicToGoal(bestOpen.x, bestOpen.z);
 
-            boolean frontierStillPromising = bestOpenH + (double) (step * 2) < bestApproxHeuristic;
+            boolean frontierStillPromising = bestOpenH + (double) (step * FRONTIER_PROMISE_STEPS) < bestApproxHeuristic;
             if (frontierStillPromising) {
                 return false;
             }
@@ -1671,17 +1570,18 @@ public final class AStarPathfinder {
 
         private boolean hasAltitudeProgressTowardGoal() {
             int totalDY = Math.abs(goalY - startY);
-            if (totalDY < 8) return false;
+            if (totalDY < ALTITUDE_PROGRESS_MIN_DY) return false;
             if (bestApproxState == Long.MIN_VALUE) return false;
 
-            int bx = stateX(bestApproxState);
-            int bz = stateZ(bestApproxState);
-            TerrainSampler.Sample bs = sampler.sampleIfLoaded(bx, bz);
+            int bestX = stateX(bestApproxState);
+            int bestZ = stateZ(bestApproxState);
+            TerrainSampler.Sample bs = sampler.sampleIfLoaded(bestX, bestZ);
             if (bs == null) return false;
 
             int progressY = Math.abs(bs.surfaceY - startY);
-            return (double) progressY / (double) totalDY >= 0.20;
+            return (double) progressY / (double) totalDY >= ALTITUDE_PROGRESS_FRACTION;
         }
+
         private void debugBridge(String msg) {
             if (!UltreiaConfig.DEBUG.logBridges) return;
 
@@ -1711,8 +1611,8 @@ public final class AStarPathfinder {
         }
     }
 
-    public Session startSession(WorldServer world, BlockPos start, BlockPos goal, TerrainView sampler) {
-        return new Session(world, start, goal, sampler);
+    public Session startSession(BlockPos start, BlockPos goal, TerrainView sampler) {
+        return new Session(start, goal, sampler);
     }
 
     private static double heuristic(int x, int z, int gx, int gz) {
@@ -1757,8 +1657,7 @@ public final class AStarPathfinder {
         return p - STATE_COORD_BIAS;
     }
 
-    public static String debugEndpoint(WorldServer world,
-                                       TerrainView sampler,
+    public static String debugEndpoint(TerrainView sampler,
                                        ProtectedAreas protectedAreas,
                                        RoadIndex roadIndex,
                                        BlockPos pos) {
@@ -1767,12 +1666,9 @@ public final class AStarPathfinder {
         TerrainSampler.Sample s = sampler.sample(pos.getX(), pos.getZ());
         if (s == null) return "endpoint=(" + pos.getX() + "," + pos.getZ() + ") sample=null";
 
-        int free1 = countFreeNeighbors(pos.getX(), pos.getZ(), Math.max(2, GRID_STEP), sampler, 1);
-        int free2 = countFreeNeighbors(pos.getX(), pos.getZ(), Math.max(2, GRID_STEP), sampler, 2);
-        int free3 = countFreeNeighbors(pos.getX(), pos.getZ(), Math.max(2, GRID_STEP), sampler, 3);
-
-        int blocked1 = countBlockedNeighbors(pos.getX(), pos.getZ(), Math.max(2, GRID_STEP), sampler, 1);
-        int blocked2 = countBlockedNeighbors(pos.getX(), pos.getZ(), Math.max(2, GRID_STEP), sampler, 2);
+        int free1 = countFreeNeighbors(pos.getX(), pos.getZ(), GRID_STEP, sampler, 1);
+        int free2 = countFreeNeighbors(pos.getX(), pos.getZ(), GRID_STEP, sampler, 2);
+        int free3 = countFreeNeighbors(pos.getX(), pos.getZ(), GRID_STEP, sampler, 3);
 
         int protectPenalty = protectedAreas != null ? protectedAreas.penaltyAt(pos.getX(), pos.getZ()) : 0;
         boolean noPaint = protectedAreas != null && protectedAreas.contains(pos.getX(), pos.getZ());
@@ -1793,7 +1689,7 @@ public final class AStarPathfinder {
                 + " road=" + road
                 + " nearRoadDist=" + nearRoadDist
                 + " free{r1=" + free1 + ",r2=" + free2 + ",r3=" + free3 + "}"
-                + " blocked{r1=" + blocked1 + ",r2=" + blocked2 + "}";
+                + " blocked{r1=" + (ringSize(1) - free1) + ",r2=" + (ringSize(2) - free2) + "}";
     }
 
     /** Dry, allowed, unprotected land a road could pass through. */
@@ -1803,6 +1699,11 @@ public final class AStarPathfinder {
         if (sampler.forbidden(s, TerrainSampler.Mode.PATHFINDING)) return false;
         if (s.isWater || s.isOcean) return false;
         return !sampler.isProtectedNoPaint(x, z);
+    }
+
+    /** Number of cells on the square ring at Chebyshev distance {@code ring}. */
+    private static int ringSize(int ring) {
+        return 8 * ring;
     }
 
     private static int countFreeNeighbors(int x, int z, int step, TerrainView sampler, int ring) {
@@ -1821,24 +1722,6 @@ public final class AStarPathfinder {
         }
 
         return free;
-    }
-
-    private static int countBlockedNeighbors(int x, int z, int step, TerrainView sampler, int ring) {
-        int blocked = 0;
-
-        for (int dz = -ring; dz <= ring; dz++) {
-            for (int dx = -ring; dx <= ring; dx++) {
-                if (dx == 0 && dz == 0) continue;
-                if (Math.max(Math.abs(dx), Math.abs(dz)) != ring) continue;
-
-                int xx = x + dx * step;
-                int zz = z + dz * step;
-
-                if (!isOpenCell(xx, zz, sampler)) blocked++;
-            }
-        }
-
-        return blocked;
     }
 
 }

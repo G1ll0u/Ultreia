@@ -133,10 +133,10 @@ public final class RoadJob {
 
     private void startPathfinding(EdgeSource.EdgeRequest req) {
         if (UltreiaConfig.DEBUG.logPathfinding) {
-            ctx.msg("  start " + AStarPathfinder.debugEndpoint(ctx.world, ctx.sampler, ctx.protectedAreas, ctx.roadIndex, req.start));
-            ctx.msg("  goal  " + AStarPathfinder.debugEndpoint(ctx.world, ctx.sampler, ctx.protectedAreas, ctx.roadIndex, req.goal));
+            ctx.msg("  start " + AStarPathfinder.debugEndpoint(ctx.sampler, ctx.protectedAreas, ctx.roadIndex, req.start));
+            ctx.msg("  goal  " + AStarPathfinder.debugEndpoint(ctx.sampler, ctx.protectedAreas, ctx.roadIndex, req.goal));
         }
-        session = astar.startSession(ctx.world, req.start, req.goal, ctx.sampler);
+        session = astar.startSession(req.start, req.goal, ctx.sampler);
         session.setRoadNetwork(ctx.roadNetwork);
         session.setRoadType(req.roadType);
         if (req.destinationGates != null) session.setDestinationGates(req.destinationGates);

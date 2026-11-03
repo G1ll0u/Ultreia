@@ -31,7 +31,7 @@ public final class BridgeMoveCost {
 
     /** Multiplier on new-bridge costs: LONE_TRAIL strongly discourages bridges in favour of land detours. */
     public static double newBridgeMultiplier(RoadType roadType) {
-        if (RoadType.ROAD_HIERARCHY_ENABLED && roadType == RoadType.LONE_TRAIL) {
+        if (roadType == RoadType.LONE_TRAIL) {
             return Math.max(1.0, LONE_TRAIL_BRIDGE_COST_MULTIPLIER);
         }
         return 1.0;

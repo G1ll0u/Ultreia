@@ -380,7 +380,7 @@ public final class RoadPainter {
             if (!allowEarlyMerge) return;
             if (roadIndex == null) return;
 
-            boolean isLoneTrail = roadType == RoadType.LONE_TRAIL && RoadType.ROAD_HIERARCHY_ENABLED;
+            boolean isLoneTrail = roadType == RoadType.LONE_TRAIL;
 
             // LONE_TRAIL may have very short paths (lonebuilding right next to a road).
             if (!isLoneTrail && path.size() < 8) return;
@@ -1681,7 +1681,7 @@ public final class RoadPainter {
         }
 
         private double effectiveSlopeRatio() {
-            boolean isLoneTrail = roadType == RoadType.LONE_TRAIL && RoadType.ROAD_HIERARCHY_ENABLED;
+            boolean isLoneTrail = roadType == RoadType.LONE_TRAIL;
             double ltr = UltreiaConfig.PAINTING.earthworksSlopeRatioLoneTrail;
             if (isLoneTrail && ltr > 0.0) return ltr;
             return UltreiaConfig.PAINTING.earthworksSlopeRatio;

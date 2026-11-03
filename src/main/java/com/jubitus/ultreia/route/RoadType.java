@@ -14,8 +14,6 @@ public enum RoadType {
 
     // If true, allow the painter to dig/fill to enforce walkability.
     private static final boolean ALLOW_EARTHWORKS = true;
-    // Enable road type differentiation.
-    public static final boolean ROAD_HIERARCHY_ENABLED = true;
     // Allow earthworks (cut/fill) for LONE_TRAIL routes.
     private static final boolean LONE_TRAIL_EARTHWORKS_ENABLED = true;
     // Search radius (blocks) used to detect a nearby existing road when deciding to merge a LONE_TRAIL.
@@ -25,14 +23,13 @@ public enum RoadType {
     public int roadWidthBlocks() {
         int w = Math.max(1, UltreiaConfig.PAINTING.roadWidth);
         if ((w % 2) == 0) w++;
-        if (this == LONE_TRAIL && ROAD_HIERARCHY_ENABLED) w = Math.max(1, w - 2);
+        if (this == LONE_TRAIL) w = Math.max(1, w - 2);
         return w;
     }
 
     /** Whether roads of this type may cut and fill terrain (pathfinding, profile and painting alike). */
     public boolean allowsEarthworks() {
         if (!ALLOW_EARTHWORKS) return false;
-        return !(this == LONE_TRAIL && ROAD_HIERARCHY_ENABLED
-                && !LONE_TRAIL_EARTHWORKS_ENABLED);
+        return !(this == LONE_TRAIL && !LONE_TRAIL_EARTHWORKS_ENABLED);
     }
 }

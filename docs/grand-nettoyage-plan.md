@@ -266,7 +266,13 @@ one "may a bridge replace this block" rule (3 copies, same effect); `dryRun` rem
   once at load (not at every bridge). JSON classes (`BridgeTemplate`, `BlockStateRef`, `BridgeTemplateIO`) keep their format.
 - Fix `CLAUDE.md`: the approach check is a cost (user), the "only gatekeeper" line rewritten (done, with the bridge-moves line).
 
-### Phase 9 — A* split — status: not started
+### Phase 9 — A* split — status: in progress
+
+Steps: 9.1 in place (dead code, `ax/az/bx/bz` renames, named constants, repeated blocks → one method) (done) · 9.2 `SearchState`,
+`GridMoves` completed (adaptive step, endpoint snap, free exits), `SearchBounds` · 9.3 `TerrainMoveCost` · 9.4 `PathReconstructor`
+· 9.5 `AStarDiagnostics`, `Session` → `AStarSearch` · 9.6 hairpin debug trace, then fix decided with the user.
+Decided (user): the bridge-over-own-approach check moves to `PathProfileCheck` (one whole-path check); the per-move
+and look-ahead cut costs stay two terms (shared enclosed detection only); the two endpoint debug views become one.
 
 `AStarPathfinder` (2 650) → `AStarSearch` (~450), `SearchBounds` (~200), `GridMoves` (~120), `TerrainMoveCost` (~450),
 `PathReconstructor` (~200), `AStarDiagnostics` (~200), bridge parts already in `bridge/`. Shared search state goes

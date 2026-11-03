@@ -75,7 +75,7 @@ class AStarGoldenTest {
     private static String run(SyntheticTerrain t, int sx, int sz, int gx, int gz, RoadType type) {
         BlockPos start = new BlockPos(sx, t.sample(sx, sz).surfaceY, sz);
         BlockPos goal = new BlockPos(gx, t.sample(gx, gz).surfaceY, gz);
-        AStarPathfinder.Session s = new AStarPathfinder().startSession(null, start, goal, t);
+        AStarPathfinder.Session s = new AStarPathfinder().startSession(start, goal, t);
         s.setRoadType(type);
 
         AStarPathfinder.StepResult r;
