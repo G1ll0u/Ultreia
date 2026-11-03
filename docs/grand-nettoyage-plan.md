@@ -236,6 +236,9 @@ Visible (each confirmed): manual paths merge into existing roads; same scan radi
 `PathReconstructor` (~200), `AStarDiagnostics` (~200), bridge parts already in `bridge/`. Shared search state goes
 in one `SearchState` object; the shadowed `ax/az/bx/bz` locals are renamed first. Magic numbers become named
 constants. Golden tests must stay identical.
+Open (user, after a test): on slopes A* prefers tight zigzags; at a hairpin two road parts lie side by side at
+different heights and the painter cannot make the gap walkable (the remaining `stepsOverHalf` in the paint
+diagnostic). Fix at the cost level (slope vs turn balance, or forbid hairpins tighter than the road width).
 
 ### Phase 10 — Painter split — status: not started
 

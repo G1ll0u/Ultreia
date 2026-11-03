@@ -115,6 +115,10 @@ public final class RoadPainter {
 
         private final RoadIndex roadIndex;
         private final it.unimi.dsi.fastutil.longs.LongOpenHashSet newlyPlaced = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
+        // Paint diagnostics (DEBUG.logPainting): one summary line per edge.
+        private final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap placedHalf = new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
+        private int dbgForced, dbgForcedNoFit, dbgNoSupport, dbgDtRoot;
+        private final StringBuilder dbgForcedNoFitAt = new StringBuilder(), dbgNoSupportAt = new StringBuilder(), dbgDtRootAt = new StringBuilder();
         @javax.annotation.Nullable private RoadNetwork roadNetwork;
         @javax.annotation.Nullable private net.minecraft.util.math.BlockPos fromVillage;
         @javax.annotation.Nullable private net.minecraft.util.math.BlockPos toVillage;
@@ -271,6 +275,7 @@ public final class RoadPainter {
                         if (!talusStep(deadlineNs)) return PaintResult.RUNNING;
                         talusPassDone = true;
                     }
+                    logPaintSummary();
                     registerRoadSegment();
                     return PaintResult.OK;
                 }
@@ -297,6 +302,7 @@ public final class RoadPainter {
                         if (!talusStep(deadlineNs)) return PaintResult.RUNNING;
                         talusPassDone = true;
                     }
+                    logPaintSummary();
                     registerRoadSegment();
                     return PaintResult.OK;
                 }
@@ -845,7 +851,8 @@ public final class RoadPainter {
 
         /**
          * Forced cells (junction disks, gap connectors, bridge exits) can lie outside the sweep radius.
-         * They continue the height of a planned 4-neighbour, spreading outward; cells with none stay unpainted.
+         * Each takes the terrain height clamped to within half a block of every placed or planned
+         * 4-neighbour, spreading outward; a cell with no neighbour or no such height stays unpainted.
          */
         private void paintForcedLeftovers() {
             it.unimi.dsi.fastutil.longs.LongArrayList pending = new it.unimi.dsi.fastutil.longs.LongArrayList();
@@ -859,8 +866,9 @@ public final class RoadPainter {
                     long k = pending.getLong(pi);
                     int x = Pos2D.xFromKey(k);
                     int z = Pos2D.zFromKey(k);
-                    int half = neighbourPlannedHalf(x, z);
+                    int half = walkableForcedHalf(x, z);
                     if (half == Integer.MIN_VALUE) continue;
+                    dbgForced++;
                     plannedHalfByXZ.put(k, half);
                     paintSingle(x, z, sampler.sample(x, z).surfaceY);
                     painted.add(k);
@@ -868,15 +876,59 @@ public final class RoadPainter {
                     progress = true;
                 }
             }
+            dbgForcedNoFit += pending.size();
+            for (int pi = 0; pi < pending.size(); pi++) {
+                long k = pending.getLong(pi);
+                dbgSample(dbgForcedNoFitAt, pi + 1, Pos2D.xFromKey(k),
+                        BridgeGeometry.naturalSurfaceHalfY(sampler.sample(Pos2D.xFromKey(k), Pos2D.zFromKey(k)).surfaceY),
+                        Pos2D.zFromKey(k));
+            }
         }
 
-        private int neighbourPlannedHalf(int x, int z) {
+        // INVARIANT: a forced cell never steps more than half a block from a placed or planned 4-neighbour.
+        private int walkableForcedHalf(int x, int z) {
+            int lo = Integer.MIN_VALUE;
+            int hi = Integer.MAX_VALUE;
             int[][] n4 = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
             for (int[] d : n4) {
-                int h = plannedHalfByXZ.get(Pos2D.xzKey(x + d[0], z + d[1]));
-                if (h != Integer.MIN_VALUE) return h;
+                long nk = Pos2D.xzKey(x + d[0], z + d[1]);
+                int h = placedHalf.containsKey(nk) ? placedHalf.get(nk) : plannedHalfByXZ.get(nk);
+                if (h == Integer.MIN_VALUE) continue;
+                lo = Math.max(lo, h - HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK);
+                hi = Math.min(hi, h + HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK);
             }
-            return Integer.MIN_VALUE;
+            if (lo == Integer.MIN_VALUE || lo > hi) return Integer.MIN_VALUE;
+            int terrain = BridgeGeometry.naturalSurfaceHalfY(sampler.sample(x, z).surfaceY);
+            return Math.max(lo, Math.min(hi, terrain));
+        }
+
+        private static void dbgSample(StringBuilder sb, int count, int x, int half, int z) {
+            if (count <= 5) sb.append(" (").append(x).append(',').append(half / 2).append(',').append(z).append(')');
+        }
+
+        /** One summary line per edge: suspicious side cells and steps above half a block between painted cells. */
+        private void logPaintSummary() {
+            if (!UltreiaConfig.DEBUG.logPainting) return;
+            int steps = 0;
+            StringBuilder stepAt = new StringBuilder();
+            for (it.unimi.dsi.fastutil.longs.Long2IntMap.Entry e : placedHalf.long2IntEntrySet()) {
+                int x = Pos2D.xFromKey(e.getLongKey());
+                int z = Pos2D.zFromKey(e.getLongKey());
+                int h = e.getIntValue();
+                int[][] n2 = {{1, 0}, {0, 1}};
+                for (int[] d : n2) {
+                    long nk = Pos2D.xzKey(x + d[0], z + d[1]);
+                    if (!placedHalf.containsKey(nk)) continue;
+                    if (Math.abs(placedHalf.get(nk) - h) > 1) {
+                        steps++;
+                        dbgSample(stepAt, steps, x, Math.max(h, placedHalf.get(nk)), z);
+                    }
+                }
+            }
+            Ultreia.LOGGER.info("[Ultreia paint] edge done: placed={} stepsOverHalf={}{} forced={} forcedNoWalkableHeight={}{}"
+                            + " skippedNoSupport={}{} dtRootRepaints={}{}",
+                    placedHalf.size(), steps, stepAt, dbgForced, dbgForcedNoFit, dbgForcedNoFitAt,
+                    dbgNoSupport, dbgNoSupportAt, dbgDtRoot, dbgDtRootAt);
         }
 
         private void paintMergeConnectorDirect() {
@@ -1600,7 +1652,11 @@ public final class RoadPainter {
                 HeadroomClearer.clearAtAndAbove(world, supportTop.up(), 2, false, true);
             }
 
-            if (!hasSupportWithinOneBlock(supportTop)) return;
+            if (!hasSupportWithinOneBlock(supportTop)) {
+                dbgNoSupport++;
+                dbgSample(dbgNoSupportAt, dbgNoSupport, x, targetHalf, z);
+                return;
+            }
 
             MillPathPalette.Kind kind = pickKindAveraged(x, z);
             placeRoadBlockFromHalf(supportTop, kind, targetHalf, earthworks);
@@ -1629,6 +1685,7 @@ public final class RoadPainter {
                     : MillPathPalette.full(kind);
 
             world.setBlockState(placePos, place, 2);
+            placedHalf.put(Pos2D.xzKey(x, z), targetHalf);
 
             if (CLEAR_HEADROOM) {
                 HeadroomClearer.clearRoadColumn(world, placePos, 3, false, true);
@@ -1640,6 +1697,8 @@ public final class RoadPainter {
                 // If a whole DT tree was removed, paint a road block at the rootydirt position
                 // (now plain dirt) so no bare earth patch is left where the tree stood.
                 if (dtRootPos != null) {
+                    dbgDtRoot++;
+                    dbgSample(dbgDtRootAt, dbgDtRoot, dtRootPos.getX(), dtRootPos.getY() * 2, dtRootPos.getZ());
                     paintSingle(dtRootPos.getX(), dtRootPos.getZ(), dtRootPos.getY());
                     sampler.invalidateAround(dtRootPos.getX(), dtRootPos.getZ(), 1);
                 }
