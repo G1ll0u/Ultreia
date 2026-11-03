@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.map;
 
-import com.jubitus.ultreia.network.MPBNetworkHandler;
+import com.jubitus.ultreia.net.NetworkHandler;
 import com.jubitus.ultreia.planner.NetworkPlanner;
 import com.jubitus.ultreia.planner.VillageClassifier;
 import com.jubitus.ultreia.mill.MillVillageIndex;
@@ -41,7 +41,7 @@ public final class PacketRequestPreview implements IMessage {
                 List<PacketNetworkPreview.NodeData> nodeData = buildNodeData(world, nodes, result.villageSizes);
                 List<PacketNetworkPreview.EdgeData> edgeData = buildEdgeData(world, nodes, result.edges);
 
-                MPBNetworkHandler.CHANNEL.sendTo(new PacketNetworkPreview(nodeData, edgeData), player);
+                NetworkHandler.CHANNEL.sendTo(new PacketNetworkPreview(nodeData, edgeData), player);
             });
 
             return null;

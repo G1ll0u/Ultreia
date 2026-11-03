@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.network;
+package com.jubitus.ultreia.net;
 
 import com.jubitus.ultreia.map.PacketNetworkPreview;
 import com.jubitus.ultreia.map.PacketOpenMapGui;
@@ -11,7 +11,7 @@ import net.minecraftforge.fml.common.network.NetworkRegistry;
 import net.minecraftforge.fml.common.network.simpleimpl.SimpleNetworkWrapper;
 import net.minecraftforge.fml.relauncher.Side;
 
-public final class MPBNetworkHandler {
+public final class NetworkHandler {
 
     public static final SimpleNetworkWrapper CHANNEL =
             NetworkRegistry.INSTANCE.newSimpleChannel(Tags.MOD_ID + ":net");

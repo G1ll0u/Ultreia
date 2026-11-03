@@ -12,7 +12,7 @@ import com.jubitus.ultreia.roads.RoadNetwork;
 import com.jubitus.ultreia.roads.RoadSegment;
 import com.jubitus.ultreia.roads.RoadWaypoint;
 import com.jubitus.ultreia.mill.MillWorldDataRegistry;
-import com.jubitus.ultreia.network.MPBNetworkHandler;
+import com.jubitus.ultreia.net.NetworkHandler;
 import com.jubitus.ultreia.map.PacketOpenMapGui;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
@@ -179,7 +179,7 @@ public final class CommandUltreia extends CommandBase {
                 }
                 segData.add(new PacketOpenMapGui.SegmentData(seg.id, seg.isBridge, fromX, fromZ, toX, toZ, wp));
             }
-            MPBNetworkHandler.CHANNEL.sendTo(new PacketOpenMapGui(px, pz, guiRadius, segData), player);
+            NetworkHandler.CHANNEL.sendTo(new PacketOpenMapGui(px, pz, guiRadius, segData), player);
             sender.sendMessage(new TextComponentString(
                     "§7[MPB] Opening map GUI — " + nearby.size() + " segment(s) in radius " + guiRadius + "..."));
             return;

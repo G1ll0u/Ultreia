@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.map;
 
-import com.jubitus.ultreia.network.MPBNetworkHandler;
+import com.jubitus.ultreia.net.NetworkHandler;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.ScaledResolution;
@@ -637,7 +637,7 @@ public final class MapScreen extends GuiScreen {
         previewPending = true;
         GuiButton btn = getButton(BTN_PREVIEW);
         if (btn != null) btn.displayString = "§7Loading...";
-        MPBNetworkHandler.CHANNEL.sendToServer(new PacketRequestPreview());
+        NetworkHandler.CHANNEL.sendToServer(new PacketRequestPreview());
     }
 
     // -------------------------------------------------------------------------
