@@ -7,6 +7,7 @@ import com.jubitus.ultreia.geom.LineRaster;
 import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.roads.RoadJoins;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
+import com.jubitus.ultreia.bridge.BridgeSegmentPainter;
 import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.terrain.BlockRules;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
@@ -50,8 +51,6 @@ public final class RoadPainter {
     private static final boolean SUPPRESS_PARALLEL_PAINTING = true;
     // Shoulder width used to taper earthworks away from the road surface.
     private static final int EARTHWORKS_SHOULDER = 3;
-    // Do not apply road earthworks this many cells before/after a bridge join.
-    private static final int BRIDGE_JOIN_PROTECTION_BLOCKS = 0;
     // Force-paint this many blocks after bridge exit to secure road continuation.
     private static final int FORCE_PAINT_EXIT_BLOCKS = 2;
 
@@ -71,8 +70,6 @@ public final class RoadPainter {
     }
 
     public static final class Session {
-        private final it.unimi.dsi.fastutil.longs.LongOpenHashSet bridgeProtected = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
-
         private int[] gradeY = null;
 
         private int baseR;
@@ -87,6 +84,7 @@ public final class RoadPainter {
 
         private final List<BlockPos> coarse;
         private final List<BridgeSpan> forcedBridges;
+        private final BridgeSegmentPainter bridges;
         private final List<BlockPos> path = new ArrayList<>();
 
         private final Map<Long, ForcedBridgeRef> forcedByStartKey = new HashMap<>();
@@ -188,6 +186,7 @@ public final class RoadPainter {
             this.roadIndex = roadIndex;
             this.dryRun = dryRun;
             this.forcedBridges = forcedBridges == null ? Collections.<BridgeSpan>emptyList() : forcedBridges;
+            this.bridges = new BridgeSegmentPainter(world, sampler, protectedAreas, roadIndex, this.forcedBridges, dryRun);
 
             this.plannedHalfByXZ.defaultReturnValue(Integer.MIN_VALUE);
             this.plannedPriorityByXZ.defaultReturnValue(Integer.MAX_VALUE);
@@ -217,7 +216,7 @@ public final class RoadPainter {
                     densifyDone = true;
 
                     indexForcedBridges();
-                    buildBridgeProtection();
+                    bridges.buildFootprint();
 
                     detectEarlyMergeOnce();
 
@@ -252,15 +251,7 @@ public final class RoadPainter {
                 }
 
                 if (mergeStopArmed && i > mergeStopAt) {
-                    if (pendingBridge != null) {
-                        if (!paintBridgeNow(pendingBridge)) {
-                            Ultreia.LOGGER.warn("Bridge build degraded at end of edge start=({}, {}) end=({}, {}) len={}",
-                                    pendingBridge.start.getX(), pendingBridge.start.getZ(),
-                                    pendingBridge.end.getX(), pendingBridge.end.getZ(),
-                                    pendingBridge.lengthBlocks());
-                        }
-                        pendingBridge = null;
-                    }
+                    if (pendingBridge != null) finishPendingBridge(" at end of edge", false);
                     if (!mergeConnectorPainted) {
                         mergeConnectorPainted = true;
                         paintMergeConnectorDirect();
@@ -283,15 +274,7 @@ public final class RoadPainter {
                 }
 
                 if (i >= path.size()) {
-                    if (pendingBridge != null) {
-                        if (!paintBridgeNow(pendingBridge)) {
-                            Ultreia.LOGGER.warn("Bridge build degraded at final path end start=({}, {}) end=({}, {}) len={}",
-                                    pendingBridge.start.getX(), pendingBridge.start.getZ(),
-                                    pendingBridge.end.getX(), pendingBridge.end.getZ(),
-                                    pendingBridge.lengthBlocks());
-                        }
-                        pendingBridge = null;
-                    }
+                    if (pendingBridge != null) finishPendingBridge(" at final path end", false);
                     if (!elbowFillsPainted) {
                         elbowFillsPainted = true;
                         paintElbowFillsDirect();
@@ -321,20 +304,7 @@ public final class RoadPainter {
 
                 if (pendingBridge != null) {
                     if (i >= pendingBridgeEndIdx) {
-                        BridgeSpan builtSpan = pendingBridge;
-                        boolean bridgeOk = paintBridgeNow(builtSpan);
-
-                        if (!bridgeOk) {
-                            Ultreia.LOGGER.warn("Bridge build degraded start=({}, {}) end=({}, {}) len={}",
-                                    builtSpan.start.getX(), builtSpan.start.getZ(),
-                                    builtSpan.end.getX(), builtSpan.end.getZ(),
-                                    builtSpan.lengthBlocks());
-                        }
-
-                        reinforceBridgeExit(builtSpan, FORCE_PAINT_EXIT_BLOCKS);
-
-                        pendingBridge = null;
-                        pendingBridgeEndIdx = -1;
+                        finishPendingBridge("", true);
                         i++;
                         continue;
                     }
@@ -803,9 +773,9 @@ public final class RoadPainter {
                 int fillX = (prevDz == 0) ? (x0 + dx) : x0;
                 int fillZ = (prevDz == 0) ? z0 : (z0 + dz);
 
-                if (isForcedBridgeCell(fillX, fillZ) || isBridgeProtectedCell(fillX, fillZ)) continue;
+                if (bridges.isBridgeCell(fillX, fillZ)) continue;
                 if (roadIndex != null && roadIndex.isBridgeVolumeXZ(fillX, fillZ)) continue;
-                if (isNearExistingBridgeDeck(fillX, fillZ)) continue;
+                if (bridges.isNearExistingBridgeDeck(fillX, fillZ)) continue;
                 if (protectedAreas != null && protectedAreas.contains(fillX, fillZ)) continue;
 
                 TerrainSampler.Sample s = sampler.sample(fillX, fillZ);
@@ -838,7 +808,7 @@ public final class RoadPainter {
             for (int ci = 0; ci < n; ci++) {
                 BlockPos p = line.get(ci);
                 int x = p.getX(), z = p.getZ();
-                if (isForcedBridgeCell(x, z) || isBridgeProtectedCell(x, z)) continue;
+                if (bridges.isBridgeCell(x, z)) continue;
                 if (roadIndex != null && roadIndex.isBridgeXZ(x, z)) continue;
                 if (protectedAreas != null && protectedAreas.contains(x, z)) continue;
                 TerrainSampler.Sample s = sampler.sample(x, z);
@@ -1077,27 +1047,16 @@ public final class RoadPainter {
             }
         }
 
-        private boolean isNearExistingBridgeDeck(int x, int z) {
-            if (roadIndex == null) return false;
-            int half = bridgeProtectionHalfWidth();
-            for (int dx = -half; dx <= half; dx++) {
-                for (int dz = -half; dz <= half; dz++) {
-                    if (roadIndex.isBridgeXZ(x + dx, z + dz)) return true;
-                }
-            }
-            return false;
-        }
-
         private void addPlannedRibbonCell(int x,
                                           int z,
                                           double distSq,
                                           int targetHalf,
                                           int idx,
                                           boolean earthworks) {
-            if (isForcedBridgeCell(x, z) || isBridgeProtectedCell(x, z)) return;
+            if (bridges.isBridgeCell(x, z)) return;
             // Never plan road cells inside an existing bridge volume (includes supports, lateral blocks).
             if (roadIndex != null && roadIndex.isBridgeVolumeXZ(x, z)) return;
-            if (isNearExistingBridgeDeck(x, z)) return;
+            if (bridges.isNearExistingBridgeDeck(x, z)) return;
             if (protectedAreas != null && protectedAreas.contains(x, z)) return;
 
             TerrainSampler.Sample s = sampler.sample(x, z);
@@ -1146,16 +1105,6 @@ public final class RoadPainter {
             if (t < 0.0) return 0.0;
             if (t > 1.0) return 1.0;
             return t;
-        }
-
-        private boolean isForcedBridgeCell(int x, int z) {
-            for (BridgeSpan span : forcedBridges) {
-                if (span == null || span.centerline == null) continue;
-                for (BlockPos p : span.centerline) {
-                    if (p.getX() == x && p.getZ() == z) return true;
-                }
-            }
-            return false;
         }
 
         private boolean isExistingRoadNotOurs(int x, int z) {
@@ -1383,7 +1332,7 @@ public final class RoadPainter {
                     int x = cx + dx;
                     int z = cz + dz;
 
-                    if (isForcedBridgeCell(x, z) || isBridgeProtectedCell(x, z)) continue;
+                    if (bridges.isBridgeCell(x, z)) continue;
                     // Never force-paint on an existing bridge deck — that would place road blocks
                     // at the wrong Y and break the bridge structure.
                     if (roadIndex != null && roadIndex.isBridgeXZ(x, z)) continue;
@@ -1407,7 +1356,7 @@ public final class RoadPainter {
             for (BlockPos p : line) {
                 int x = p.getX();
                 int z = p.getZ();
-                if (isForcedBridgeCell(x, z) || isBridgeProtectedCell(x, z)) continue;
+                if (bridges.isBridgeCell(x, z)) continue;
                 if (roadIndex != null && roadIndex.isBridgeXZ(x, z)) continue;
                 if (protectedAreas != null && protectedAreas.contains(x, z)) continue;
                 TerrainSampler.Sample s = sampler.sample(x, z);
@@ -1420,7 +1369,7 @@ public final class RoadPainter {
         }
 
         private boolean shouldPaintCell(int x, int z) {
-            if (isForcedBridgeCell(x, z) || isBridgeProtectedCell(x, z)) return false;
+            if (bridges.isBridgeCell(x, z)) return false;
             long k = Pos2D.xzKey(x, z);
             return forcePaint.contains(k) || planned.contains(k);
         }
@@ -1455,7 +1404,7 @@ public final class RoadPainter {
                 if (!painted.add(k)) {
                     continue;
                 }
-                if (isBridgeProtectedCell(xx, zz)) {
+                if (bridges.isBridgeCell(xx, zz)) {
                     continue;
                 }
 
@@ -1582,7 +1531,7 @@ public final class RoadPainter {
         }
 
         private void paintSingle(int x, int z, int surfaceY) {
-            if (isBridgeProtectedCell(x, z)) return;
+            if (bridges.isBridgeCell(x, z)) return;
             // INVARIANT: no painting, clearing or earthworks inside protected areas or on Millénaire paths.
             if (protectedAreas != null && protectedAreas.contains(x, z)) return;
             // Never touch any column that belongs to an existing bridge volume (deck, supports, lateral blocks).
@@ -1604,9 +1553,6 @@ public final class RoadPainter {
             }
 
             boolean earthworks = earthworksEnabled();
-            if (isBridgeJoinIndex(i)) {
-                earthworks = false;
-            }
 
             boolean nearNoPaint = protectedAreas != null && protectedAreas.containsWithin(x, z, 1);
             if (nearNoPaint) {
@@ -1638,7 +1584,7 @@ public final class RoadPainter {
 
             BlockPos supportTop = new BlockPos(x, supportTopY, z);
 
-            if (!dryRun && !nearNoPaint && !isBridgeJoinIndex(i)) {
+            if (!dryRun && !nearNoPaint) {
                 // Always allow clearing solid natural blocks above the road surface for proper headroom.
                 HeadroomClearer.clearAtAndAbove(world, supportTop.up(), 2, false, true);
             }
@@ -1976,257 +1922,33 @@ public final class RoadPainter {
             roadNetwork.addRoadSegment(path, roadIndex, fromVillage, toVillage, roadType, paintedWidthBlocks());
         }
 
-        private boolean isBridgeAlreadyAt(BridgeSpan span) {
-            if (roadIndex == null) return false;
-            if (span.centerline == null || span.centerline.isEmpty()) return false;
-            BlockPos mid = span.centerline.get(span.centerline.size() / 2);
-            return roadIndex.isBridgeXZ(mid.getX(), mid.getZ());
-        }
-
-        private boolean paintBridgeNow(BridgeSpan span) {
-            if (span == null) return true;
-            if (!UltreiaConfig.BRIDGES.enabled) return false;
-
-            // Skip building if the bridge already exists (another path built it first).
-            if (isBridgeAlreadyAt(span)) {
-                if (!dryRun) {
-                    if (roadNetwork != null) {
-                        int[] deckHalf = BridgeDeckProfile.of(span);
-                        roadNetwork.addBridgeSegment(span, deckHalf, roadIndex, fromVillage, toVillage, roadType);
-                    }
-                    if (roadIndex != null) markBridgeVolumeInIndex(span, roadIndex);
-                }
-                return true;
+        /** Builds the bridge waiting in {@code pendingBridge}; past its exit, forces the first road cells when asked. */
+        private void finishPendingBridge(String where, boolean reinforceExit) {
+            BridgeSpan span = pendingBridge;
+            if (!bridges.paint(span, roadNetwork, fromVillage, toVillage, roadType)) {
+                Ultreia.LOGGER.warn("Bridge build degraded{} start=({}, {}) end=({}, {}) len={}", where,
+                        span.start.getX(), span.start.getZ(),
+                        span.end.getX(), span.end.getZ(),
+                        span.lengthBlocks());
             }
+            if (reinforceExit) {
+                for (int[] c : bridges.exitCells(span, FORCE_PAINT_EXIT_BLOCKS)) {
+                    long key = Pos2D.xzKey(c[0], c[1]);
+                    planned.add(key);
+                    forcePaint.add(key);
+                    core.add(key);
 
-            if (protectedAreas != null) {
-                if (protectedAreas.contains(span.start.getX(), span.start.getZ())) return false;
-                if (protectedAreas.contains(span.end.getX(), span.end.getZ())) return false;
-            }
+                    plannedHalfByXZ.put(key, c[2]);
 
-            boolean built = BridgeBuildService.build(world, sampler, span, dryRun);
-
-            if (built && !dryRun && (roadIndex != null || roadNetwork != null)) {
-                int[] deckHalf = BridgeDeckProfile.of(span);
-                if (roadNetwork != null) {
-                    roadNetwork.addBridgeSegment(span, deckHalf, roadIndex, fromVillage, toVillage, roadType);
-                } else if (roadIndex != null) {
-                    // roadNetwork absent: at least mark bridge decks in the index
-                    for (int i = 0; i < span.centerline.size(); i++) {
-                        BlockPos c = span.centerline.get(i);
-                        int deckY = HalfY.surfaceBlockY(
-                                (deckHalf != null && i < deckHalf.length) ? deckHalf[i] : c.getY() * 2);
-                        roadIndex.markBridgeDeck(c.getX(), deckY, c.getZ());
-                    }
-                }
-                if (roadIndex != null) {
-                    markBridgeVolumeInIndex(span, roadIndex);
-                }
-            }
-
-            return built;
-        }
-
-        private void reinforceBridgeExit(BridgeSpan span, int blocks) {
-            if (span == null || blocks <= 0) return;
-            if (span.centerline == null || span.centerline.size() < 2) return;
-
-            int[] exitStep = bridgeExitStep(span);
-            int dx = exitStep[0];
-            int dz = exitStep[1];
-
-            if (dx == 0 && dz == 0) return;
-
-            int[] deckHalf = BridgeDeckProfile.of(span);
-            int exitHalf = deckHalf[deckHalf.length - 1];
-
-            int maxHalfStep = Math.max(1, HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK);
-
-            int x = span.end.getX();
-            int z = span.end.getZ();
-            int half = exitHalf;
-
-            for (int i = 1; i <= blocks; i++) {
-                x += dx;
-                z += dz;
-
-                if (isForcedBridgeCell(x, z) || isBridgeProtectedCell(x, z)) continue;
-                if (protectedAreas != null && protectedAreas.contains(x, z)) continue;
-
-                TerrainSampler.Sample s = sampler.sample(x, z);
-                if (s == null) continue;
-                if (sampler.forbiddenHard(s)) continue;
-                if (s.isOcean || s.isWater) continue;
-                if (sampler.forbidden(s, TerrainSampler.Mode.PAINTING)) continue;
-
-                int naturalHalf = HalfY.ofBlockTop(s.surfaceY);
-                half = stepHalfToward(half, naturalHalf, maxHalfStep);
-
-                long k = Pos2D.xzKey(x, z);
-                planned.add(k);
-                forcePaint.add(k);
-                core.add(k);
-
-                plannedHalfByXZ.put(k, half);
-
-                int priority = -200000 + i;
-                int prev = plannedPriorityByXZ.get(k);
-                if (priority < prev) {
-                    plannedPriorityByXZ.put(k, priority);
-                }
-            }
-        }
-
-        private int[] bridgeExitStep(BridgeSpan span) {
-            if (span == null || span.centerline == null || span.centerline.size() < 2) {
-                return new int[]{0, 0};
-            }
-
-            for (int i = span.centerline.size() - 1; i > 0; i--) {
-                BlockPos a = span.centerline.get(i - 1);
-                BlockPos b = span.centerline.get(i);
-
-                int dx = Integer.signum(b.getX() - a.getX());
-                int dz = Integer.signum(b.getZ() - a.getZ());
-
-                if (dx != 0 || dz != 0) {
-                    return new int[]{dx, dz};
-                }
-            }
-
-            return new int[]{0, 0};
-        }
-
-        private int stepHalfToward(int curHalf, int targetHalf, int maxHalfStep) {
-            int d = targetHalf - curHalf;
-            if (d > maxHalfStep) return curHalf + maxHalfStep;
-            if (d < -maxHalfStep) return curHalf - maxHalfStep;
-            return targetHalf;
-        }
-
-        private void markBridgeVolumeInIndex(BridgeSpan span, RoadIndex idx) {
-            // Only mark volume for water-crossing bridges. Valley bridges are high enough
-            // above the valley floor that ground-level paths cannot interact with them.
-            if (!span.hasWaterCrossing) return;
-            int lateralHalf = bridgeProtectionHalfWidth();
-            for (int i = 0; i < span.centerline.size(); i++) {
-                BlockPos c = span.centerline.get(i);
-                BridgeGeometry.Dir2 perp = BridgeGeometry.localDir(span.centerline, i).perp();
-                for (int o = -lateralHalf; o <= lateralHalf; o++) {
-                    idx.markBridgeVolume(c.getX() + perp.dx * o, c.getZ() + perp.dz * o);
-                }
-                // Fill diagonal gaps so diagonal bridges have no holes in their volume
-                if (i > 0) {
-                    BlockPos p = span.centerline.get(i - 1);
-                    int stepX = Integer.signum(c.getX() - p.getX());
-                    int stepZ = Integer.signum(c.getZ() - p.getZ());
-                    if (stepX != 0 && stepZ != 0) {
-                        for (int o = -lateralHalf; o <= lateralHalf; o++) {
-                            idx.markBridgeVolume(p.getX() + stepX + perp.dx * o, p.getZ() + perp.dz * o);
-                            idx.markBridgeVolume(p.getX() + perp.dx * o, p.getZ() + stepZ + perp.dz * o);
-                        }
+                    int priority = -200000 + c[3];
+                    int prev = plannedPriorityByXZ.get(key);
+                    if (priority < prev) {
+                        plannedPriorityByXZ.put(key, priority);
                     }
                 }
             }
-        }
-
-        private void buildBridgeProtection() {
-            bridgeProtected.clear();
-
-            int lateral = bridgeProtectionHalfWidth();
-
-            for (BridgeSpan span : forcedBridges) {
-                if (span == null || span.centerline == null || span.centerline.isEmpty()) continue;
-
-                for (int i = 0; i < span.centerline.size(); i++) {
-                    BlockPos c = span.centerline.get(i);
-                    BridgeGeometry.Dir2 perp = BridgeGeometry.localDir(span.centerline, i).perp();
-
-                    markBridgeStripe(c.getX(), c.getZ(), perp, lateral);
-
-                    if (i > 0) {
-                        BlockPos p = span.centerline.get(i - 1);
-                        int stepX = Integer.signum(c.getX() - p.getX());
-                        int stepZ = Integer.signum(c.getZ() - p.getZ());
-
-                        if (stepX != 0 && stepZ != 0) {
-                            markBridgeDiagonalGap(p.getX(), p.getZ(), c.getX(), c.getZ(), perp, lateral);
-                        }
-                    }
-                }
-            }
-        }
-
-        private int bridgeProtectionHalfWidth() {
-            int half = 1;
-
-            BridgeTemplate active = BridgeTemplateRegistry.getDefaultTemplate();
-            if (active != null) {
-                int tHalf = Math.max(Math.abs(active.minLateral), Math.abs(active.maxLateral));
-                if (tHalf > half) half = tHalf;
-            }
-
-            return half;
-        }
-
-        private void markBridgeStripe(int cx, int cz, BridgeGeometry.Dir2 perp, int half) {
-            for (int o = -half; o <= half; o++) {
-                int x = cx + perp.dx * o;
-                int z = cz + perp.dz * o;
-                bridgeProtected.add(Pos2D.xzKey(x, z));
-            }
-        }
-
-        private void markBridgeDiagonalGap(int px, int pz, int cx, int cz, BridgeGeometry.Dir2 perp, int half) {
-            int stepX = Integer.signum(cx - px);
-            int stepZ = Integer.signum(cz - pz);
-
-            for (int o = -half; o <= half; o++) {
-                int ax = px + perp.dx * o;
-                int az = pz + perp.dz * o;
-
-                int bx = cx + perp.dx * o;
-                int bz = cz + perp.dz * o;
-
-                int c1x = ax + stepX;
-                int c1z = az;
-                if (isBetween2D(c1x, c1z, ax, az, bx, bz)) {
-                    bridgeProtected.add(Pos2D.xzKey(c1x, c1z));
-                }
-
-                int c2x = ax;
-                int c2z = az + stepZ;
-                if (isBetween2D(c2x, c2z, ax, az, bx, bz)) {
-                    bridgeProtected.add(Pos2D.xzKey(c2x, c2z));
-                }
-            }
-        }
-
-        private boolean isBridgeProtectedCell(int x, int z) {
-            return bridgeProtected.contains(Pos2D.xzKey(x, z));
-        }
-
-        private boolean isBridgeJoinIndex(int idx) {
-            int protect = Math.max(0, BRIDGE_JOIN_PROTECTION_BLOCKS);
-            if (protect <= 0) return false;
-            if (forcedByStartKey.isEmpty()) return false;
-
-            for (ForcedBridgeRef ref : forcedByStartKey.values()) {
-                if (ref == null) continue;
-
-                if (idx >= ref.startIdx - protect && idx <= ref.startIdx + protect) return true;
-                if (idx >= ref.endIdx - protect && idx <= ref.endIdx + protect) return true;
-            }
-
-            return false;
-        }
-
-        private static boolean isBetween2D(int x, int z, int x0, int z0, int x1, int z1) {
-            int minX = Math.min(x0, x1);
-            int maxX = Math.max(x0, x1);
-            int minZ = Math.min(z0, z1);
-            int maxZ = Math.max(z0, z1);
-            return x >= minX && x <= maxX && z >= minZ && z <= maxZ;
+            pendingBridge = null;
+            pendingBridgeEndIdx = -1;
         }
     }
 
