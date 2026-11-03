@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.paint;
 
+import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.geom.LineRaster;
 import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.roads.RoadJoins;
@@ -36,6 +37,21 @@ import java.util.Map;
 
 
 public final class RoadPainter {
+
+    // Clear 2 blocks above the road to ensure walkability.
+    private static final boolean CLEAR_HEADROOM = true;
+    // Maximum number of blocks trimmed from one edge of the road to create organic width variation.
+    private static final int ROAD_EDGE_VARIATION = 1;
+    // Average number of road blocks between edge-variation changes.
+    private static final int ROAD_EDGE_VARIATION_PERIOD = 8;
+    // If true, the painter skips waypoints that run within road-width of an already-painted road, then resumes...
+    private static final boolean SUPPRESS_PARALLEL_PAINTING = true;
+    // Shoulder width used to taper earthworks away from the road surface.
+    private static final int EARTHWORKS_SHOULDER = 3;
+    // Do not apply road earthworks this many cells before/after a bridge join.
+    private static final int BRIDGE_JOIN_PROTECTION_BLOCKS = 0;
+    // Force-paint this many blocks after bridge exit to secure road continuation.
+    private static final int FORCE_PAINT_EXIT_BLOCKS = 2;
 
 
     public enum PaintResult { RUNNING, OK, FAILED }
@@ -307,7 +323,7 @@ public final class RoadPainter {
                                     builtSpan.lengthBlocks());
                         }
 
-                        reinforceBridgeExit(builtSpan, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.forcePaintExitBlocks);
+                        reinforceBridgeExit(builtSpan, FORCE_PAINT_EXIT_BLOCKS);
 
                         pendingBridge = null;
                         pendingBridgeEndIdx = -1;
@@ -386,13 +402,13 @@ public final class RoadPainter {
             if (!allowEarlyMerge) return;
             if (roadIndex == null) return;
 
-            boolean isLoneTrail = roadType == RoadType.LONE_TRAIL && UltreiaConfig.ROAD_HIERARCHY.enabled;
+            boolean isLoneTrail = roadType == RoadType.LONE_TRAIL && RoadType.ROAD_HIERARCHY_ENABLED;
 
             // LONE_TRAIL may have very short paths (lonebuilding right next to a road).
             if (!isLoneTrail && path.size() < 8) return;
             if (path.size() < 3) return;
 
-            int exitBlocks = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.forcePaintExitBlocks);
+            int exitBlocks = Math.max(0, FORCE_PAINT_EXIT_BLOCKS);
 
             // Hard minimum: never merge before own forced bridges are fully painted.
             int absoluteMin = Math.max(isLoneTrail ? 3 : 6, baseR + 3);
@@ -412,7 +428,7 @@ public final class RoadPainter {
                     : path.size() - 1 - Math.max(6, baseR + 3);
             if (scanTo < absoluteMin) return;
 
-            int maxJoinDeltaHalf = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.maxRoadJoinDeltaHalfBlocks);
+            int maxJoinDeltaHalf = Math.max(0, HalfY.MAX_ROAD_JOIN_DELTA_HALF_BLOCKS);
             if (isLoneTrail) {
                 // LONE_TRAIL uses a more lenient height tolerance so terrain roughness doesn't
                 // prevent a valid graft onto the network.
@@ -420,7 +436,7 @@ public final class RoadPainter {
             }
 
             int mergeRadius = isLoneTrail
-                    ? Math.max(2, UltreiaConfig.ROAD_HIERARCHY.loneTrailMergeSearchRadius)
+                    ? Math.max(2, RoadType.LONE_TRAIL_MERGE_SEARCH_RADIUS)
                     : 2;
 
             // Minimum world-distance (squared) the merge target must be from the path origin.
@@ -428,7 +444,7 @@ public final class RoadPainter {
             // from which the path departs (e.g. Millénaire internal paths).
             BlockPos origin = path.get(0);
             int startMinBlocks = isLoneTrail
-                    ? Math.max(20, UltreiaConfig.ROAD_HIERARCHY.loneTrailMergeSearchRadius + 10)
+                    ? Math.max(20, RoadType.LONE_TRAIL_MERGE_SEARCH_RADIUS + 10)
                     : 12;
             int startMinDistSq = startMinBlocks * startMinBlocks;
 
@@ -499,7 +515,7 @@ public final class RoadPainter {
          * force-paint physical connectors at each entry/exit.
          */
         private void detectParallelGaps(int absoluteMin, int exitBlocks) {
-            if (!UltreiaConfig.PAINTING.suppressParallelPainting) return;
+            if (!SUPPRESS_PARALLEL_PAINTING) return;
             if (roadIndex == null) return;
 
             // Proximity radius: fire when any existing road block is this close to our path center.
@@ -596,7 +612,7 @@ public final class RoadPainter {
                             bCount++;
                         }
 
-                        if (UltreiaConfig.DEBUG.debugRoadPainting) {
+                        if (UltreiaConfig.DEBUG.logPainting) {
                             Ultreia.LOGGER.debug(
                                     "[Ultreia] Parallel gap suppressed: path[{}..{}] len={} near=({},{})",
                                     runStart, runEnd, runLen, nearX[runStart], nearZ[runStart]);
@@ -706,13 +722,13 @@ public final class RoadPainter {
             int n = edgeNoise.length;
             if (n == 0) return;
 
-            int maxOffset = UltreiaConfig.PAINTING.roadEdgeVariation;
+            int maxOffset = ROAD_EDGE_VARIATION;
             if (maxOffset <= 0 || baseR <= 0) return;
 
             // Clamp maxOffset so we never reduce the road to 0-wide.
             maxOffset = Math.min(maxOffset, baseR);
 
-            int period = Math.max(2, UltreiaConfig.PAINTING.roadEdgeVariationPeriod);
+            int period = Math.max(2, ROAD_EDGE_VARIATION_PERIOD);
 
             BlockPos start = path.get(0);
             java.util.Random rng = new java.util.Random(
@@ -741,7 +757,7 @@ public final class RoadPainter {
                 stepsUntilChange--;
             }
 
-            if (UltreiaConfig.DEBUG.debugRoadPainting) {
+            if (UltreiaConfig.DEBUG.logPainting) {
                 Ultreia.LOGGER.debug("[Ultreia] edgeNoise built: n={} maxOffset={} period={}", n, maxOffset, period);
             }
         }
@@ -1121,7 +1137,7 @@ public final class RoadPainter {
         // correctly skips pruned cells even if junctionReinforcement over-filled them.
         private void applyEdgeNoisePrune() {
             if (edgeNoise == null || path.isEmpty() || baseR <= 0) return;
-            if (UltreiaConfig.PAINTING.roadEdgeVariation <= 0) return;
+            if (ROAD_EDGE_VARIATION <= 0) return;
 
             int n = path.size();
 
@@ -1295,7 +1311,7 @@ public final class RoadPainter {
 
                     mergeConnectorList = buildMergeConnectorList(
                             lx, lz, startHalf, mergeTargetX, mergeTargetZ, endHalf);
-                    if (UltreiaConfig.DEBUG.debugRoadPainting) {
+                    if (UltreiaConfig.DEBUG.logPainting) {
                         Ultreia.LOGGER.debug(
                                 "[Ultreia] Merge connector: ({},{}) half={} -> ({},{}) half={} cells={}",
                                 lx, lz, startHalf, mergeTargetX, mergeTargetZ, endHalf,
@@ -1556,7 +1572,7 @@ public final class RoadPainter {
 
             if (earthworks) {
                 int rr = r;
-                int shoulder = Math.max(0, UltreiaConfig.PAINTING.earthworksShoulder);
+                int shoulder = Math.max(0, EARTHWORKS_SHOULDER);
                 Earthworks.Settings st = new Earthworks.Settings(
                         rr,
                         shoulder,
@@ -1614,11 +1630,11 @@ public final class RoadPainter {
 
             world.setBlockState(placePos, place, 2);
 
-            if (UltreiaConfig.PAINTING.clearHeadroom) {
+            if (CLEAR_HEADROOM) {
                 HeadroomClearer.clearRoadColumn(world, placePos, 3, false, true);
             }
 
-            if (UltreiaConfig.PAINTING.clearTrees && UltreiaConfig.PAINTING.clearTreeTrunks) {
+            if (UltreiaConfig.PAINTING.clearTrees && HeadroomClearer.CLEAR_TREE_TRUNKS) {
                 net.minecraft.util.math.BlockPos dtRootPos =
                         HeadroomClearer.clearTreesAbove(world, placePos, 4, false);
                 // If a whole DT tree was removed, paint a road block at the rootydirt position
@@ -1680,7 +1696,7 @@ public final class RoadPainter {
         }
 
         private double effectiveSlopeRatio() {
-            boolean isLoneTrail = roadType == RoadType.LONE_TRAIL && UltreiaConfig.ROAD_HIERARCHY.enabled;
+            boolean isLoneTrail = roadType == RoadType.LONE_TRAIL && RoadType.ROAD_HIERARCHY_ENABLED;
             double ltr = UltreiaConfig.PAINTING.earthworksSlopeRatioLoneTrail;
             if (isLoneTrail && ltr > 0.0) return ltr;
             return UltreiaConfig.PAINTING.earthworksSlopeRatio;
@@ -1799,7 +1815,7 @@ public final class RoadPainter {
             }
 
             if (talusCursor < talusCells.length) return false;
-            if (UltreiaConfig.DEBUG.debugRoadPainting) {
+            if (UltreiaConfig.DEBUG.logPainting) {
                 Ultreia.LOGGER.info("[Ultreia] Talus pass: {} road cells, {} talus cells, slopeRatio={}",
                         newlyPlaced.size(), talusCells.length, slopeRatio);
             }
@@ -1931,7 +1947,6 @@ public final class RoadPainter {
 
         private boolean paintBridgeNow(BridgeSpan span) {
             if (span == null) return true;
-            if (!UltreiaConfig.PAINTING.buildBridges) return false;
             if (!UltreiaConfig.BRIDGES.enabled) return false;
 
             // Skip building if the bridge already exists (another path built it first).
@@ -1987,7 +2002,7 @@ public final class RoadPainter {
             int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
             int exitHalf = deckHalf[deckHalf.length - 1];
 
-            int maxHalfStep = Math.max(1, UltreiaConfig.PAINTING.maxRoadStepHalfPerBlock);
+            int maxHalfStep = Math.max(1, HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK);
 
             int x = span.end.getX();
             int z = span.end.getZ();
@@ -2154,7 +2169,7 @@ public final class RoadPainter {
         }
 
         private boolean isBridgeJoinIndex(int idx) {
-            int protect = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeJoinProtectionBlocks);
+            int protect = Math.max(0, BRIDGE_JOIN_PROTECTION_BLOCKS);
             if (protect <= 0) return false;
             if (forcedByStartKey.isEmpty()) return false;
 

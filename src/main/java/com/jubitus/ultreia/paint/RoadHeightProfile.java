@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.paint;
 
+import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.route.RoadType;
 
@@ -22,6 +23,9 @@ import java.util.List;
 
 public final class RoadHeightProfile {
 
+    // Smoothing radius for the road centerline height profile.
+    private static final int VERTICAL_SMOOTH_RADIUS = 2;
+
     private RoadHeightProfile() {}
 
     public static int[] build(List<BlockPos> path, List<BridgeSpan> bridges, TerrainView sampler, RoadType roadType) {
@@ -39,8 +43,8 @@ public final class RoadHeightProfile {
         int cutHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxCut) * 2 : 0;
         int fillHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxFill) * 2 : 0;
 
-        int maxStepHalf = Math.max(1, UltreiaConfig.PAINTING.maxRoadStepHalfPerBlock);
-        int smoothRadius = Math.max(0, UltreiaConfig.PAINTING.verticalSmoothRadius);
+        int maxStepHalf = Math.max(1, HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK);
+        int smoothRadius = Math.max(0, VERTICAL_SMOOTH_RADIUS);
 
         int[] solved = RoadHeightSolver.solveProfile(
                 terrainHalf,

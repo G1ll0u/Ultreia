@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.paint;
 
 import com.jubitus.ultreia.bridge.BridgeGeometry;
-import com.jubitus.ultreia.config.UltreiaConfig;
+import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.testutil.Golden;
 import net.minecraft.util.math.BlockPos;
 import org.junit.jupiter.api.Test;
@@ -48,7 +48,7 @@ class HeightProfileTest {
 
     @Test
     void deckProfileKeepsEndsAndStepLimit() {
-        int maxStep = Math.max(1, UltreiaConfig.BRIDGES.maxDeckDeltaHalfPerBlock);
+        int maxStep = Math.max(1, HalfY.MAX_DECK_DELTA_HALF_PER_BLOCK);
         int[][] cases = {{130, 130, 20, 6, 4}, {130, 140, 30, 6, 4}, {150, 132, 25, 12, 4}, {130, 131, 3, 6, 4}};
         for (int[] c : cases) {
             int[] deck = BridgeGeometry.buildDeckHalfProfile(c[0], c[1], line(c[2]), c[3], c[4]);

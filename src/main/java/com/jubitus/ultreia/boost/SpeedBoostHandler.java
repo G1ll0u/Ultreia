@@ -26,6 +26,15 @@ import java.util.UUID;
 
 public final class SpeedBoostHandler {
 
+    // Horizontal search radius (blocks) around the player used to detect nearby road and bridge columns.
+    private static final int DETECTION_RADIUS = 2;
+    // Server ticks the speed bonus is maintained after the player leaves a road (prevents abrupt stops).
+    private static final int LINGER_TICKS = 30;
+    // Server ticks over which the bonus ramps up when entering a road.
+    private static final int RAMP_UP_TICKS = 20;
+    // Server ticks over which the bonus ramps down after the linger period expires.
+    private static final int RAMP_DOWN_TICKS = 40;
+
     private static final UUID MODIFIER_UUID = UUID.fromString("a3b4c5d6-e7f8-9012-3456-789abcdef012");
     private static final String MODIFIER_NAME = "mpb:road_speed";
     // Operation 2 = multiply total: final_speed = base * (1 + amount)
@@ -84,30 +93,30 @@ public final class SpeedBoostHandler {
             }
         }
 
-        boolean onRoad = cfg.enabled && detectOnRoad(target, world, roadIndex, cfg.detectionRadius);
+        boolean onRoad = cfg.enabled && detectOnRoad(target, world, roadIndex, DETECTION_RADIUS);
 
         if (onRoad) {
-            state.linger = cfg.lingerTicks;
-            state.boost = Math.min(1.0f, state.boost + 1.0f / Math.max(1, cfg.rampUpTicks));
+            state.linger = LINGER_TICKS;
+            state.boost = Math.min(1.0f, state.boost + 1.0f / Math.max(1, RAMP_UP_TICKS));
         } else if (state.linger > 0) {
             state.linger--;
             // sustain current boost level through linger period
         } else {
-            state.boost = Math.max(0.0f, state.boost - 1.0f / Math.max(1, cfg.rampDownTicks));
+            state.boost = Math.max(0.0f, state.boost - 1.0f / Math.max(1, RAMP_DOWN_TICKS));
         }
 
         EntityLivingBase previous = currentTarget(state);
         if (previous != null && previous != target) {
             // Mount/dismount, or the ridden entity changed: clean up the old target's modifier.
             // The boost/linger ramp itself is kept continuous across the switch.
-            if (cfg.debugLog) Ultreia.LOGGER.debug(
+            if (UltreiaConfig.DEBUG.logSpeedBoost) Ultreia.LOGGER.debug(
                     "[SpeedBoost] {} target switched from {} to {}", player.getName(), previous.getName(), target.getName());
             removeModifier(previous);
             state.lastAppliedAmount = 0f;
         }
         state.target = new WeakReference<>(target);
 
-        applyModifier(target, state, state.boost * (float) cfg.speedBonus, cfg.debugLog);
+        applyModifier(target, state, state.boost * (float) cfg.speedBonus, UltreiaConfig.DEBUG.logSpeedBoost);
 
         if (state.boost <= 0f && state.linger <= 0) {
             removeModifier(target);

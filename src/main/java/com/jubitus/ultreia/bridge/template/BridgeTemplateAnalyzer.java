@@ -12,6 +12,17 @@ import java.util.*;
 
 public final class BridgeTemplateAnalyzer {
 
+    // Search radius in blocks for /ultreia bridge create.
+    private static final int TEMPLATE_CREATE_SEARCH_RADIUS = 24;
+    // Maximum lateral reach from the 3-wide deck centerline that template export keeps.
+    public static final int TEMPLATE_MAX_LATERAL = 8;
+    // Maximum blocks above deck kept in a bridge template.
+    public static final int TEMPLATE_MAX_ABOVE_DECK = 8;
+    // Maximum blocks below deck kept in a bridge template.
+    public static final int TEMPLATE_MAX_BELOW_DECK = 20;
+    // Maximum number of saved blocks in one bridge template or bridge debug export.
+    public static final int TEMPLATE_MAX_BLOCKS = 4096;
+
     public static final class CreateResult {
         public final boolean ok;
         public final String message;
@@ -45,7 +56,7 @@ public final class BridgeTemplateAnalyzer {
         BridgeTemplateDetector.DetectedDeck deck = BridgeTemplateDetector.findNearestMatchingDeck(
                 world,
                 origin,
-                Math.max(8, UltreiaConfig.BRIDGES.templateCreateSearchRadius),
+                Math.max(8, TEMPLATE_CREATE_SEARCH_RADIUS),
                 null,
                 false
         );
@@ -145,10 +156,10 @@ public final class BridgeTemplateAnalyzer {
 
     private static List<BlockPos> collectConnectedStructure(WorldServer world,
                                                             BridgeTemplateDetector.DetectedDeck deck) {
-        int maxLateral = Math.max(3, UltreiaConfig.BRIDGES.templateMaxLateral);
-        int maxAbove = Math.max(2, UltreiaConfig.BRIDGES.templateMaxAboveDeck);
-        int maxBelow = Math.max(2, UltreiaConfig.BRIDGES.templateMaxBelowDeck);
-        int maxBlocks = Math.max(64, UltreiaConfig.BRIDGES.templateMaxBlocks);
+        int maxLateral = Math.max(3, TEMPLATE_MAX_LATERAL);
+        int maxAbove = Math.max(2, TEMPLATE_MAX_ABOVE_DECK);
+        int maxBelow = Math.max(2, TEMPLATE_MAX_BELOW_DECK);
+        int maxBlocks = Math.max(64, TEMPLATE_MAX_BLOCKS);
 
         ArrayDeque<BlockPos> queue = new ArrayDeque<BlockPos>();
         HashSet<Long> visited = new HashSet<Long>();

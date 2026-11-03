@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.bridge.template;
 
+import com.jubitus.ultreia.bridge.BridgeFeasibility;
+import com.jubitus.ultreia.paint.HeadroomClearer;
 import com.jubitus.ultreia.geom.LineRaster;
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.GroundRules;
@@ -28,6 +30,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class BridgeTemplateBridgeBuilder {
+
+    // Max vertical distance supports may extend down before giving up.
+    private static final int MAX_SUPPORT_DEPTH = 128;
+    // How many blocks a support embeds into the ground at its base (realistic abutment anchoring).
+    private static final int SUPPORT_GROUND_SINK_BLOCKS = 1;
 
     private static final class SupportStart {
         final int y;
@@ -172,7 +179,7 @@ public final class BridgeTemplateBridgeBuilder {
 
         int maxSupportDepth = template.maxSupportDepth != null
                 ? Math.max(1, template.maxSupportDepth)
-                : Math.max(8, UltreiaConfig.BRIDGES.maxSupportDepth);
+                : Math.max(8, MAX_SUPPORT_DEPTH);
         for (long xz : supportStarts.keySet()) {
             int x = Pos2D.xFromKey(xz);
             int z = Pos2D.zFromKey(xz);
@@ -378,7 +385,7 @@ public final class BridgeTemplateBridgeBuilder {
         if (b.isLeaves(st, world, pos) || m == Material.LEAVES) return true;
         if (MillPathPalette.isMillPath(b)) return true;
 
-        if (UltreiaConfig.PAINTING.clearTrees && UltreiaConfig.PAINTING.clearTreeTrunks) {
+        if (UltreiaConfig.PAINTING.clearTrees && HeadroomClearer.CLEAR_TREE_TRUNKS) {
             if (b.isWood(world, pos) || m == Material.WOOD) return true;
         }
 
@@ -394,7 +401,7 @@ public final class BridgeTemplateBridgeBuilder {
                                       boolean dryRun) {
         if (dryRun) return;
 
-        int sinkBlocks = Math.max(0, UltreiaConfig.BRIDGES.supportGroundSinkBlocks);
+        int sinkBlocks = Math.max(0, SUPPORT_GROUND_SINK_BLOCKS);
         int groundSinkLeft = sinkBlocks;
 
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
@@ -443,7 +450,7 @@ public final class BridgeTemplateBridgeBuilder {
     }
 
     private static boolean hasRoadUnderDeckTooClose(WorldServer world, int x, int z, int deckBlockY) {
-        int need = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.underBridgeRoadMinClearanceBlocks);
+        int need = Math.max(0, BridgeFeasibility.UNDER_BRIDGE_ROAD_MIN_CLEARANCE_BLOCKS);
         if (need <= 0) return false;
 
         int minY = Math.max(1, deckBlockY - need - 4);
@@ -485,7 +492,7 @@ public final class BridgeTemplateBridgeBuilder {
                 continue;
             }
 
-            if (UltreiaConfig.PAINTING.clearTrees && UltreiaConfig.PAINTING.clearTreeTrunks) {
+            if (UltreiaConfig.PAINTING.clearTrees && HeadroomClearer.CLEAR_TREE_TRUNKS) {
                 if (st.getBlock().isWood(world, p) || m == Material.WOOD) {
                     world.setBlockState(p, Blocks.AIR.getDefaultState(), 2);
                     continue;

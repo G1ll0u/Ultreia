@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.bridge;
 
+import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.paint.RoadHeightSolver;
 import com.jubitus.ultreia.route.RoadType;
@@ -26,7 +27,7 @@ public final class BridgeApproachCheck {
         int n = span.centerline.size();
         int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
 
-        int maxStepHalf = Math.max(1, UltreiaConfig.PAINTING.maxRoadStepHalfPerBlock);
+        int maxStepHalf = Math.max(1, HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK);
         boolean earthworks = roadType.allowsEarthworks();
         int cutHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxCut) * 2 : 0;
         int fillHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxFill) * 2 : 0;

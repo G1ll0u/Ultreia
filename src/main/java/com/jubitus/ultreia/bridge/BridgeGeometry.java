@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.bridge;
 
+import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.TerrainSampler;
@@ -9,6 +10,15 @@ import javax.annotation.Nullable;
 import java.util.List;
 
 public final class BridgeGeometry {
+
+    // Maximum slope angle (degrees) between bridge start and end deck heights.
+    private static final double MAX_BRIDGE_SLOPE_DEGREES = 10.0;
+    // Extra lift applied near the middle of bridges, in HALF blocks.
+    private static final int BRIDGE_CROWN_HALF_BLOCKS = 4;
+    // Only apply crown lift on bridges at least this long.
+    private static final int BRIDGE_CROWN_MIN_LEN_BLOCKS = 8;
+    // If true, water bridges get +1 extra HALF block of crown compared to land bridges.
+    private static final boolean EXTRA_WATER_BRIDGE_CROWN = true;
 
     private BridgeGeometry() {}
 
@@ -123,8 +133,8 @@ public final class BridgeGeometry {
     /** Crown height in half-blocks: the template's value, else the global one, plus the water bonus. */
     public static int effectiveCrownHalf(@Nullable Integer templateCrown, List<BlockPos> line, TerrainView sampler) {
         int crown = templateCrown != null ? Math.max(0, templateCrown)
-                : Math.max(0, UltreiaConfig.BRIDGES.bridgeCrownHalfBlocks);
-        if (crown > 0 && UltreiaConfig.BRIDGES.extraWaterBridgeCrown && hasMeaningfulWaterInterior(line, sampler)) {
+                : Math.max(0, BRIDGE_CROWN_HALF_BLOCKS);
+        if (crown > 0 && EXTRA_WATER_BRIDGE_CROWN && hasMeaningfulWaterInterior(line, sampler)) {
             crown += 1;
         }
         return crown;
@@ -132,12 +142,12 @@ public final class BridgeGeometry {
 
     public static int effectiveCrownMinLen(@Nullable Integer templateMinLen) {
         return templateMinLen != null ? Math.max(2, templateMinLen)
-                : Math.max(2, UltreiaConfig.BRIDGES.bridgeCrownMinLenBlocks);
+                : Math.max(2, BRIDGE_CROWN_MIN_LEN_BLOCKS);
     }
 
     // Returns the max allowed endpoint height delta (in half-blocks) for a given bridge length.
     public static int maxBridgeDeltaHalfForLen(int lenBlocks) {
-        double slopeTan = Math.tan(Math.toRadians(Math.max(0.5, UltreiaConfig.BRIDGES.maxBridgeSlopeDegrees)));
+        double slopeTan = Math.tan(Math.toRadians(Math.max(0.5, MAX_BRIDGE_SLOPE_DEGREES)));
         return (int) Math.round(lenBlocks * slopeTan * 2.0);
     }
 
@@ -147,7 +157,7 @@ public final class BridgeGeometry {
         if (n == 0) return new int[0];
         if (n == 1) return new int[]{startHalf};
 
-        int maxStepHalf = Math.max(1, UltreiaConfig.BRIDGES.maxDeckDeltaHalfPerBlock);
+        int maxStepHalf = Math.max(1, HalfY.MAX_DECK_DELTA_HALF_PER_BLOCK);
         int len = n - 1;
 
         // Cap crown so the sine arch slope never exceeds the step budget at the endpoints.
@@ -208,6 +218,6 @@ public final class BridgeGeometry {
             }
         }
 
-        return best >= Math.max(2, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minWaterRunBlocks);
+        return best >= Math.max(2, BridgeFeasibility.MIN_WATER_RUN_BLOCKS);
     }
 }

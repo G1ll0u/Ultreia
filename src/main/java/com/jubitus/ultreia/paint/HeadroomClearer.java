@@ -17,6 +17,13 @@ import net.minecraft.world.World;
 
 public final class HeadroomClearer {
 
+    // Also clear trunk/log blocks when they look like a tree (mod compatible).
+    public static final boolean CLEAR_TREE_TRUNKS = true;
+    // When a DynamicTrees trunk with radius >= dtWholeTreeRemovalThreshold is encountered while clearing the...
+    private static final boolean DT_REMOVE_WHOLE_TREE = true;
+    // DynamicTrees branch radius at or above which the entire tree is removed when it intersects the road...
+    private static final int DT_WHOLE_TREE_REMOVAL_THRESHOLD = 1;
+
     private HeadroomClearer() {}
 
     public static void clearRoadColumn(World world, BlockPos base, int up, boolean dryRun, boolean allowSolidNaturalCut) {
@@ -107,9 +114,9 @@ public final class HeadroomClearer {
 
             if (isWood && TreeCompat.isDynamicTreesBranch(st)) {
                 int radius = TreeCompat.getDTBranchRadius(st);
-                int threshold = UltreiaConfig.PAINTING.dtWholeTreeRemovalThreshold;
-                if (UltreiaConfig.PAINTING.dtRemoveWholeTree && radius >= threshold) {
-                    if (UltreiaConfig.DEBUG.logDTTreeRemoval) {
+                int threshold = DT_WHOLE_TREE_REMOVAL_THRESHOLD;
+                if (DT_REMOVE_WHOLE_TREE && radius >= threshold) {
+                    if (UltreiaConfig.DEBUG.logPainting) {
                         Ultreia.LOGGER.info(
                                 "[Ultreia] DT whole-tree removal at ({},{},{}) radius={}",
                                 p.getX(), p.getY(), p.getZ(), radius);
@@ -121,7 +128,7 @@ public final class HeadroomClearer {
                     world.destroyBlock(p.toImmutable(), false);
                 }
             } else if (isWood && TreeCompat.isDynamicTreesTrunkShell(st)) {
-                if (UltreiaConfig.PAINTING.dtRemoveWholeTree) {
+                if (DT_REMOVE_WHOLE_TREE) {
                     BlockPos seed = findAdjacentDTBranch(world, p.toImmutable());
                     return TreeCompat.removeDTTreeCompletely(world, seed);
                 }
@@ -157,7 +164,7 @@ public final class HeadroomClearer {
         if (b.isReplaceable(world, pos)) return true;
         if (TreeCompat.isTreeFoliageLike(world, pos, st)) return true;
 
-        if (UltreiaConfig.PAINTING.clearTrees && UltreiaConfig.PAINTING.clearTreeTrunks) {
+        if (UltreiaConfig.PAINTING.clearTrees && CLEAR_TREE_TRUNKS) {
             if (TreeCompat.isTreeWoodLike(world, pos, st)) return true;
         }
 
@@ -170,7 +177,7 @@ public final class HeadroomClearer {
         if (MillPathPalette.isMillPath(st.getBlock())) return false;
 
         if (TreeCompat.isDynamicTreesBlock(st)) {
-            return UltreiaConfig.PAINTING.clearTrees && UltreiaConfig.PAINTING.clearTreeTrunks;
+            return UltreiaConfig.PAINTING.clearTrees && CLEAR_TREE_TRUNKS;
         }
 
         Material m = st.getMaterial();

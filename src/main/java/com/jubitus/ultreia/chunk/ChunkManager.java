@@ -42,7 +42,7 @@ public final class ChunkManager {
         if (!UltreiaConfig.GENERAL.allowChunkLoading) return false;
 
         if (edgeCap > 0 && ours.size() >= edgeCap) {
-            if (UltreiaConfig.GENERAL.debugLogChunkLifecycle) {
+            if (UltreiaConfig.DEBUG.logChunks) {
                 Ultreia.LOGGER.warn("[Ultreia] Edge chunk cap ({}) reached, cannot load {},{}", edgeCap, cx, cz);
             }
             return false;
@@ -106,7 +106,7 @@ public final class ChunkManager {
         // This catches chunks loaded by MC neighbor generation or Millénaire during our pathfinding.
         int sideEffectQueued = applyUnloadPressure(world, cps, forced);
 
-        if (UltreiaConfig.GENERAL.debugLogChunkLifecycle) {
+        if (UltreiaConfig.DEBUG.logChunks) {
             Ultreia.LOGGER.debug(
                 "[Ultreia] releaseEdge: owned={} queued={} sideEffect={} totalLoaded={}",
                 ours.size(), ownedQueued, sideEffectQueued, cps.getLoadedChunkCount());
@@ -121,7 +121,7 @@ public final class ChunkManager {
             for (int i = 0; i < 5; i++) {
                 try { cps.tick(); } catch (Throwable ignored) { break; }
             }
-            if (UltreiaConfig.GENERAL.debugLogChunkLifecycle) {
+            if (UltreiaConfig.DEBUG.logChunks) {
                 Ultreia.LOGGER.debug("[Ultreia] Emergency drain pass, now {} chunks loaded", cps.getLoadedChunkCount());
             }
         }

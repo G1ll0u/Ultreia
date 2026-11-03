@@ -19,6 +19,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class GenerationManager {
 
+    // Delay in server ticks before auto-resuming a job after world load (gives Millenaire time to initialise).
+    private static final int AUTO_RESUME_DELAY_TICKS = 100;
+
     private static final ConcurrentHashMap<Integer, TickedJob> JOBS = new ConcurrentHashMap<>();
 
     // Pending auto-resumes: dim → (world, checkpoint, ticksRemaining)
@@ -101,7 +104,7 @@ public final class GenerationManager {
     public static void queueResume(WorldServer world, JobCheckpoint checkpoint) {
         int dim = world.provider.getDimension();
         if (JOBS.containsKey(dim) || PENDING_RESUMES.containsKey(dim)) return;
-        int delay = Math.max(20, UltreiaConfig.GENERAL.autoResumeDelayTicks);
+        int delay = Math.max(20, AUTO_RESUME_DELAY_TICKS);
         PENDING_RESUMES.put(dim, new PendingResume(world, checkpoint, delay));
         Ultreia.LOGGER.info("[Ultreia] Queued auto-resume for dim={} at edge {}/{} (starts in {} ticks)",
                 dim, checkpoint.getEdgeIndex(), checkpoint.getEdges().size(), delay);

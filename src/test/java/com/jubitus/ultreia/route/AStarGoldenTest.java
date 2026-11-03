@@ -20,13 +20,13 @@ class AStarGoldenTest {
 
     @BeforeAll
     static void bridgesOff() {
-        bridgesWere = UltreiaConfig.BRIDGE_AWARE_PATHFINDING.enabled;
-        UltreiaConfig.BRIDGE_AWARE_PATHFINDING.enabled = false;
+        bridgesWere = UltreiaConfig.BRIDGES.enabled;
+        UltreiaConfig.BRIDGES.enabled = false;
     }
 
     @AfterAll
     static void restore() {
-        UltreiaConfig.BRIDGE_AWARE_PATHFINDING.enabled = bridgesWere;
+        UltreiaConfig.BRIDGES.enabled = bridgesWere;
     }
 
     @Test

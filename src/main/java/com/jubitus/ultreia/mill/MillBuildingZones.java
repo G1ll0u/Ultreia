@@ -11,15 +11,22 @@ import org.millenaire.common.world.MillWorldData;
 import java.util.List;
 
 public final class MillBuildingZones {
+
+    // Do not paint/clear inside this radius (blocks) around Millenaire village nodes.
+    public static final int VILLAGE_NO_PAINT_RADIUS = 2;
+    // Do not paint/clear inside this radius (blocks) around Millenaire lone building nodes.
+    public static final int LONE_BUILDING_NO_PAINT_RADIUS = 2;
+    // Extra cost added when a node is inside a protected zone.
+    private static final double PROTECTED_ZONE_PENALTY = 15000.0;
     private MillBuildingZones() {}
 
     /** Soft penalty squares around village and lone-building centres, plus every building's box as no-paint. */
     public static void addMillenaireZones(WorldServer world, ProtectedAreas pa) {
         MillWorldData data = MillWorldDataRegistry.ensureLoaded(world);
 
-        int vR = Math.max(0, UltreiaConfig.GENERAL.villageNoPaintRadius);
-        int lR = Math.max(0, UltreiaConfig.GENERAL.loneBuildingNoPaintRadius);
-        int penalty = (int) Math.max(0.0, UltreiaConfig.PATHFINDING.protectedZonePenalty);
+        int vR = Math.max(0, VILLAGE_NO_PAINT_RADIUS);
+        int lR = Math.max(0, LONE_BUILDING_NO_PAINT_RADIUS);
+        int penalty = (int) Math.max(0.0, PROTECTED_ZONE_PENALTY);
 
         if (data != null) {
             if (data.villagesList != null && data.villagesList.pos != null) {

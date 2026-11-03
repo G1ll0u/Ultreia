@@ -128,7 +128,7 @@ public final class ManualPathJob implements TickedJob {
                     return;
                 }
 
-                int scanR = Math.max(16, UltreiaConfig.GENERAL.snapToExistingRoadRadius + 8);
+                int scanR = Math.max(16, VillageNetworkJob.SNAP_TO_EXISTING_ROAD_RADIUS + 8);
                 roadIndex.ensureScannedRadius(world, resolvedStart.getX(), resolvedStart.getZ(), scanR);
                 roadIndex.ensureScannedRadius(world, resolvedGoal.getX(), resolvedGoal.getZ(), scanR);
 
@@ -172,7 +172,7 @@ public final class ManualPathJob implements TickedJob {
                     continue;
                 }
 
-                fail("Pathfinding failed: " + curSession.failureSummary(UltreiaConfig.GENERAL.printFailureBreakdown));
+                fail("Pathfinding failed: " + curSession.failureSummary(UltreiaConfig.DEBUG.logPathfinding));
                 return;
             }
 

@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.roads;
 
+import com.jubitus.ultreia.bridge.BridgeFeasibility;
+import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
@@ -28,9 +30,9 @@ public final class RoadJoins {
                                                         @Nullable ProtectedAreas protectedAreas) {
         if (roadIndex == null || snappedRoad == null) return null;
 
-        int minBlocks = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeRoadApproachMinBlocks);
-        int maxBlocks = Math.max(minBlocks, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeRoadApproachMaxBlocks);
-        int maxDeltaHalf = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.maxRoadJoinDeltaHalfBlocks);
+        int minBlocks = Math.max(1, BridgeFeasibility.BRIDGE_ROAD_APPROACH_MIN_BLOCKS);
+        int maxBlocks = Math.max(minBlocks, BridgeFeasibility.BRIDGE_ROAD_APPROACH_MAX_BLOCKS);
+        int maxDeltaHalf = Math.max(0, HalfY.MAX_ROAD_JOIN_DELTA_HALF_BLOCKS);
 
         return findNaturalApproachNearRoad(
                 world,

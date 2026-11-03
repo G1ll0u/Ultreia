@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.route;
 
+import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.geom.LineRaster;
 import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.paint.RoadHeightProfile;
@@ -36,7 +37,7 @@ public final class PathProfileCheck {
                 return false;
             }
 
-            int maxStepHalf = Math.max(1, UltreiaConfig.PAINTING.maxRoadStepHalfPerBlock);
+            int maxStepHalf = Math.max(1, HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK);
             for (int i = 1; i < half.length; i++) {
                 if (Math.abs(half[i] - half[i - 1]) > maxStepHalf) {
                     return false;

@@ -11,6 +11,17 @@ import java.util.*;
 
 public final class NetworkPlanner {
 
+    // Build a Minimum Spanning Tree to ensure all villages are connected when possible.
+    private static final boolean BUILD_MST = true;
+    // Use Relative Neighborhood Graph instead of K-nearest-neighbors for extra edges.
+    private static final boolean USE_RNG = true;
+    // If true, reject RNG candidate edges that geometrically cross (X-shape) an already-committed edge.
+    private static final boolean AVOID_EDGE_CROSSINGS = true;
+    // Only used when useRNG=false.
+    private static final int NEAREST_NEIGHBORS = 2;
+    // Distance bonus applied when both endpoints of an RNG edge are HUBs.
+    private static final double HUB_CONNECTION_BONUS = 0.25;
+
     // -------------------------------------------------------------------------
     // Public types
     // -------------------------------------------------------------------------
@@ -78,7 +89,7 @@ public final class NetworkPlanner {
             }
         }
 
-        if (UltreiaConfig.NETWORK.debugNetwork) {
+        if (UltreiaConfig.DEBUG.logNetwork) {
             long hubs   = sizes.values().stream().filter(s -> s == VillageClassifier.VillageSize.HUB).count();
             long medium = sizes.values().stream().filter(s -> s == VillageClassifier.VillageSize.MEDIUM).count();
             Ultreia.LOGGER.debug("[PNB] nodes={} villages={} (hubs={} medium={} small={}) lone={}",
@@ -103,17 +114,17 @@ public final class NetworkPlanner {
         List<Edge> committed = new ArrayList<>(); // ordered for crossing checks
 
         // 2. Backbone MST on villages
-        if (UltreiaConfig.NETWORK.buildMST && villages.size() >= 2) {
+        if (BUILD_MST && villages.size() >= 2) {
             List<Edge> mst = buildMST(villages, sizes, maxDistSq);
             for (Edge e : mst) { edgesMap.put(e.key(), e); committed.add(e); }
         }
 
         // 3. Extra edges: RNG or KNN
         if (villages.size() >= 2) {
-            if (UltreiaConfig.NETWORK.useRNG) {
+            if (USE_RNG) {
                 addRngEdges(villages, sizes, maxDistSq, committed, edgesMap);
             } else {
-                int k = Math.max(0, UltreiaConfig.NETWORK.nearestNeighbors);
+                int k = Math.max(0, NEAREST_NEIGHBORS);
                 if (k > 0) addKnnEdges(villages, k, maxDistSq, edgesMap);
             }
         }
@@ -206,7 +217,7 @@ public final class NetworkPlanner {
                     if (mstLen != Double.POSITIVE_INFINITY) {
                         double direct = Math.sqrt(realD2);
                         if (mstLen <= UltreiaConfig.NETWORK.redundancyRatio * direct) {
-                            if (UltreiaConfig.NETWORK.debugNetwork)
+                            if (UltreiaConfig.DEBUG.logNetwork)
                                 Ultreia.LOGGER.debug("[PNB] RNG edge pruned (redundant ratio={:.2f}): ({},{})→({},{})",
                                         mstLen / direct, u.getX(), u.getZ(), v.getX(), v.getZ());
                             continue;
@@ -215,13 +226,13 @@ public final class NetworkPlanner {
                 }
 
                 // Anti-crossing check
-                if (UltreiaConfig.NETWORK.avoidEdgeCrossings) {
+                if (AVOID_EDGE_CROSSINGS) {
                     boolean crosses = false;
                     for (Edge e : committed) {
                         if (intersects2D(u, v, e.a, e.b)) { crosses = true; break; }
                     }
                     if (crosses) {
-                        if (UltreiaConfig.NETWORK.debugNetwork)
+                        if (UltreiaConfig.DEBUG.logNetwork)
                             Ultreia.LOGGER.debug("[PNB] RNG edge pruned (crossing): ({},{})→({},{})",
                                     u.getX(), u.getZ(), v.getX(), v.getZ());
                         continue;
@@ -265,7 +276,7 @@ public final class NetworkPlanner {
         double d2 = Pos2D.distSq(a, b);
         if (sizes.get(a) == VillageClassifier.VillageSize.HUB
                 && sizes.get(b) == VillageClassifier.VillageSize.HUB) {
-            double scale = 1.0 - UltreiaConfig.NETWORK.hubConnectionBonus;
+            double scale = 1.0 - HUB_CONNECTION_BONUS;
             return d2 * scale * scale;
         }
         return d2;

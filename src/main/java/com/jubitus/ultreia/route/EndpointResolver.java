@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.route;
 
+import com.jubitus.ultreia.mill.MillBuildingZones;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.job.VillageNetworkJob;
@@ -16,6 +17,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class EndpointResolver {
+
+    // Radius around village center to search for gate buildings (borderpost_gate, full_wall_gateway, etc.) when...
+    private static final int GATE_SEARCH_RADIUS = 120;
+    // Radius around each gate building's anchor to scan for Millénaire path blocks.
+    private static final int GATE_MILL_PATH_SEARCH_RADIUS = 120;
 
     private EndpointResolver() {}
 
@@ -45,14 +51,14 @@ public final class EndpointResolver {
         boolean isVillage = (vi != null && vi.isVillage);
 
         int protectR = isVillage
-                ? Math.max(0, UltreiaConfig.GENERAL.villageNoPaintRadius)
-                : Math.max(0, UltreiaConfig.GENERAL.loneBuildingNoPaintRadius);
+                ? Math.max(0, MillBuildingZones.VILLAGE_NO_PAINT_RADIUS)
+                : Math.max(0, MillBuildingZones.LONE_BUILDING_NO_PAINT_RADIUS);
 
         if (isVillage) {
             // Collect all gate candidates with Mill-path entries.
             List<GateCandidate> candidates = collectGateCandidates(
                     world, sampler, nodeCenter, otherNodeCenter,
-                    UltreiaConfig.GENERAL.gateSearchRadius, UltreiaConfig.GENERAL.gateMillPathSearchRadius,
+                    GATE_SEARCH_RADIUS, GATE_MILL_PATH_SEARCH_RADIUS,
                     gateTracker);
 
             // Build VillageGateField from all candidates so A* can terminate at any gate.
@@ -70,7 +76,7 @@ public final class EndpointResolver {
             // Best candidate (highest score) = primary endpoint for the A* goal.
             if (!candidates.isEmpty()) {
                 BlockPos best = candidates.get(0).pos;
-                if (UltreiaConfig.GENERAL.printFailureBreakdown) {
+                if (UltreiaConfig.DEBUG.logPathfinding) {
                     Ultreia.LOGGER.debug(
                             "[Ultreia] gate selected village={},{} other={},{} total_candidates={} -> ({},{},{})",
                             nodeCenter.getX(), nodeCenter.getZ(),

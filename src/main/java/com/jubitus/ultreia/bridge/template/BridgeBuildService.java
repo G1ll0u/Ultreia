@@ -20,7 +20,7 @@ public final class BridgeBuildService {
                     UltreiaConfig.BRIDGES.defaultTemplateName);
             return false;
         }
-        if (UltreiaConfig.DEBUG.logBridgeTemplateSelection) {
+        if (UltreiaConfig.DEBUG.logBridges) {
             Ultreia.LOGGER.info("[Ultreia] Bridge ({} blocks, water={}, waterDominant={}): template '{}'",
                     span.lengthBlocks(), span.hasWaterCrossing, span.waterDominant, template.name);
         }

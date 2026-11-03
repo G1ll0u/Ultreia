@@ -9,13 +9,15 @@ import java.util.List;
 /** Grid cells crossed by a straight segment in the XZ plane. */
 public final class LineRaster {
 
+    private static final boolean USE_RASTER8_FOR_BRIDGES = true;
+
     private static final int MAX_RASTER_POINTS = 1_000_000;
 
     private LineRaster() {}
 
     /** The bridge-line raster chosen by config: 8-connected, or supercover. */
     public static List<BlockPos> forBridges(int x0, int z0, int x1, int z1, int yPlaceholder) {
-        return UltreiaConfig.BRIDGE_GEOMETRY.useRaster8ForBridges
+        return USE_RASTER8_FOR_BRIDGES
                 ? eight(x0, z0, x1, z1, yPlaceholder)
                 : supercover(x0, z0, x1, z1, yPlaceholder);
     }

@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.bridge;
 
+import com.jubitus.ultreia.paint.HeadroomClearer;
+import com.jubitus.ultreia.route.AStarPathfinder;
 import com.jubitus.ultreia.geom.LineRaster;
 import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.terrain.TerrainView;
@@ -24,6 +26,64 @@ import java.util.List;
 
 
 public final class BridgeFeasibility {
+
+    // Minimum bridge length in blocks for A* bridge moves.
+    public static final int MIN_BRIDGE_LEN_BLOCKS = 8;
+    // Maximum bridge probe length in blocks for A* bridge moves.
+    public static final int MAX_PROBE_LEN_BLOCKS = 128;
+    // Maximum number of water interior cells a water-dominant bridge may span.
+    private static final int MAX_WATER_BRIDGE_LEN_BLOCKS = 24;
+    // Minimum air/gap wanted below bridge deck on interior cells.
+    private static final int MIN_GROUND_CLEARANCE_BELOW_DECK = 4;
+    // Minimum consecutive interior cells that really benefit from a bridge.
+    public static final int MIN_MEANINGFUL_GAP_RUN = 5;
+    // Clearance above bridge deck checked during feasibility.
+    private static final int WALK_CLEARANCE_ABOVE_DECK = 3;
+    // No bridge start/end within this radius of a village.
+    private static final int ENDPOINT_VILLAGE_RADIUS = 10;
+    // No bridge start/end within this radius of a lone building.
+    private static final int ENDPOINT_LONE_BUILDING_RADIUS = 10;
+    // Bridge centerline must not pass within this radius of a village.
+    private static final int CROSS_VILLAGE_RADIUS = 10;
+    // Bridge centerline must not pass within this radius of a lone building.
+    private static final int CROSS_LONE_BUILDING_RADIUS = 10;
+    // Minimum clearance below bridge deck for water cells.
+    private static final int MIN_WATER_CLEARANCE_BELOW_DECK = 1;
+    // If a bridge is at least this long, require stronger elevation above terrain.
+    private static final int LONG_BRIDGE_MIN_LEN_FOR_EXTRA_CLEARANCE = 14;
+    // Minimum average terrain clearance required for long bridges.
+    private static final int LONG_BRIDGE_REQUIRED_AVERAGE_CLEARANCE = 5;
+    // Minimum max terrain clearance required somewhere along a long bridge.
+    private static final int LONG_BRIDGE_REQUIRED_MAX_CLEARANCE = 6;
+    // Require this many buildable blocks straight ahead after bridge exit.
+    private static final int REQUIRED_EXIT_CORRIDOR_BLOCKS = 1;
+    // Require this many forward-aligned blocks after bridge exit.
+    private static final int REQUIRED_FORWARD_EXIT_BLOCKS = 1;
+    // Minimum consecutive interior water cells required before a water crossing counts as a real bridge candidate.
+    public static final int MIN_WATER_RUN_BLOCKS = 7;
+    // For water bridges, max dry interior cells allowed before the first real water run.
+    private static final int MAX_WATER_BRIDGE_LEAD_IN_BLOCKS = 1;
+    // For water bridges, max dry interior cells allowed after the last real water run.
+    public static final int MAX_WATER_BRIDGE_LEAD_OUT_BLOCKS = 1;
+    // Extra side clearance checked around bridge centerline during feasibility.
+    private static final int SIDE_CLEARANCE_RADIUS = 1;
+    // When snapping to an existing road, keep at least this many land blocks before merging into it.
+    public static final int BRIDGE_ROAD_APPROACH_MIN_BLOCKS = 8;
+    // Maximum search radius around a snapped road to find a small natural land approach before the road.
+    public static final int BRIDGE_ROAD_APPROACH_MAX_BLOCKS = 8;
+    private static final int MEANINGFUL_GROUND_CLEARANCE_BLOCKS = 3;
+    // Minimum water clearance required for a bridge cell to count as genuinely elevated above water.
+    private static final int MEANINGFUL_WATER_CLEARANCE_BLOCKS = 1;
+    // Minimum percentage of interior bridge cells that must have meaningful clearance.
+    private static final int MIN_MEANINGFUL_CLEARANCE_PERCENT = 65;
+    // Ignore this many cells near each bridge end when evaluating global meaningful clearance.
+    private static final int ENDPOINT_GRACE_CELLS = 2;
+    // Require the final cells before bridge exit to stay clearly above terrain/water.
+    private static final int EXIT_MIN_CLEARANCE_BLOCKS = 2;
+    // How many cells before the bridge end must satisfy exitMinClearanceBlocks.
+    private static final int EXIT_MIN_CLEARANCE_CHECK_CELLS = 3;
+    // Minimum full air blocks required between an existing road below and the bridge deck underside.
+    public static final int UNDER_BRIDGE_ROAD_MIN_CLEARANCE_BLOCKS = 2;
 
     private BridgeFeasibility() {}
 
@@ -67,7 +127,6 @@ public final class BridgeFeasibility {
                                        BlockPos end,
                                        @Nullable BridgeTemplate template) {
         if (!UltreiaConfig.BRIDGES.enabled) return fail("bridges disabled");
-        if (!UltreiaConfig.BRIDGE_AWARE_PATHFINDING.enabled) return fail("bridge-aware pathfinding disabled");
         if (start == null || end == null) return fail("start/end null");
         if (sameXZ(start, end)) return fail("same xz");
 
@@ -113,10 +172,10 @@ public final class BridgeFeasibility {
         }
 
         int len = Math.max(0, line.size() - 1);
-        int minLen = Math.max(2, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minBridgeLenBlocks);
+        int minLen = Math.max(2, MIN_BRIDGE_LEN_BLOCKS);
         int maxLen = Math.min(
                 Math.max(minLen, UltreiaConfig.BRIDGES.maxBridgeLenBlocks),
-                Math.max(minLen, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.maxProbeLenBlocks)
+                Math.max(minLen, MAX_PROBE_LEN_BLOCKS)
         );
         if (len < minLen || len > maxLen) {
             return fail("bridge length out of range len=" + len + " min=" + minLen + " max=" + maxLen);
@@ -136,20 +195,20 @@ public final class BridgeFeasibility {
                 template != null ? template.bridgeCrownMinLenBlocks : null);
         int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(startHalf, endHalf, line, crownHalf, crownMinLen);
 
-        final int minGroundGap = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minGroundClearanceBelowDeck);
-        final int minWaterGap = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minWaterClearanceBelowDeck);
-        final int clearAbove = Math.max(2, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.walkClearanceAboveDeck);
-        final int interiorMinGapRun = Math.max(2, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minMeaningfulGapRun);
-        final int interiorMinWaterRun = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minWaterRunBlocks);
+        final int minGroundGap = Math.max(1, MIN_GROUND_CLEARANCE_BELOW_DECK);
+        final int minWaterGap = Math.max(1, MIN_WATER_CLEARANCE_BELOW_DECK);
+        final int clearAbove = Math.max(2, WALK_CLEARANCE_ABOVE_DECK);
+        final int interiorMinGapRun = Math.max(2, MIN_MEANINGFUL_GAP_RUN);
+        final int interiorMinWaterRun = Math.max(1, MIN_WATER_RUN_BLOCKS);
 
-        final int meaningfulGroundGap = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.meaningfulGroundClearanceBlocks);
-        final int meaningfulWaterGap = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.meaningfulWaterClearanceBlocks);
-        final int minMeaningfulPercent = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minMeaningfulClearancePercent);
-        final int endpointGrace = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.endpointGraceCells);
-        final int exitMinClearance = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.exitMinClearanceBlocks);
-        final int exitMinClearanceCells = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.exitMinClearanceCheckCells);
-        final int sideRadius = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.sideClearanceRadius);
-        final int minUnderRoadClearance = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.underBridgeRoadMinClearanceBlocks);
+        final int meaningfulGroundGap = Math.max(1, MEANINGFUL_GROUND_CLEARANCE_BLOCKS);
+        final int meaningfulWaterGap = Math.max(1, MEANINGFUL_WATER_CLEARANCE_BLOCKS);
+        final int minMeaningfulPercent = Math.max(0, MIN_MEANINGFUL_CLEARANCE_PERCENT);
+        final int endpointGrace = Math.max(0, ENDPOINT_GRACE_CELLS);
+        final int exitMinClearance = Math.max(0, EXIT_MIN_CLEARANCE_BLOCKS);
+        final int exitMinClearanceCells = Math.max(0, EXIT_MIN_CLEARANCE_CHECK_CELLS);
+        final int sideRadius = Math.max(0, SIDE_CLEARANCE_RADIUS);
+        final int minUnderRoadClearance = Math.max(0, UNDER_BRIDGE_ROAD_MIN_CLEARANCE_BLOCKS);
 
         int bestGroundGapRun = 0;
         int currentGroundGapRun = 0;
@@ -233,10 +292,10 @@ public final class BridgeFeasibility {
                     currentWaterRun = 0;
                 }
 
-                if (gap >= Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.longBridgeRequiredAverageClearance)) {
+                if (gap >= Math.max(1, LONG_BRIDGE_REQUIRED_AVERAGE_CLEARANCE)) {
                     strongGapCells++;
                 }
-                if (gap >= Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.longBridgeRequiredAverageClearance) + 2) {
+                if (gap >= Math.max(1, LONG_BRIDGE_REQUIRED_AVERAGE_CLEARANCE) + 2) {
                     veryStrongGapCells++;
                 }
 
@@ -278,7 +337,7 @@ public final class BridgeFeasibility {
                 && waterInteriorCells >= groundGapInteriorCells;
 
         if (waterDominant) {
-            int maxWaterLen = Math.max(4, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.maxWaterBridgeLenBlocks);
+            int maxWaterLen = Math.max(4, MAX_WATER_BRIDGE_LEN_BLOCKS);
             if (waterInteriorCells > maxWaterLen) {
                 return fail("water bridge too long: waterCells=" + waterInteriorCells + " max=" + maxWaterLen);
             }
@@ -308,8 +367,8 @@ public final class BridgeFeasibility {
         }
 
         if (validWaterBridge) {
-            int maxLeadIn = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.maxWaterBridgeLeadInBlocks);
-            int maxLeadOut = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.maxWaterBridgeLeadOutBlocks);
+            int maxLeadIn = Math.max(0, MAX_WATER_BRIDGE_LEAD_IN_BLOCKS);
+            int maxLeadOut = Math.max(0, MAX_WATER_BRIDGE_LEAD_OUT_BLOCKS);
 
             if (firstWaterInterior < 0 || lastWaterInterior < 0) return fail("water bridge bookkeeping failed");
 
@@ -336,10 +395,10 @@ public final class BridgeFeasibility {
             }
         }
 
-        int longBridgeLen = Math.max(2, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.longBridgeMinLenForExtraClearance);
+        int longBridgeLen = Math.max(2, LONG_BRIDGE_MIN_LEN_FOR_EXTRA_CLEARANCE);
         if (!waterDominant && len >= longBridgeLen) {
-            int requiredAvgGap = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.longBridgeRequiredAverageClearance);
-            int requiredMaxGap = Math.max(requiredAvgGap, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.longBridgeRequiredMaxClearance);
+            int requiredAvgGap = Math.max(1, LONG_BRIDGE_REQUIRED_AVERAGE_CLEARANCE);
+            int requiredMaxGap = Math.max(requiredAvgGap, LONG_BRIDGE_REQUIRED_MAX_CLEARANCE);
 
             int avgGap = countGap <= 0 ? 0 : (int) Math.round((double) sumGap / (double) countGap);
 
@@ -353,12 +412,12 @@ public final class BridgeFeasibility {
             if (veryStrongPct < 35) return fail("long bridge veryStrongPct too low: " + veryStrongPct);
         }
 
-        int forwardLook = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.requiredForwardExitBlocks);
+        int forwardLook = Math.max(1, REQUIRED_FORWARD_EXIT_BLOCKS);
         if (!exitDirectionStaysForward(start, end, forwardLook, sampler)) {
             return fail("exitDirectionStaysForward failed");
         }
 
-        int exitLookAhead = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.requiredExitCorridorBlocks);
+        int exitLookAhead = Math.max(1, REQUIRED_EXIT_CORRIDOR_BLOCKS);
         if (!exitCorridorIsBuildable(world, sampler, start, end, exitLookAhead)) {
             return fail("exitCorridorIsBuildable failed");
         }
@@ -385,8 +444,8 @@ public final class BridgeFeasibility {
                                                                         List<BlockPos> rawLine) {
         if (rawLine == null || rawLine.size() < 2) return null;
 
-        int roadSearch = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeRoadApproachMaxBlocks);
-        int minApproach = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeRoadApproachMinBlocks);
+        int roadSearch = Math.max(1, BRIDGE_ROAD_APPROACH_MAX_BLOCKS);
+        int minApproach = Math.max(1, BRIDGE_ROAD_APPROACH_MIN_BLOCKS);
 
         BlockPos targetRoad = sampler.findNearestExistingRoad(end.getX(), end.getZ(), roadSearch);
         if (targetRoad == null) {
@@ -416,7 +475,7 @@ public final class BridgeFeasibility {
             return new TrimmedBridgeCandidate(end, rawLine);
         }
 
-        int minBridgeLen = Math.max(2, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minBridgeLenBlocks);
+        int minBridgeLen = Math.max(2, MIN_BRIDGE_LEN_BLOCKS);
         int searchStart = Math.max(1, roadHitIdx - Math.max(roadSearch + minApproach + 4, 8));
         int searchEnd = Math.max(searchStart, roadHitIdx - minApproach);
 
@@ -591,7 +650,7 @@ public final class BridgeFeasibility {
         if (b == Blocks.SNOW_LAYER) return true;
         if (b.isLeaves(st, world, pos) || m == Material.LEAVES) return true;
 
-        if (UltreiaConfig.PAINTING.clearTrees && UltreiaConfig.PAINTING.clearTreeTrunks) {
+        if (UltreiaConfig.PAINTING.clearTrees && HeadroomClearer.CLEAR_TREE_TRUNKS) {
             if (b.isWood(world, pos) || m == Material.WOOD) return true;
         }
 
@@ -602,12 +661,12 @@ public final class BridgeFeasibility {
 
     private static boolean isTooNearSettlement(WorldServer world, BlockPos pos, boolean endpoint) {
         int villageRadius = endpoint
-                ? Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.endpointVillageRadius)
-                : Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.crossVillageRadius);
+                ? Math.max(0, ENDPOINT_VILLAGE_RADIUS)
+                : Math.max(0, CROSS_VILLAGE_RADIUS);
 
         int loneRadius = endpoint
-                ? Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.endpointLoneBuildingRadius)
-                : Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.crossLoneBuildingRadius);
+                ? Math.max(0, ENDPOINT_LONE_BUILDING_RADIUS)
+                : Math.max(0, CROSS_LONE_BUILDING_RADIUS);
 
         if (villageRadius > 0 && MillVillageIndex.isNearVillage(world, pos, villageRadius)) return true;
         if (loneRadius > 0 && MillVillageIndex.isNearAnySettlement(world, pos, loneRadius)) return true;
@@ -654,7 +713,7 @@ public final class BridgeFeasibility {
 
         if (dx == 0 && dz == 0) return false;
 
-        int maxDy = Math.max(1, UltreiaConfig.PATHFINDING.maxYDeltaPerStep);
+        int maxDy = Math.max(1, AStarPathfinder.MAX_YDELTA_PER_STEP);
 
         TerrainSampler.Sample prev = sampler.sample(end.getX(), end.getZ());
         if (prev == null) return false;
