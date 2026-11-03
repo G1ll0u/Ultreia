@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.player;
+package com.jubitus.ultreia.boost;
 
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-public final class MPBSpeedBoostHandler {
+public final class SpeedBoostHandler {
 
     private static final UUID MODIFIER_UUID = UUID.fromString("a3b4c5d6-e7f8-9012-3456-789abcdef012");
     private static final String MODIFIER_NAME = "mpb:road_speed";

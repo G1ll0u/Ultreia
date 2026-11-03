@@ -7,7 +7,7 @@ import com.jubitus.ultreia.bridge.template.BridgeDefaultTemplates;
 import com.jubitus.ultreia.job.GenerationManager;
 import com.jubitus.ultreia.chunk.ChunkLoadingCallback;
 import com.jubitus.ultreia.net.NetworkHandler;
-import com.jubitus.ultreia.player.MPBSpeedBoostHandler;
+import com.jubitus.ultreia.boost.SpeedBoostHandler;
 import com.jubitus.ultreia.proxy.IProxy;
 import net.minecraftforge.common.ForgeChunkManager;
 import net.minecraftforge.common.MinecraftForge;
@@ -47,7 +47,7 @@ public class Ultreia {
     public void preInit(FMLPreInitializationEvent event) {
         ForgeChunkManager.setForcedChunkLoadingCallback(Ultreia.INSTANCE, new ChunkLoadingCallback());
         MinecraftForge.EVENT_BUS.register(new GenerationManager());
-        MinecraftForge.EVENT_BUS.register(new MPBSpeedBoostHandler());
+        MinecraftForge.EVENT_BUS.register(new SpeedBoostHandler());
 
         File configDir = new File(event.getModConfigurationDirectory(), "ultreia");
         JubiConfig.builder(Tags.MOD_ID, Tags.MOD_NAME, MPBConfig.class, NetworkHandler.CHANNEL, configDir)
