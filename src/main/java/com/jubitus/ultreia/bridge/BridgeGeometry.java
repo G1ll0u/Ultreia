@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.bridge;
 
+import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import net.minecraft.util.math.BlockPos;
@@ -120,7 +121,7 @@ public final class BridgeGeometry {
     }
 
     /** Crown height in half-blocks: the template's value, else the global one, plus the water bonus. */
-    public static int effectiveCrownHalf(@Nullable Integer templateCrown, List<BlockPos> line, TerrainSampler sampler) {
+    public static int effectiveCrownHalf(@Nullable Integer templateCrown, List<BlockPos> line, TerrainView sampler) {
         int crown = templateCrown != null ? Math.max(0, templateCrown)
                 : Math.max(0, UltreiaConfig.BRIDGES.bridgeCrownHalfBlocks);
         if (crown > 0 && UltreiaConfig.BRIDGES.extraWaterBridgeCrown && hasMeaningfulWaterInterior(line, sampler)) {
@@ -188,7 +189,7 @@ public final class BridgeGeometry {
         return out;
     }
 
-    public static boolean hasMeaningfulWaterInterior(List<BlockPos> line, TerrainSampler sampler) {
+    public static boolean hasMeaningfulWaterInterior(List<BlockPos> line, TerrainView sampler) {
         if (line == null || line.size() < 3 || sampler == null) return false;
 
         int run = 0;

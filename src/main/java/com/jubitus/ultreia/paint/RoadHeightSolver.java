@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.paint;
 
+import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import net.minecraft.util.math.BlockPos;
@@ -14,7 +15,7 @@ public final class RoadHeightSolver {
     private RoadHeightSolver() {}
 
     public static boolean isLineFeasible(List<BlockPos> line,
-                                         TerrainSampler sampler,
+                                         TerrainView sampler,
                                          int startHalf,
                                          int endHalf,
                                          boolean allowEarthworks,

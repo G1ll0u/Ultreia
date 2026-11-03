@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.route;
 
+import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.geom.SupercoverLine;
 import com.jubitus.ultreia.bridge.BridgeFeasibility;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
@@ -82,7 +83,7 @@ public final class AStarPathfinder {
         private int maxRadSq;
 
         private final WorldServer world;
-        private final TerrainSampler sampler;
+        private final TerrainView sampler;
         private final int step;
         private final int configStep;
         private int gx, gz;
@@ -177,7 +178,7 @@ public final class AStarPathfinder {
         private int bridgeDebugPrinted = 0;
         private int bridgeDebugSuppressed = 0;
 
-        Session(WorldServer world, BlockPos start, BlockPos goal, TerrainSampler sampler) {
+        Session(WorldServer world, BlockPos start, BlockPos goal, TerrainView sampler) {
             this.world = world;
             this.sampler = sampler;
 
@@ -1791,7 +1792,7 @@ public final class AStarPathfinder {
             }
         }
 
-        private static int[] nearestValidGrid(int x0, int z0, int step, TerrainSampler sampler) {
+        private static int[] nearestValidGrid(int x0, int z0, int step, TerrainView sampler) {
             int maxR = Math.max(24, step * 8);
 
             int bestX = 0, bestZ = 0;
@@ -1835,11 +1836,11 @@ public final class AStarPathfinder {
             return found ? new int[]{bestX, bestZ} : null;
         }
 
-        private static boolean hasLocalExitFreedom(int x, int z, int step, TerrainSampler sampler) {
+        private static boolean hasLocalExitFreedom(int x, int z, int step, TerrainView sampler) {
             return countLocalFreeNeighbors(x, z, step, sampler) >= 2;
         }
 
-        private static int countLocalFreeNeighbors(int x, int z, int step, TerrainSampler sampler) {
+        private static int countLocalFreeNeighbors(int x, int z, int step, TerrainView sampler) {
             int free = 0;
 
             for (int[] dir : NEIGHBOR_DIRS) {
@@ -2248,7 +2249,7 @@ public final class AStarPathfinder {
         }
     }
 
-    public Session startSession(WorldServer world, BlockPos start, BlockPos goal, TerrainSampler sampler) {
+    public Session startSession(WorldServer world, BlockPos start, BlockPos goal, TerrainView sampler) {
         return new Session(world, start, goal, sampler);
     }
 
@@ -2341,7 +2342,7 @@ public final class AStarPathfinder {
         return t * t * turnPenalty * step;
     }
     public static String debugEndpoint(WorldServer world,
-                                       TerrainSampler sampler,
+                                       TerrainView sampler,
                                        ProtectedAreas protectedAreas,
                                        RoadIndex roadIndex,
                                        BlockPos pos) {
@@ -2379,7 +2380,7 @@ public final class AStarPathfinder {
                 + " blocked{r1=" + blocked1 + ",r2=" + blocked2 + "}";
     }
 
-    private static int countFreeNeighbors(int x, int z, int step, TerrainSampler sampler, int ring) {
+    private static int countFreeNeighbors(int x, int z, int step, TerrainView sampler, int ring) {
         int free = 0;
 
         for (int dz = -ring; dz <= ring; dz++) {
@@ -2403,7 +2404,7 @@ public final class AStarPathfinder {
         return free;
     }
 
-    private static int countBlockedNeighbors(int x, int z, int step, TerrainSampler sampler, int ring) {
+    private static int countBlockedNeighbors(int x, int z, int step, TerrainView sampler, int ring) {
         int blocked = 0;
 
         for (int dz = -ring; dz <= ring; dz++) {

@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.route;
 
+import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.paint.RoadHeightProfile;
 
 import com.jubitus.ultreia.config.UltreiaConfig;
@@ -19,7 +20,7 @@ public final class PathProfileCheck {
 
     public static boolean isFullPathFeasible(List<BlockPos> coarsePath,
                                              List<BridgeSpan> bridges,
-                                             TerrainSampler sampler,
+                                             TerrainView sampler,
                                              RoadType roadType) {
         if (coarsePath == null || coarsePath.isEmpty() || sampler == null) {
             return false;
@@ -49,7 +50,7 @@ public final class PathProfileCheck {
         }
     }
 
-    private static List<BlockPos> densify(List<BlockPos> coarse, TerrainSampler sampler) {
+    private static List<BlockPos> densify(List<BlockPos> coarse, TerrainView sampler) {
         if (coarse == null || coarse.isEmpty()) {
             return Collections.emptyList();
         }

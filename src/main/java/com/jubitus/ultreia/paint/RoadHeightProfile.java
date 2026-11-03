@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.paint;
 
+import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.route.RoadType;
 
 import com.jubitus.ultreia.config.UltreiaConfig;
@@ -23,7 +24,7 @@ public final class RoadHeightProfile {
 
     private RoadHeightProfile() {}
 
-    public static int[] build(List<BlockPos> path, List<BridgeSpan> bridges, TerrainSampler sampler, RoadType roadType) {
+    public static int[] build(List<BlockPos> path, List<BridgeSpan> bridges, TerrainView sampler, RoadType roadType) {
         int n = path == null ? 0 : path.size();
         if (n <= 0) return new int[0];
 
@@ -60,7 +61,7 @@ public final class RoadHeightProfile {
 
     private static int[] buildExactBridgeHalfByPathIndex(List<BlockPos> path,
                                                          List<BridgeSpan> bridges,
-                                                         TerrainSampler sampler) {
+                                                         TerrainView sampler) {
         int n = path == null ? 0 : path.size();
         int[] out = new int[n];
         Arrays.fill(out, RoadHeightSolver.FIXED_NONE);

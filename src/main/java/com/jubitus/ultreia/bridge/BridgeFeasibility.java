@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.bridge;
 
+import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.geom.RasterLine8;
 import com.jubitus.ultreia.geom.SupercoverLine;
 import com.jubitus.ultreia.bridge.template.BridgeTemplate;
@@ -27,7 +28,7 @@ public final class BridgeFeasibility {
     private BridgeFeasibility() {}
 
     public static BridgeSpan tryCreate(WorldServer world,
-                                       TerrainSampler sampler,
+                                       TerrainView sampler,
                                        BlockPos start,
                                        BlockPos end) {
         // The template depends on the span (length, water), its crown changes the deck: check with the
@@ -61,7 +62,7 @@ public final class BridgeFeasibility {
     }
 
     private static BridgeEval evaluate(WorldServer world,
-                                       TerrainSampler sampler,
+                                       TerrainView sampler,
                                        BlockPos start,
                                        BlockPos end,
                                        @Nullable BridgeTemplate template) {
@@ -380,7 +381,7 @@ public final class BridgeFeasibility {
 
     @Nullable
     private static TrimmedBridgeCandidate trimBridgeEndBeforeTargetRoad(WorldServer world,
-                                                                        TerrainSampler sampler,
+                                                                        TerrainView sampler,
                                                                         BlockPos start,
                                                                         BlockPos end,
                                                                         List<BlockPos> rawLine) {
@@ -465,7 +466,7 @@ public final class BridgeFeasibility {
     }
 
     private static boolean isValidBridgeEndpoint(WorldServer world,
-                                                 TerrainSampler sampler,
+                                                 TerrainView sampler,
                                                  TerrainSampler.Sample sample) {
         if (sample.isWater || sample.isOcean) return false;
         if (sampler.forbidden(sample, TerrainSampler.Mode.PATHFINDING)) return false;
@@ -509,7 +510,7 @@ public final class BridgeFeasibility {
     }
 
     private static boolean checkSideClearance(WorldServer world,
-                                              TerrainSampler sampler,
+                                              TerrainView sampler,
                                               List<BlockPos> line,
                                               int idx,
                                               int deckHalfY,
@@ -558,7 +559,7 @@ public final class BridgeFeasibility {
     }
 
     private static boolean isBridgeColumnAcceptable(WorldServer world,
-                                                    TerrainSampler sampler,
+                                                    TerrainView sampler,
                                                     int x,
                                                     int z,
                                                     int deckSurfaceY,
@@ -619,7 +620,7 @@ public final class BridgeFeasibility {
     private static boolean exitDirectionStaysForward(BlockPos start,
                                                      BlockPos end,
                                                      int lookAhead,
-                                                     TerrainSampler sampler) {
+                                                     TerrainView sampler) {
         if (lookAhead <= 0) return true;
 
         int dx = Integer.signum(end.getX() - start.getX());
@@ -644,7 +645,7 @@ public final class BridgeFeasibility {
     }
 
     private static boolean exitCorridorIsBuildable(WorldServer world,
-                                                   TerrainSampler sampler,
+                                                   TerrainView sampler,
                                                    BlockPos start,
                                                    BlockPos end,
                                                    int lookAhead) {

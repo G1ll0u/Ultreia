@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.bridge;
 
+import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.paint.RoadHeightSolver;
 import com.jubitus.ultreia.route.RoadType;
 
@@ -14,7 +15,7 @@ public final class BridgeApproachCheck {
 
     private BridgeApproachCheck() {}
 
-    public static boolean canConnectBridgeApproaches(TerrainSampler sampler,
+    public static boolean canConnectBridgeApproaches(TerrainView sampler,
                                                      BridgeSpan span,
                                                      int approachBlocks,
                                                      RoadType roadType) {
@@ -43,7 +44,7 @@ public final class BridgeApproachCheck {
         return true;
     }
 
-    private static boolean checkOneSide(TerrainSampler sampler,
+    private static boolean checkOneSide(TerrainView sampler,
                                         BlockPos bridgeEnd,
                                         BlockPos inwardNeighbor,
                                         int bridgeDeckHalf,

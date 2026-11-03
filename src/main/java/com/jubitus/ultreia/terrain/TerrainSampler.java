@@ -35,7 +35,7 @@ import javax.annotation.Nullable;
 import java.util.HashSet;
 import java.util.Set;
 
-public class TerrainSampler {
+public class TerrainSampler implements TerrainView {
 
     public enum Mode { PATHFINDING, PAINTING }
     public enum ForbiddenReason { NONE, OCEAN, BLACKLIST, WATER, BLOCKED }
