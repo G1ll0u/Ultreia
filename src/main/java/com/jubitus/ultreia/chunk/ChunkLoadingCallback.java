@@ -1,11 +1,11 @@
-package com.jubitus.ultreia.gen.world;
+package com.jubitus.ultreia.chunk;
 
 import net.minecraft.world.World;
 import net.minecraftforge.common.ForgeChunkManager;
 
 import java.util.List;
 
-public final class MPBChunkLoadingCallback implements ForgeChunkManager.LoadingCallback {
+public final class ChunkLoadingCallback implements ForgeChunkManager.LoadingCallback {
 
     @Override
     public void ticketsLoaded(List<ForgeChunkManager.Ticket> tickets, World world) {

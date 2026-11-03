@@ -2,7 +2,7 @@ package com.jubitus.ultreia.roads;
 
 import com.jubitus.ultreia.MillPresence;
 import com.jubitus.ultreia.block.MPBBlocks;
-import com.jubitus.ultreia.gen.MPBChunkManager;
+import com.jubitus.ultreia.chunk.ChunkManager;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -37,7 +37,7 @@ public class RoadIndex extends WorldSavedData {
     private final Long2ObjectOpenHashMap<ChunkData> chunkData = new Long2ObjectOpenHashMap<>();
 
     private transient final LongOpenHashSet scannedChunks = new LongOpenHashSet();
-    private transient MPBChunkManager chunkManager;
+    private transient ChunkManager chunkManager;
 
     public RoadIndex() {
         super(NAME);
@@ -57,7 +57,7 @@ public class RoadIndex extends WorldSavedData {
         return data;
     }
 
-    public void attachChunkManager(@Nullable MPBChunkManager mgr) {
+    public void attachChunkManager(@Nullable ChunkManager mgr) {
         this.chunkManager = mgr;
     }
 

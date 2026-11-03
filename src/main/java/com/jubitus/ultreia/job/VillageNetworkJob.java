@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.job;
 
 import com.jubitus.ultreia.route.AStarPathfinder;
-import com.jubitus.ultreia.gen.MPBChunkManager;
+import com.jubitus.ultreia.chunk.ChunkManager;
 import com.jubitus.ultreia.route.EndpointResolver;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.planner.NetworkPlanData;
@@ -70,7 +70,7 @@ public final class VillageNetworkJob implements TickedJob {
 
     private boolean done = false;
 
-    private final MPBChunkManager chunkManager;
+    private final ChunkManager chunkManager;
 
     private final RoadIndex roadIndex;
     private final RoadNetwork roadNetwork;
@@ -83,7 +83,7 @@ public final class VillageNetworkJob implements TickedJob {
         this.dryRun = dryRun;
 
         BridgeTemplateRegistry.invalidateTemplateCache();
-        this.chunkManager = new MPBChunkManager(MPBConfig.GENERAL.maxForcedChunksPerJob);
+        this.chunkManager = new ChunkManager(MPBConfig.GENERAL.maxForcedChunksPerJob);
         this.sampler = new TerrainSampler(world);
         this.sampler.setChunkManager(chunkManager);
 
@@ -130,7 +130,7 @@ public final class VillageNetworkJob implements TickedJob {
         this.failed = cp.getFailed();
 
         BridgeTemplateRegistry.invalidateTemplateCache();
-        this.chunkManager = new MPBChunkManager(MPBConfig.GENERAL.maxForcedChunksPerJob);
+        this.chunkManager = new ChunkManager(MPBConfig.GENERAL.maxForcedChunksPerJob);
         this.sampler = new TerrainSampler(world);
         this.sampler.setChunkManager(chunkManager);
 

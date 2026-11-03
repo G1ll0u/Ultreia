@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.terrain;
 
-import com.jubitus.ultreia.gen.MPBChunkManager;
+import com.jubitus.ultreia.chunk.ChunkManager;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
 import com.jubitus.ultreia.roads.RoadIndex;
@@ -124,7 +124,7 @@ public class TerrainSampler {
     private final Set<ResourceLocation> blacklist = new HashSet<>();
     private ProtectedAreas protectedAreas;
 
-    private MPBChunkManager chunkManager;
+    private ChunkManager chunkManager;
     private RoadIndex roadIndex;
 
     private final Long2IntOpenHashMap roadDistCache = new Long2IntOpenHashMap();
@@ -145,7 +145,7 @@ public class TerrainSampler {
         this.protectedAreas = areas;
     }
 
-    public void setChunkManager(MPBChunkManager mgr) {
+    public void setChunkManager(ChunkManager mgr) {
         this.chunkManager = mgr;
     }
 

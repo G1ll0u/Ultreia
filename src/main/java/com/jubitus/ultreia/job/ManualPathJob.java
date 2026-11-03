@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.job;
 
 import com.jubitus.ultreia.route.AStarPathfinder;
-import com.jubitus.ultreia.gen.MPBChunkManager;
+import com.jubitus.ultreia.chunk.ChunkManager;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.paint.RoadPainter;
 import com.jubitus.ultreia.route.RoadType;
@@ -32,7 +32,7 @@ public final class ManualPathJob implements TickedJob {
     private final BlockPos requestedStart;
     private final BlockPos requestedGoal;
 
-    private final MPBChunkManager chunkManager;
+    private final ChunkManager chunkManager;
     private final TerrainSampler sampler;
     private final ProtectedAreas protectedAreas;
     private final RoadIndex roadIndex;
@@ -58,7 +58,7 @@ public final class ManualPathJob implements TickedJob {
         this.requestedGoal = goal;
 
         BridgeTemplateRegistry.invalidateTemplateCache();
-        this.chunkManager = new MPBChunkManager(MPBConfig.GENERAL.maxForcedChunksPerJob);
+        this.chunkManager = new ChunkManager(MPBConfig.GENERAL.maxForcedChunksPerJob);
 
         this.sampler = new TerrainSampler(world);
         this.sampler.setChunkManager(chunkManager);

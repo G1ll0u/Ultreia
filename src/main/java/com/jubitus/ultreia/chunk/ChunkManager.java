@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.chunk;
 
 import com.google.common.collect.ImmutableSetMultimap;
 import com.jubitus.ultreia.Ultreia;
@@ -14,7 +14,7 @@ import net.minecraft.world.gen.ChunkProviderServer;
 import net.minecraft.world.storage.ThreadedFileIOBase;
 import net.minecraftforge.common.ForgeChunkManager;
 
-public final class MPBChunkManager {
+public final class ChunkManager {
 
     // Only chunks WE force-loaded. Chunks already loaded by Millénaire or Minecraft are never
     // tracked here — they are not our responsibility to unload.
@@ -23,7 +23,7 @@ public final class MPBChunkManager {
     // Forge caps the chunks per ticket (forgeChunkLoading.cfg): more tickets are requested as they fill.
     private final java.util.List<ForgeChunkManager.Ticket> tickets = new java.util.ArrayList<>();
 
-    public MPBChunkManager(int edgeCap) {
+    public ChunkManager(int edgeCap) {
         this.edgeCap = Math.max(0, edgeCap);
     }
 
