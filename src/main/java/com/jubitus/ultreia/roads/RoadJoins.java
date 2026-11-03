@@ -4,7 +4,7 @@ import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
-import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
+import com.jubitus.ultreia.mill.MillPathPalette;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.state.IBlockState;
@@ -154,7 +154,7 @@ public final class RoadJoins {
             if (st == null) continue;
 
             Block b = st.getBlock();
-            if (!MPBMillPathPalette.isMillPath(b)) continue;
+            if (!MillPathPalette.isMillPath(b)) continue;
 
             // Path slabs (ours and Millénaire's) carry the slab HALF property without extending BlockSlab.
             if (st.getPropertyKeys().contains(BlockSlab.HALF)) {

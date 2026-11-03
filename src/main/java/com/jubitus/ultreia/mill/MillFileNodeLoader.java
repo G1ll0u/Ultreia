@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.integration;
+package com.jubitus.ultreia.mill;
 
 import com.jubitus.ultreia.Ultreia;
 import net.minecraft.util.math.BlockPos;

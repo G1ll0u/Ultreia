@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.mixin;
 
-import com.jubitus.ultreia.gen.newp.MPBMillenairePathCompat;
+import com.jubitus.ultreia.mill.MillPathStability;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import org.millenaire.common.utilities.Point;
@@ -49,7 +49,7 @@ public abstract class MixinBuilding_PathClearProtection {
             }
 
             BlockPos pos = new BlockPos(p.getiX(), p.getiY(), p.getiZ());
-            if (!MPBMillenairePathCompat.hasStablePathInColumn(world, pos, -2, 4)) {
+            if (!MillPathStability.hasStablePathInColumn(world, pos, -2, 4)) {
                 break;
             }
 
@@ -66,7 +66,7 @@ public abstract class MixinBuilding_PathClearProtection {
             if (p == null) continue;
 
             BlockPos pos = new BlockPos(p.getiX(), p.getiY(), p.getiZ());
-            if (MPBMillenairePathCompat.hasStablePathInColumn(world, pos, -2, 4)) {
+            if (MillPathStability.hasStablePathInColumn(world, pos, -2, 4)) {
                 continue;
             }
 

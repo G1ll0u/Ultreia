@@ -5,8 +5,8 @@ import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.job.VillageNetworkJob;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
-import com.jubitus.ultreia.gen.mill.MillVillageIndex;
+import com.jubitus.ultreia.mill.MillPathPalette;
+import com.jubitus.ultreia.mill.MillVillageIndex;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
@@ -283,7 +283,7 @@ public final class EndpointResolver {
         for (int y = Math.max(4, surfaceY - 3); y <= maxY; y++) {
             p.setPos(x, y, z);
             IBlockState st = world.getBlockState(p);
-            if (st != null && MPBMillPathPalette.isMillPath(st.getBlock())) return y;
+            if (st != null && MillPathPalette.isMillPath(st.getBlock())) return y;
         }
         return null;
     }

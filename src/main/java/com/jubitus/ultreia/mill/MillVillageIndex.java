@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.mill;
+package com.jubitus.ultreia.mill;
 
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;

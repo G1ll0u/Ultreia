@@ -11,7 +11,7 @@ import com.jubitus.ultreia.gen.util.MPBPos2D;
 import com.jubitus.ultreia.roads.RoadNetwork;
 import com.jubitus.ultreia.roads.RoadSegment;
 import com.jubitus.ultreia.roads.RoadWaypoint;
-import com.jubitus.ultreia.integration.MillIntegration;
+import com.jubitus.ultreia.mill.MillWorldDataRegistry;
 import com.jubitus.ultreia.network.MPBNetworkHandler;
 import com.jubitus.ultreia.network.PacketOpenMapGui;
 import net.minecraft.command.CommandBase;

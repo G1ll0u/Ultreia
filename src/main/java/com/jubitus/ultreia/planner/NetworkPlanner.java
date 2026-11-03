@@ -2,7 +2,7 @@ package com.jubitus.ultreia.planner;
 
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.mill.MillVillageIndex;
+import com.jubitus.ultreia.mill.MillVillageIndex;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
 

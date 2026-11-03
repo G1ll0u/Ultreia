@@ -1,9 +1,8 @@
-package com.jubitus.ultreia.gen.mill;
+package com.jubitus.ultreia.mill;
 
 import com.jubitus.ultreia.MillPresence;
 import com.jubitus.ultreia.block.MPBBlocks;
 import com.jubitus.ultreia.block.MPBPathSlabBlock;
-import com.jubitus.ultreia.gen.newp.MPBMillenairePathCompat;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.material.Material;
@@ -13,9 +12,9 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import org.millenaire.common.block.MillBlocks;
 
-public final class MPBMillPathPalette {
+public final class MillPathPalette {
 
-    private MPBMillPathPalette() {}
+    private MillPathPalette() {}
 
     public enum Kind { DIRT, GRAVEL, SANDSTONE, SLABS, OCHRE, SNOW }
 
@@ -33,7 +32,7 @@ public final class MPBMillPathPalette {
             case DIRT:
             default:        st = MillBlocks.PATHDIRT.getDefaultState(); break;
         }
-        return MPBMillenairePathCompat.stabilizeIfPossible(st);
+        return MillPathStability.stabilizeIfPossible(st);
     }
 
     public static IBlockState slabBottom(Kind k) {
@@ -52,7 +51,7 @@ public final class MPBMillPathPalette {
             default:        slab = MillBlocks.PATHDIRT_SLAB; break;
         }
         IBlockState st = slab.getDefaultState().withProperty(BlockSlab.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
-        return MPBMillenairePathCompat.stabilizeIfPossible(st);
+        return MillPathStability.stabilizeIfPossible(st);
     }
 
     public static boolean isMillPath(Block b) {

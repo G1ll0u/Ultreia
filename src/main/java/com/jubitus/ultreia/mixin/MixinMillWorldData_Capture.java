@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.mixin;
 
-import com.jubitus.ultreia.integration.MillIntegration;
+import com.jubitus.ultreia.mill.MillWorldDataRegistry;
 import net.minecraft.world.World;
 import org.millenaire.common.world.MillWorldData;
 import org.spongepowered.asm.mixin.Mixin;
@@ -18,11 +18,11 @@ public abstract class MixinMillWorldData_Capture {
 
     @Inject(method = "<init>", at = @At("RETURN"))
     private void mpb$afterInit(World world, CallbackInfo ci) {
-        MillIntegration.register((MillWorldData) (Object) this);
+        MillWorldDataRegistry.register((MillWorldData) (Object) this);
     }
 
     @Inject(method = "loadData", at = @At("RETURN"))
     private void mpb$afterLoadData(CallbackInfo ci) {
-        MillIntegration.register((MillWorldData) (Object) this);
+        MillWorldDataRegistry.register((MillWorldData) (Object) this);
     }
 }

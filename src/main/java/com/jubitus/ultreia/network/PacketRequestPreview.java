@@ -2,8 +2,8 @@ package com.jubitus.ultreia.network;
 
 import com.jubitus.ultreia.planner.NetworkPlanner;
 import com.jubitus.ultreia.planner.VillageClassifier;
-import com.jubitus.ultreia.gen.mill.MillVillageIndex;
-import com.jubitus.ultreia.integration.MillIntegration;
+import com.jubitus.ultreia.mill.MillVillageIndex;
+import com.jubitus.ultreia.mill.MillWorldDataRegistry;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.util.math.BlockPos;
@@ -33,7 +33,7 @@ public final class PacketRequestPreview implements IMessage {
             if (!player.canUseCommand(2, "ultreia")) return null;
 
             world.addScheduledTask(() -> {
-                List<BlockPos> nodes = MillIntegration.getAllNodePositions(world);
+                List<BlockPos> nodes = MillWorldDataRegistry.getAllNodePositions(world);
 
                 NetworkPlanner.NetworkResult result = NetworkPlanner.build(world, nodes);
 

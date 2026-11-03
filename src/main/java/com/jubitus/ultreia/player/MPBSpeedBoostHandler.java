@@ -2,7 +2,7 @@ package com.jubitus.ultreia.player;
 
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
+import com.jubitus.ultreia.mill.MillPathPalette;
 import com.jubitus.ultreia.roads.RoadIndex;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
@@ -122,7 +122,7 @@ public final class MPBSpeedBoostHandler {
         int pz = (int) Math.floor(target.posZ);
 
         // Fast path: block directly under the target's feet is a path block
-        if (MPBMillPathPalette.isMillPath(world.getBlockState(new BlockPos(px, py - 1, pz)).getBlock())) {
+        if (MillPathPalette.isMillPath(world.getBlockState(new BlockPos(px, py - 1, pz)).getBlock())) {
             return true;
         }
 
@@ -137,7 +137,7 @@ public final class MPBSpeedBoostHandler {
                 int roadY = roadIndex.getRoadY(x, z);
                 if (roadY < 0) {
                     // No stored Y: verify via direct block check so we don't trigger in caves
-                    if (MPBMillPathPalette.isMillPath(world.getBlockState(new BlockPos(x, py - 1, z)).getBlock())) {
+                    if (MillPathPalette.isMillPath(world.getBlockState(new BlockPos(x, py - 1, z)).getBlock())) {
                         return true;
                     }
                     continue;

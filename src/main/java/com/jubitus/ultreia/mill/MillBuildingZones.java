@@ -1,8 +1,7 @@
-package com.jubitus.ultreia.gen.mill;
+package com.jubitus.ultreia.mill;
 
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
-import com.jubitus.ultreia.integration.MillIntegration;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
 import org.millenaire.common.utilities.Point;
@@ -11,12 +10,12 @@ import org.millenaire.common.world.MillWorldData;
 
 import java.util.List;
 
-public final class MillBuildingObstacles2 {
-    private MillBuildingObstacles2() {}
+public final class MillBuildingZones {
+    private MillBuildingZones() {}
 
     /** Soft penalty squares around village and lone-building centres, plus every building's box as no-paint. */
     public static void addMillenaireZones(WorldServer world, ProtectedAreas pa) {
-        MillWorldData data = MillIntegration.ensureLoaded(world);
+        MillWorldData data = MillWorldDataRegistry.ensureLoaded(world);
 
         int vR = Math.max(0, MPBConfig.GENERAL.villageNoPaintRadius);
         int lR = Math.max(0, MPBConfig.GENERAL.loneBuildingNoPaintRadius);
@@ -46,7 +45,7 @@ public final class MillBuildingObstacles2 {
             int expandHard,   // safety around bbox (0..2)
             int hardPenalty
     ) {
-        MillWorldData wd = MillIntegration.ensureLoaded(world);
+        MillWorldData wd = MillWorldDataRegistry.ensureLoaded(world);
         if (wd == null) return;
 
         // Villages -> list buildings around each TH center

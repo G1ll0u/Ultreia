@@ -3,7 +3,7 @@ package com.jubitus.ultreia.terrain;
 import net.minecraft.block.BlockWall;
 import net.minecraft.block.BlockStairs;
 import net.minecraft.block.BlockSlab;
-import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
+import com.jubitus.ultreia.mill.MillPathPalette;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
@@ -28,7 +28,7 @@ public final class GroundRules {
         // Never paint over farmland or tilled soil — would destroy crops.
         if (isFarmland(st)) return false;
 
-        if (MPBMillPathPalette.isMillPath(b)) return true;
+        if (MillPathPalette.isMillPath(b)) return true;
 
         Material m = st.getMaterial();
 

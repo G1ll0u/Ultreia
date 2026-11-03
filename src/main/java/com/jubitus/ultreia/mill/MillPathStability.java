@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.newp;
+package com.jubitus.ultreia.mill;
 
 import net.minecraft.block.properties.IProperty;
 import net.minecraft.block.properties.PropertyBool;
@@ -6,9 +6,9 @@ import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
-public final class MPBMillenairePathCompat {
+public final class MillPathStability {
 
-    private MPBMillenairePathCompat() {}
+    private MillPathStability() {}
 
     public static IBlockState stabilizeIfPossible(IBlockState state) {
         if (state == null) return null;

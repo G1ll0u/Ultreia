@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.integration;
+package com.jubitus.ultreia.mill;
 
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.MillPresence;
@@ -12,12 +12,12 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 
-public final class MillIntegration {
+public final class MillWorldDataRegistry {
 
     private static final Map<Integer, MillWorldData> BY_DIM = new ConcurrentHashMap<>();
     private static final Set<Integer> LOAD_TRIED_DIM = ConcurrentHashMap.newKeySet();
 
-    private MillIntegration() {}
+    private MillWorldDataRegistry() {}
 
     /** Forgets the previous world's data, so the next world opened in the same session loads its own. */
     public static void clear() {

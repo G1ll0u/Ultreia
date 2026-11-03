@@ -13,7 +13,7 @@ import com.jubitus.ultreia.gen.bridge.*;
 import com.jubitus.ultreia.bridge.template.BridgeBuildService;
 import com.jubitus.ultreia.bridge.template.BridgeTemplate;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;
-import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
+import com.jubitus.ultreia.mill.MillPathPalette;
 import com.jubitus.ultreia.roads.RoadIndex;
 import com.jubitus.ultreia.roads.RoadNetwork;
 import com.jubitus.ultreia.roads.RoadSegment;
@@ -1040,7 +1040,7 @@ public final class RoadPainter {
             if (!earthworks) {
                 BlockPos top = new BlockPos(x, s.surfaceY, z);
                 IBlockState g = world.getBlockState(top);
-                if (!isNaturalGround(g) && !MPBMillPathPalette.isMillPath(g.getBlock())) return;
+                if (!isNaturalGround(g) && !MillPathPalette.isMillPath(g.getBlock())) return;
             }
 
             boolean centerish = distSq <= 0.26;
@@ -1587,11 +1587,11 @@ public final class RoadPainter {
 
             if (!hasSupportWithinOneBlock(supportTop)) return;
 
-            MPBMillPathPalette.Kind kind = pickKindAveraged(x, z);
+            MillPathPalette.Kind kind = pickKindAveraged(x, z);
             placeRoadBlockFromHalf(supportTop, kind, targetHalf, earthworks);
         }
 
-        private void placeRoadBlockFromHalf(BlockPos supportTop, MPBMillPathPalette.Kind kind, int targetHalf, boolean allowSolidCut) {
+        private void placeRoadBlockFromHalf(BlockPos supportTop, MillPathPalette.Kind kind, int targetHalf, boolean allowSolidCut) {
             if (dryRun) return;
 
             int x = supportTop.getX();
@@ -1610,8 +1610,8 @@ public final class RoadPainter {
             HeadroomClearer.clearAtAndAbove(world, placePos, 2, false, true);
 
             IBlockState place = useBottomSlab
-                    ? MPBMillPathPalette.slabBottom(kind)
-                    : MPBMillPathPalette.full(kind);
+                    ? MillPathPalette.slabBottom(kind)
+                    : MillPathPalette.full(kind);
 
             world.setBlockState(placePos, place, 2);
 
@@ -1641,14 +1641,14 @@ public final class RoadPainter {
         // INVARIANT: a road block never floats: at most one block is filled under it, else the cell is skipped.
         private boolean hasSupportWithinOneBlock(BlockPos supportTop) {
             IBlockState ground = world.getBlockState(supportTop);
-            if (isNaturalGround(ground) || MPBMillPathPalette.isMillPath(ground.getBlock())) return true;
+            if (isNaturalGround(ground) || MillPathPalette.isMillPath(ground.getBlock())) return true;
             Material m = ground.getMaterial();
             if (m == Material.WATER) return true; // small streams are paved over
             if (m == Material.LAVA || !m.isReplaceable()) return false;
             return world.getBlockState(supportTop.down()).getMaterial().isSolid();
         }
 
-        private void ensureSolidSupportUnderBottomSlab(BlockPos supportPos, MPBMillPathPalette.Kind kind) {
+        private void ensureSolidSupportUnderBottomSlab(BlockPos supportPos, MillPathPalette.Kind kind) {
             IBlockState st = world.getBlockState(supportPos);
             Material m = st.getMaterial();
 
@@ -1670,7 +1670,7 @@ public final class RoadPainter {
                 if (yy < 1 || yy > 255) continue;
                 p.setPos(x, yy, z);
                 IBlockState st = world.getBlockState(p);
-                if (st != null && MPBMillPathPalette.isMillPath(st.getBlock())) return true;
+                if (st != null && MillPathPalette.isMillPath(st.getBlock())) return true;
             }
             return false;
         }
@@ -1837,7 +1837,7 @@ public final class RoadPainter {
             return out;
         }
 
-        private IBlockState pickSupportBlock(BlockPos supportPos, MPBMillPathPalette.Kind kind) {
+        private IBlockState pickSupportBlock(BlockPos supportPos, MillPathPalette.Kind kind) {
             IBlockState below = world.getBlockState(supportPos.down());
             Block b = below.getBlock();
             Material m = below.getMaterial();
@@ -1847,10 +1847,10 @@ public final class RoadPainter {
             if (b == Blocks.CLAY || m == Material.CLAY) return Blocks.CLAY.getDefaultState();
             if (m == Material.ROCK || b == Blocks.STONE) return Blocks.STONE.getDefaultState();
 
-            if (kind == MPBMillPathPalette.Kind.GRAVEL) return Blocks.GRAVEL.getDefaultState();
-            if (kind == MPBMillPathPalette.Kind.SANDSTONE) return Blocks.SAND.getDefaultState();
-            if (kind == MPBMillPathPalette.Kind.SNOW) return Blocks.SNOW.getDefaultState();
-            if (kind == MPBMillPathPalette.Kind.SLABS) return Blocks.STONE.getDefaultState();
+            if (kind == MillPathPalette.Kind.GRAVEL) return Blocks.GRAVEL.getDefaultState();
+            if (kind == MillPathPalette.Kind.SANDSTONE) return Blocks.SAND.getDefaultState();
+            if (kind == MillPathPalette.Kind.SNOW) return Blocks.SNOW.getDefaultState();
+            if (kind == MillPathPalette.Kind.SLABS) return Blocks.STONE.getDefaultState();
 
             return Blocks.DIRT.getDefaultState();
         }
@@ -1859,10 +1859,10 @@ public final class RoadPainter {
             return (((long) x) << 32) ^ (z & 0xffffffffL);
         }
 
-        private MPBMillPathPalette.Kind pickKindAveraged(int x, int z) {
+        private MillPathPalette.Kind pickKindAveraged(int x, int z) {
             final int R = 2;
 
-            int[] score = new int[MPBMillPathPalette.Kind.values().length];
+            int[] score = new int[MillPathPalette.Kind.values().length];
 
             for (int dz = -R; dz <= R; dz++) {
                 for (int dx = -R; dx <= R; dx++) {
@@ -1876,7 +1876,7 @@ public final class RoadPainter {
                     BlockPos top = new BlockPos(xx, sm.surfaceY, zz);
                     IBlockState st = world.getBlockState(top);
 
-                    if (st != null && MPBMillPathPalette.isMillPath(st.getBlock())) {
+                    if (st != null && MillPathPalette.isMillPath(st.getBlock())) {
                         IBlockState below = world.getBlockState(top.down());
                         if (below != null) st = below;
                     }
@@ -1888,7 +1888,7 @@ public final class RoadPainter {
                     if (m == Material.PLANTS || m == Material.VINE) continue;
                     if (m.isReplaceable()) continue;
 
-                    MPBMillPathPalette.Kind k = MPBMillPathPalette.pickKind(world, top, st);
+                    MillPathPalette.Kind k = MillPathPalette.pickKind(world, top, st);
 
                     int md = Math.abs(dx) + Math.abs(dz);
                     int w = Math.max(0, (R + 2) - md);
@@ -1899,7 +1899,7 @@ public final class RoadPainter {
             if (roadIndex != null) {
                 BlockPos near = roadIndex.findNearestRoad(x, z, 2);
                 if (near != null) {
-                    MPBMillPathPalette.Kind ek = roadIndex.findExistingKindAt(world, sampler, near.getX(), near.getZ());
+                    MillPathPalette.Kind ek = roadIndex.findExistingKindAt(world, sampler, near.getX(), near.getZ());
                     if (ek != null) score[ek.ordinal()] += 10;
                 }
             }
@@ -1914,13 +1914,13 @@ public final class RoadPainter {
             }
 
             if (bestIdx >= 0 && best > 0) {
-                return MPBMillPathPalette.Kind.values()[bestIdx];
+                return MillPathPalette.Kind.values()[bestIdx];
             }
 
             TerrainSampler.Sample sm0 = sampler.sample(x, z);
             BlockPos top0 = new BlockPos(x, sm0.surfaceY, z);
             IBlockState st0 = world.getBlockState(top0);
-            return MPBMillPathPalette.pickKind(world, top0, st0);
+            return MillPathPalette.pickKind(world, top0, st0);
         }
 
         private void registerRoadSegment() {

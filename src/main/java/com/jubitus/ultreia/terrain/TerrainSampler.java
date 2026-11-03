@@ -2,7 +2,7 @@ package com.jubitus.ultreia.terrain;
 
 import com.jubitus.ultreia.chunk.ChunkManager;
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
+import com.jubitus.ultreia.mill.MillPathPalette;
 import com.jubitus.ultreia.roads.RoadIndex;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -280,7 +280,7 @@ public class TerrainSampler {
                 IBlockState ground = world.getBlockState(pos2);
 
                 // Mill path blocks are valid painting surfaces (we paint onto/alongside them).
-                boolean paintable = isNaturalGround(ground) || MPBMillPathPalette.isMillPath(ground.getBlock());
+                boolean paintable = isNaturalGround(ground) || MillPathPalette.isMillPath(ground.getBlock());
                 boolean walkable = ground.getMaterial().isSolid() && ground.getMaterial() != Material.LEAVES;
 
                 BlockPos.MutableBlockPos up1 = new BlockPos.MutableBlockPos(x, surfaceY + 1, z);
@@ -506,7 +506,7 @@ public class TerrainSampler {
 
         BlockPos top = new BlockPos(x, s.surfaceY, z);
         IBlockState st = world.getBlockState(top);
-        return GroundRules.isRoadReplaceableGround(st) || MPBMillPathPalette.isMillPath(st.getBlock());
+        return GroundRules.isRoadReplaceableGround(st) || MillPathPalette.isMillPath(st.getBlock());
     }
 
     private Sample cachePut(long k, Sample out) {
@@ -624,7 +624,7 @@ public class TerrainSampler {
         if (b.isWood(world, pos)) return false;
         if (b.isLeaves(st, world, pos)) return false;
         // Mill/MPB path blocks are road infrastructure, not obstacles to paint around.
-        if (MPBMillPathPalette.isMillPath(b)) return false;
+        if (MillPathPalette.isMillPath(b)) return false;
         return !isNaturalGround(st);
     }
 
@@ -840,7 +840,7 @@ public class TerrainSampler {
             if (yy < 1 || yy > 255) continue;
             p.setPos(x, yy, z);
             IBlockState st = world.getBlockState(p);
-            if (st != null && MPBMillPathPalette.isMillPath(st.getBlock())) return true;
+            if (st != null && MillPathPalette.isMillPath(st.getBlock())) return true;
         }
         return false;
     }
@@ -976,7 +976,7 @@ public class TerrainSampler {
                     if (m == Material.WATER) continue;
 
                     if (GroundRules.isRoadReplaceableGround(st)) continue;
-                    if (MPBMillPathPalette.isMillPath(st.getBlock())) continue;
+                    if (MillPathPalette.isMillPath(st.getBlock())) continue;
 
                     // Ignore natural trees (we can clear them).
                     if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {

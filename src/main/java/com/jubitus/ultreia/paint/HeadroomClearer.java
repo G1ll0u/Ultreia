@@ -3,7 +3,7 @@ package com.jubitus.ultreia.paint;
 import com.jubitus.ultreia.terrain.GroundRules;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
+import com.jubitus.ultreia.mill.MillPathPalette;
 import com.jubitus.ultreia.terrain.TreeCompat;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockDoublePlant;
@@ -167,7 +167,7 @@ public final class HeadroomClearer {
     public static boolean isNaturalSolid(IBlockState st) {
         if (st == null) return false;
 
-        if (MPBMillPathPalette.isMillPath(st.getBlock())) return false;
+        if (MillPathPalette.isMillPath(st.getBlock())) return false;
 
         if (TreeCompat.isDynamicTreesBlock(st)) {
             return MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks;

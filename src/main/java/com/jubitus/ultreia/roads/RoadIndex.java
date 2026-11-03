@@ -4,7 +4,7 @@ import com.jubitus.ultreia.MillPresence;
 import com.jubitus.ultreia.block.MPBBlocks;
 import com.jubitus.ultreia.chunk.ChunkManager;
 import com.jubitus.ultreia.terrain.TerrainSampler;
-import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
+import com.jubitus.ultreia.mill.MillPathPalette;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.block.Block;
@@ -280,7 +280,7 @@ public class RoadIndex extends WorldSavedData {
     // --- Kind lookup (unchanged) ---
 
     @Nullable
-    public MPBMillPathPalette.Kind findExistingKindAt(WorldServer world, TerrainSampler sampler, int x, int z) {
+    public MillPathPalette.Kind findExistingKindAt(WorldServer world, TerrainSampler sampler, int x, int z) {
         TerrainSampler.Sample sm = sampler.sample(x, z);
         int y = sm.surfaceY;
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
@@ -289,7 +289,7 @@ public class RoadIndex extends WorldSavedData {
             if (yy < 1 || yy > 255) continue;
             p.setPos(x, yy, z);
             IBlockState st = world.getBlockState(p);
-            MPBMillPathPalette.Kind k = MPBMillPathPalette.kindFromState(st);
+            MillPathPalette.Kind k = MillPathPalette.kindFromState(st);
             if (k != null) return k;
         }
         return null;

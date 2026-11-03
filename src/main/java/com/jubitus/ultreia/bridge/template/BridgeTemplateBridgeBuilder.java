@@ -7,7 +7,7 @@ import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.gen.bridge.RasterLine8;
 import com.jubitus.ultreia.gen.bridge.SupercoverLine;
-import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
+import com.jubitus.ultreia.mill.MillPathPalette;
 import com.jubitus.ultreia.gen.util.MPBPos2D;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -377,7 +377,7 @@ public final class BridgeTemplateBridgeBuilder {
         if (m.isReplaceable()) return true;
         if (b == Blocks.WATERLILY || b == Blocks.SNOW_LAYER) return true;
         if (b.isLeaves(st, world, pos) || m == Material.LEAVES) return true;
-        if (MPBMillPathPalette.isMillPath(b)) return true;
+        if (MillPathPalette.isMillPath(b)) return true;
 
         if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
             if (b.isWood(world, pos) || m == Material.WOOD) return true;
@@ -454,7 +454,7 @@ public final class BridgeTemplateBridgeBuilder {
             p.setPos(x, y, z);
             IBlockState st = world.getBlockState(p);
             if (st == null) continue;
-            if (!MPBMillPathPalette.isMillPath(st.getBlock())) continue;
+            if (!MillPathPalette.isMillPath(st.getBlock())) continue;
 
             int freeBlocks = deckBlockY - y - 1;
             return freeBlocks < need;

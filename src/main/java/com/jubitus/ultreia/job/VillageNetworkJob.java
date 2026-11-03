@@ -19,11 +19,11 @@ import com.jubitus.ultreia.route.PathResult;
 import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.roads.RoadJoins;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;
-import com.jubitus.ultreia.gen.mill.MillBuildingObstacles2;
-import com.jubitus.ultreia.gen.mill.MillVillageIndex;
+import com.jubitus.ultreia.mill.MillBuildingZones;
+import com.jubitus.ultreia.mill.MillVillageIndex;
 import com.jubitus.ultreia.roads.RoadIndex;
 import com.jubitus.ultreia.roads.RoadNetwork;
-import com.jubitus.ultreia.integration.MillIntegration;
+import com.jubitus.ultreia.mill.MillWorldDataRegistry;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.util.math.BlockPos;
@@ -87,8 +87,8 @@ public final class VillageNetworkJob implements TickedJob {
         this.sampler = new TerrainSampler(world);
         this.sampler.setChunkManager(chunkManager);
 
-        MillIntegration.logNodeSummary(world);
-        this.nodes = MillIntegration.getAllNodePositions(world);
+        MillWorldDataRegistry.logNodeSummary(world);
+        this.nodes = MillWorldDataRegistry.getAllNodePositions(world);
         this.saved = NetworkPlanData.get(world);
         this.checkpoint = JobCheckpoint.get(world);
 
@@ -134,8 +134,8 @@ public final class VillageNetworkJob implements TickedJob {
         this.sampler = new TerrainSampler(world);
         this.sampler.setChunkManager(chunkManager);
 
-        MillIntegration.logNodeSummary(world);
-        this.nodes = MillIntegration.getAllNodePositions(world);
+        MillWorldDataRegistry.logNodeSummary(world);
+        this.nodes = MillWorldDataRegistry.getAllNodePositions(world);
         this.saved = NetworkPlanData.get(world);
         this.checkpoint = cp;
 
@@ -426,7 +426,7 @@ public final class VillageNetworkJob implements TickedJob {
 
     static ProtectedAreas buildProtectedAreas(WorldServer world, TerrainSampler sampler) {
         ProtectedAreas pa = new ProtectedAreas();
-        if (MillPresence.isPresent()) MillBuildingObstacles2.addMillenaireZones(world, pa);
+        if (MillPresence.isPresent()) MillBuildingZones.addMillenaireZones(world, pa);
         return pa;
     }
 
