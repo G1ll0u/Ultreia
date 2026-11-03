@@ -71,4 +71,31 @@ public final class BridgeGeometry {
         if (idx >= size - 1) return size - 2;
         return idx;
     }
+
+    public interface FootprintSink {
+        /** {@code idx}: centerline index the cell belongs to; {@code diagonalFill}: a corner cell of a diagonal step. */
+        void accept(int x, int z, int idx, boolean diagonalFill);
+    }
+
+    /** Lateral stripe of every centerline cell, plus the corner cells of diagonal steps so there are no holes. */
+    public static void forEachFootprintCell(List<BlockPos> centerline, int half, FootprintSink sink) {
+        for (int i = 0; i < centerline.size(); i++) {
+            BlockPos c = centerline.get(i);
+            Dir2 perp = localDir(centerline, i).perp();
+            for (int o = -half; o <= half; o++) {
+                sink.accept(c.getX() + perp.dx * o, c.getZ() + perp.dz * o, i, false);
+            }
+            if (i > 0) {
+                BlockPos p = centerline.get(i - 1);
+                int stepX = Integer.signum(c.getX() - p.getX());
+                int stepZ = Integer.signum(c.getZ() - p.getZ());
+                if (stepX != 0 && stepZ != 0) {
+                    for (int o = -half; o <= half; o++) {
+                        sink.accept(p.getX() + stepX + perp.dx * o, p.getZ() + perp.dz * o, i, true);
+                        sink.accept(p.getX() + perp.dx * o, p.getZ() + stepZ + perp.dz * o, i, true);
+                    }
+                }
+            }
+        }
+    }
 }

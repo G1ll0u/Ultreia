@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Phases 0–7 done (in-game checks pending). Phase 8 in progress (8.1–8.4 done).
+**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Phases 0–7 done (in-game checks pending). Phase 8 in progress (8.1–8.5 done).
 
 ## Goal
 
@@ -240,7 +240,7 @@ Visible (each confirmed): manual paths merge into existing roads; same scan radi
 
 Steps: 8.1 `BridgeSite` (world reads of feasibility) + gorge bridge golden (done) · 8.2 `BridgeDeckProfile`,
 `BridgeFeasibility` split + rejection log, exit corridor into `BridgeApproachCheck` (done) · 8.3 bridge moves and cost out
-of A* (done) · 8.4 `BridgeSegmentPainter` out of `RoadPainter` (done) · 8.5 template side · 8.6 `CLAUDE.md` gatekeeper line.
+of A* (done) · 8.4 `BridgeSegmentPainter` out of `RoadPainter` (done) · 8.5 template side (done) · 8.6 `CLAUDE.md` gatekeeper line.
 Decided (user): the approach check stays an A* cost; the whole-path profile check is the walkability gate.
 Already done earlier: one deck profile (0.20), templates validated once per loaded instance.
 The forward-exit check was a subset of the exit-corridor check on the same cell: removed.
@@ -252,6 +252,9 @@ Kept apart (user): the cost's own "mostly water" rule differs from feasibility's
 8.4 outcome: `bridge/BridgeSegmentPainter` builds and registers spans, owns the bridge footprint (one shape for the
 no-paint cells and the index volume) and the exit cells; the painter keeps when to build. Kept (user): the exit is
 reinforced only when the road continues past the bridge. Dead bridge-join protection (constant 0) removed.
+8.5 outcome: `BridgeBuildService` (entry) → `BridgeDeckPlacer` + `BridgeStructurePlacer`, block rules in `BridgeCellRules`,
+directions and template-to-world in `BridgeLocalFrame`; deck and road footprints share `BridgeGeometry.forEachFootprintCell`;
+one "may a bridge replace this block" rule (3 copies, same effect); `dryRun` removed on the bridge side (always false, user).
 
 
 - `bridge/BridgeDeckProfile`: the only deck profile, fed by the span's effective crown (follows 0.20).

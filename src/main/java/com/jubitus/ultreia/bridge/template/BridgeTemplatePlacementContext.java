@@ -19,7 +19,7 @@ public final class BridgeTemplatePlacementContext {
     }
 
     public static BridgeTemplatePlacementContext of(BridgeTemplate template, BridgeSpan span) {
-        EnumFacing templateForward = BridgeTemplateDirection.fromName(
+        EnumFacing templateForward = BridgeLocalFrame.facingFromName(
                 template != null ? template.canonicalForward : "south"
         );
 
@@ -30,7 +30,7 @@ public final class BridgeTemplatePlacementContext {
             dz = span.end.getZ() - span.start.getZ();
         }
 
-        EnumFacing targetForward = BridgeTemplateDirection.snapFromDir(dx, dz);
+        EnumFacing targetForward = BridgeLocalFrame.snapFromDir(dx, dz);
         Rotation rotation = computeRotation(templateForward, targetForward);
 
         return new BridgeTemplatePlacementContext(templateForward, targetForward, rotation);

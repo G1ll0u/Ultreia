@@ -23,26 +23,20 @@ import java.util.List;
 /** The bridge side of painting one edge: building its spans, and the cells road painting must leave alone. */
 public final class BridgeSegmentPainter {
 
-    private interface CellSink {
-        void accept(int x, int z);
-    }
-
     private final WorldServer world;
     private final TerrainSampler sampler;
     @Nullable private final ProtectedAreas protectedAreas;
     @Nullable private final RoadIndex roadIndex;
     private final List<BridgeSpan> spans;
-    private final boolean dryRun;
     private final LongOpenHashSet footprint = new LongOpenHashSet();
 
     public BridgeSegmentPainter(WorldServer world, TerrainSampler sampler, @Nullable ProtectedAreas protectedAreas,
-                                @Nullable RoadIndex roadIndex, @Nullable List<BridgeSpan> spans, boolean dryRun) {
+                                @Nullable RoadIndex roadIndex, @Nullable List<BridgeSpan> spans) {
         this.world = world;
         this.sampler = sampler;
         this.protectedAreas = protectedAreas;
         this.roadIndex = roadIndex;
         this.spans = spans == null ? Collections.<BridgeSpan>emptyList() : spans;
-        this.dryRun = dryRun;
     }
 
     // INVARIANT: called before any isBridgeCell query (centerlines are only known through the footprint).
@@ -51,7 +45,7 @@ public final class BridgeSegmentPainter {
         int lateral = lateralHalfWidth();
         for (BridgeSpan span : spans) {
             if (span == null || span.centerline == null || span.centerline.isEmpty()) continue;
-            forEachFootprintCell(span, lateral, (x, z) -> footprint.add(Pos2D.xzKey(x, z)));
+            BridgeGeometry.forEachFootprintCell(span.centerline, lateral, (x, z, idx, diag) -> footprint.add(Pos2D.xzKey(x, z)));
         }
     }
 
@@ -80,13 +74,11 @@ public final class BridgeSegmentPainter {
 
         // Skip building if the bridge already exists (another path built it first).
         if (isBridgeAlreadyAt(span)) {
-            if (!dryRun) {
-                if (roadNetwork != null) {
-                    int[] deckHalf = BridgeDeckProfile.of(span);
-                    roadNetwork.addBridgeSegment(span, deckHalf, roadIndex, fromVillage, toVillage, roadType);
-                }
-                if (roadIndex != null) markVolumeInIndex(span, roadIndex);
+            if (roadNetwork != null) {
+                int[] deckHalf = BridgeDeckProfile.of(span);
+                roadNetwork.addBridgeSegment(span, deckHalf, roadIndex, fromVillage, toVillage, roadType);
             }
+            if (roadIndex != null) markVolumeInIndex(span, roadIndex);
             return true;
         }
 
@@ -95,9 +87,9 @@ public final class BridgeSegmentPainter {
             if (protectedAreas.contains(span.end.getX(), span.end.getZ())) return false;
         }
 
-        boolean built = BridgeBuildService.build(world, sampler, span, dryRun);
+        boolean built = BridgeBuildService.build(world, span);
 
-        if (built && !dryRun && (roadIndex != null || roadNetwork != null)) {
+        if (built && (roadIndex != null || roadNetwork != null)) {
             int[] deckHalf = BridgeDeckProfile.of(span);
             if (roadNetwork != null) {
                 roadNetwork.addBridgeSegment(span, deckHalf, roadIndex, fromVillage, toVillage, roadType);
@@ -174,29 +166,7 @@ public final class BridgeSegmentPainter {
         // Only mark volume for water-crossing bridges. Valley bridges are high enough
         // above the valley floor that ground-level paths cannot interact with them.
         if (!span.hasWaterCrossing) return;
-        forEachFootprintCell(span, lateralHalfWidth(), idx::markBridgeVolume);
-    }
-
-    /** Lateral stripe of every centerline cell, plus the corner cells of diagonal steps so there are no holes. */
-    private static void forEachFootprintCell(BridgeSpan span, int half, CellSink sink) {
-        for (int i = 0; i < span.centerline.size(); i++) {
-            BlockPos c = span.centerline.get(i);
-            BridgeGeometry.Dir2 perp = BridgeGeometry.localDir(span.centerline, i).perp();
-            for (int o = -half; o <= half; o++) {
-                sink.accept(c.getX() + perp.dx * o, c.getZ() + perp.dz * o);
-            }
-            if (i > 0) {
-                BlockPos p = span.centerline.get(i - 1);
-                int stepX = Integer.signum(c.getX() - p.getX());
-                int stepZ = Integer.signum(c.getZ() - p.getZ());
-                if (stepX != 0 && stepZ != 0) {
-                    for (int o = -half; o <= half; o++) {
-                        sink.accept(p.getX() + stepX + perp.dx * o, p.getZ() + perp.dz * o);
-                        sink.accept(p.getX() + perp.dx * o, p.getZ() + stepZ + perp.dz * o);
-                    }
-                }
-            }
-        }
+        BridgeGeometry.forEachFootprintCell(span.centerline, lateralHalfWidth(), (x, z, i, diag) -> idx.markBridgeVolume(x, z));
     }
 
     private static int lateralHalfWidth() {

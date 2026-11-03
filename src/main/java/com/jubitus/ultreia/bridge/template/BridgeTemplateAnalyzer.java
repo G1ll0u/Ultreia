@@ -82,8 +82,8 @@ public final class BridgeTemplateAnalyzer {
         BridgeTemplate template = new BridgeTemplate();
         template.name = name;
         template.segmentLength = deck.centerline.size();
-        template.canonicalForward = BridgeTemplateDirection.toName(
-                BridgeTemplateDirection.snapFromDir(deck.dir.dx, deck.dir.dz)
+        template.canonicalForward = BridgeLocalFrame.nameOf(
+                BridgeLocalFrame.snapFromDir(deck.dir.dx, deck.dir.dz)
         );
         template.deckSlab = deck.deckSlab;
         template.createdAt = System.currentTimeMillis();

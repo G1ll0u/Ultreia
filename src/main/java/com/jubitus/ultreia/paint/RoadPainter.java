@@ -186,7 +186,7 @@ public final class RoadPainter {
             this.roadIndex = roadIndex;
             this.dryRun = dryRun;
             this.forcedBridges = forcedBridges == null ? Collections.<BridgeSpan>emptyList() : forcedBridges;
-            this.bridges = new BridgeSegmentPainter(world, sampler, protectedAreas, roadIndex, this.forcedBridges, dryRun);
+            this.bridges = new BridgeSegmentPainter(world, sampler, protectedAreas, roadIndex, this.forcedBridges);
 
             this.plannedHalfByXZ.defaultReturnValue(Integer.MIN_VALUE);
             this.plannedPriorityByXZ.defaultReturnValue(Integer.MAX_VALUE);

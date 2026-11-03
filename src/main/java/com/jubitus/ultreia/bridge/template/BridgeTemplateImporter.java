@@ -46,7 +46,7 @@ public final class BridgeTemplateImporter {
         if (template.segmentLength <= 0) return ImportResult.fail("Template segment length is invalid.");
         if (template.deckSlab == null) return ImportResult.fail("Template deck slab is missing.");
 
-        BridgeGeometry.Dir2 dir = canonicalDir(template);
+        BridgeGeometry.Dir2 dir = BridgeLocalFrame.dirOf(BridgeLocalFrame.facingFromName(template.canonicalForward));
         BridgeGeometry.Dir2 perp = dir.perp();
 
         int originX = playerPos.getX() - dir.dx * (template.segmentLength / 2);
@@ -60,7 +60,7 @@ public final class BridgeTemplateImporter {
             return ImportResult.fail("Template deck slab is not a slab block.");
         }
 
-        IBlockState deckBottom = withSlabHalf(deckBase, false);
+        IBlockState deckBottom = BridgeCellRules.withSlabHalf(deckBase, false);
 
         for (int f = 0; f < template.segmentLength; f++) {
             for (int lateral = -1; lateral <= 1; lateral++) {
@@ -87,15 +87,6 @@ public final class BridgeTemplateImporter {
         return ImportResult.ok("Bridge template imported: " + template.name + " placed=" + placed, placed);
     }
 
-    private static BridgeGeometry.Dir2 canonicalDir(BridgeTemplate template) {
-        String s = template.canonicalForward == null ? "south" : template.canonicalForward.trim().toLowerCase();
-
-        if ("north".equals(s)) return new BridgeGeometry.Dir2(0, -1);
-        if ("east".equals(s)) return new BridgeGeometry.Dir2(1, 0);
-        if ("west".equals(s)) return new BridgeGeometry.Dir2(-1, 0);
-        return new BridgeGeometry.Dir2(0, 1);
-    }
-
     private static BlockPos localToWorld(int originX,
                                          int originY,
                                          int originZ,
@@ -110,44 +101,12 @@ public final class BridgeTemplateImporter {
         return new BlockPos(x, y, z);
     }
 
-    private static IBlockState withSlabHalf(IBlockState base, boolean top) {
-        Block b = base.getBlock();
-        if (!(b instanceof BlockSlab)) return base;
-
-        try {
-            if (((BlockSlab) b).isDouble()) return base;
-            return base.withProperty(BlockSlab.HALF, top ? BlockSlab.EnumBlockHalf.TOP : BlockSlab.EnumBlockHalf.BOTTOM);
-        } catch (Throwable ignored) {
-            return base;
-        }
-    }
-
     private static boolean placeImportBlock(WorldServer world, BlockPos pos, IBlockState state) {
         if (world == null || pos == null || state == null) return false;
 
-        if (!prepareImportCell(world, pos)) return false;
+        if (!BridgeCellRules.prepareCell(world, pos, world.getBlockState(pos))) return false;
 
         world.setBlockState(pos, state, 2);
         return true;
     }
-
-    private static boolean prepareImportCell(WorldServer world, BlockPos pos) {
-        IBlockState st = world.getBlockState(pos);
-        if (st == null) return true;
-
-        Material m = st.getMaterial();
-        Block b = st.getBlock();
-
-        if (m == Material.AIR) return true;
-        if (world.getTileEntity(pos) != null) return false;
-        if (b == Blocks.BEDROCK || b == Blocks.BARRIER) return false;
-
-        if (BlockRules.isBridgeReplaceable(world, pos, st)) {
-            world.setBlockState(pos, Blocks.AIR.getDefaultState(), 2);
-            return true;
-        }
-
-        return false;
-    }
-
 }
