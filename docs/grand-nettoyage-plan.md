@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Phase 6 in progress (6.1–6.3 done).
+**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Phase 6 in progress (6.1–6.4 done).
 
 ## Goal
 
@@ -202,11 +202,11 @@ Kept apart: the two `(lateral, relY)` keys in `BridgeTemplateBridgeBuilder` (not
 
 ### Phase 6 — Terrain authorities — status: in progress
 
-Steps (approved): 6.1 `geom/HalfY` (done) · 6.2 `BlockRules` (done) · 6.3 `ColumnSurface` (done) · 6.4 one path-in-column scan ·
+Steps (approved): 6.1 `geom/HalfY` (done) · 6.2 `BlockRules` (done) · 6.3 `ColumnSurface` (done) · 6.4 one path-in-column scan (done) ·
 6.5 `TerrainSampler` split (+ `TreeProbe`). Decided: lone trails keep earthworks. 6.2 (user): tree wood = logs and DT branches only, everywhere (sampler,
 bridges, support pillars; `isLikelyTreeWood` dropped); lava never clearable for bridges; the building guard counts
 planks and fences as building. 6.3 (user): the road-index scan uses the common surface rule (no longer sees
-through planks).
+through planks). 6.4 (user): one path window, ground −3..+4, highest block first.
 
 
 - `terrain/ColumnSurface`: one surface scan replacing `TerrainSampler.sample` loop, `sampleLightIfLoaded`,

@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.roads;
 
+import com.jubitus.ultreia.terrain.ColumnSurface;
 import com.jubitus.ultreia.bridge.BridgeFeasibility;
 import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
@@ -145,28 +146,17 @@ public final class RoadJoins {
         TerrainSampler.Sample sm = sampler.sample(x, z);
         if (sm == null) return null;
 
-        int yMin = Math.max(1, sm.surfaceY - 3);
-        int yMax = Math.min(255, sm.surfaceY + 4);
-
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
+        int y = ColumnSurface.findPathY(world, p, x, z, sm.surfaceY, false);
+        if (y == ColumnSurface.NO_PATH) return null;
 
-        for (int y = yMax; y >= yMin; y--) {
-            p.setPos(x, y, z);
-            IBlockState st = world.getBlockState(p);
-            if (st == null) continue;
-
-            Block b = st.getBlock();
-            if (!MillPathPalette.isMillPath(b)) continue;
-
-            // Path slabs (ours and Millénaire's) carry the slab HALF property without extending BlockSlab.
-            if (st.getPropertyKeys().contains(BlockSlab.HALF)) {
-                return st.getValue(BlockSlab.HALF) == BlockSlab.EnumBlockHalf.TOP ? HalfY.ofBlockTop(y) : HalfY.ofBottomSlab(y);
-            }
-
-            return HalfY.ofBlockTop(y);
+        IBlockState st = world.getBlockState(p.setPos(x, y, z));
+        // Path slabs (ours and Millénaire's) carry the slab HALF property without extending BlockSlab.
+        if (st.getPropertyKeys().contains(BlockSlab.HALF)
+                && st.getValue(BlockSlab.HALF) == BlockSlab.EnumBlockHalf.BOTTOM) {
+            return HalfY.ofBottomSlab(y);
         }
-
-        return null;
+        return HalfY.ofBlockTop(y);
     }
 
     private static double pointToSegmentDistanceSq(int px, int pz, int ax, int az, int bx, int bz) {

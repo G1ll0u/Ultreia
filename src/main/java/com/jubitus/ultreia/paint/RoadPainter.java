@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.paint;
 
+import com.jubitus.ultreia.terrain.ColumnSurface;
 import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.geom.LineRaster;
 import com.jubitus.ultreia.geom.Pos2D;
@@ -1732,20 +1733,9 @@ public final class RoadPainter {
             world.setBlockState(supportPos, support, 3);
         }
 
-        private boolean columnHasAnyMillPath(BlockPos baseTop) {
-            int x = baseTop.getX();
-            int z = baseTop.getZ();
-            int y0 = baseTop.getY();
-
-            BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
-            for (int dy = -2; dy <= 3; dy++) {
-                int yy = y0 + dy;
-                if (yy < 1 || yy > 255) continue;
-                p.setPos(x, yy, z);
-                IBlockState st = world.getBlockState(p);
-                if (st != null && MillPathPalette.isMillPath(st.getBlock())) return true;
-            }
-            return false;
+        private boolean columnHasAnyMillPath(BlockPos roadBlock) {
+            return ColumnSurface.findPathY(world, new BlockPos.MutableBlockPos(), roadBlock.getX(), roadBlock.getZ(),
+                    roadBlock.getY(), false) != ColumnSurface.NO_PATH;
         }
 
         private boolean earthworksEnabled() {

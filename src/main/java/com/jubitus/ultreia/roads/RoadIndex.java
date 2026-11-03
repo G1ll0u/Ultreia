@@ -235,19 +235,9 @@ public class RoadIndex extends WorldSavedData {
 
                 int surfaceY = ColumnSurface.y(ColumnSurface.scan(world, pos, x, z));
 
-                for (int dy = -2; dy <= 2; dy++) {
-                    int yy = surfaceY + dy;
-                    if (yy < 1 || yy > 255) continue;
-                    pos.setPos(x, yy, z);
-                    IBlockState st = world.getBlockState(pos);
-                    Block b = st.getBlock();
-                    // Only index Ultreia's own blocks — Millénaire village paths share the same
-                    // palette but must NOT be treated as Ultreia-generated roads.
-                    if (b == UltreiaBlocks.PATH_BLOCK || b == UltreiaBlocks.PATH_SLAB) {
-                        markRoad(x, yy, z);
-                        break;
-                    }
-                }
+                // Millénaire village paths share the palette but are not Ultreïa roads.
+                int pathY = ColumnSurface.findPathY(world, pos, x, z, surfaceY, true);
+                if (pathY != ColumnSurface.NO_PATH) markRoad(x, pathY, z);
             }
         }
         return true;
@@ -258,17 +248,10 @@ public class RoadIndex extends WorldSavedData {
     @Nullable
     public MillPathPalette.Kind findExistingKindAt(WorldServer world, TerrainSampler sampler, int x, int z) {
         TerrainSampler.Sample sm = sampler.sample(x, z);
-        int y = sm.surfaceY;
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
-        for (int dy = -2; dy <= 3; dy++) {
-            int yy = y + dy;
-            if (yy < 1 || yy > 255) continue;
-            p.setPos(x, yy, z);
-            IBlockState st = world.getBlockState(p);
-            MillPathPalette.Kind k = MillPathPalette.kindFromState(st);
-            if (k != null) return k;
-        }
-        return null;
+        int y = ColumnSurface.findPathY(world, p, x, z, sm.surfaceY, false);
+        if (y == ColumnSurface.NO_PATH) return null;
+        return MillPathPalette.kindFromState(world.getBlockState(p.setPos(x, y, z)));
     }
 
 

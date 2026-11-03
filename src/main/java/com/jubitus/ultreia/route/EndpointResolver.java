@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.route;
 
+import com.jubitus.ultreia.terrain.ColumnSurface;
 import com.jubitus.ultreia.mill.MillBuildingZones;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
@@ -274,24 +275,14 @@ public final class EndpointResolver {
     private static int offsetZ(int packed) { return (short) packed; }
 
 
-    /**
-     * Scans the block column at (x, z) for the lowest Millénaire/Ultreia path block.
-     * Searches from Y=4 up to surfaceY+5 to catch paths buried below the terrain surface.
-     * Returns the Y coordinate of the found block, or null if none exists.
-     */
+    /** Y of a Millénaire/Ultreïa path block near the ground at (x, z), or null. */
     @Nullable
     private static Integer findMillPathY(WorldServer world, int x, int z, int surfaceY) {
-        int maxY = Math.min(255, surfaceY + 5);
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos(x, 0, z);
         // A chunk the chunk manager refused must not be loaded here behind its back.
         if (!world.isBlockLoaded(p)) return null;
-        // A path block is the surface itself; a small margin covers slabs and sampling quirks.
-        for (int y = Math.max(4, surfaceY - 3); y <= maxY; y++) {
-            p.setPos(x, y, z);
-            IBlockState st = world.getBlockState(p);
-            if (st != null && MillPathPalette.isMillPath(st.getBlock())) return y;
-        }
-        return null;
+        int y = ColumnSurface.findPathY(world, p, x, z, surfaceY, false);
+        return y == ColumnSurface.NO_PATH ? null : y;
     }
 
     /** Steps from {@code from} toward {@code to} by exactly {@code dist} blocks. */

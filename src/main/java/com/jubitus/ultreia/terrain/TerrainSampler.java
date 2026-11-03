@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.terrain;
 
+import com.jubitus.ultreia.terrain.ColumnSurface;
 import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.chunk.ChunkManager;
 import com.jubitus.ultreia.config.UltreiaConfig;
@@ -271,7 +272,7 @@ public class TerrainSampler implements TerrainView {
         int surfaceY = ColumnSurface.y(column);
 
         boolean inNoPaint = isInBuildingNoPaintZone(x, z);
-        boolean hasMillPathCol = (!isWater) && columnHasMillPath(x, surfaceY, z);
+        boolean hasMillPathCol = (!isWater) && ColumnSurface.findPathY(world, new BlockPos.MutableBlockPos(), x, z, surfaceY, false) != ColumnSurface.NO_PATH;
 
         boolean blockedPath = false;
         boolean blockedPaint = false;
@@ -748,18 +749,6 @@ public class TerrainSampler implements TerrainView {
             }
         }
         return water > 0 && water <= maxCells;
-    }
-
-    private boolean columnHasMillPath(int x, int surfaceY, int z) {
-        BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
-        for (int dy = -2; dy <= 4; dy++) {
-            int yy = surfaceY + dy;
-            if (yy < 1 || yy > 255) continue;
-            p.setPos(x, yy, z);
-            IBlockState st = world.getBlockState(p);
-            if (st != null && MillPathPalette.isMillPath(st.getBlock())) return true;
-        }
-        return false;
     }
 
     private boolean hasWaterLikeInManhattanRadius(int x, int z, int yGuess, int r) {
