@@ -27,26 +27,17 @@ public final class BridgeFeasibility {
     public static BridgeSpan tryCreate(WorldServer world,
                                        TerrainSampler sampler,
                                        BlockPos start,
-                                       BlockPos end,
-                                       boolean micro) {
+                                       BlockPos end) {
         // The template depends on the span (length, water), its crown changes the deck: check with the
         // global crown, pick the template, then check again with the deck that will really be built.
-        BridgeSpan first = evaluate(world, sampler, start, end, micro, null).span;
+        BridgeSpan first = evaluate(world, sampler, start, end, null).span;
         if (first == null) return null;
         BridgeTemplate template = BridgeTemplateSelector.select(world, first);
         if (template == null) return first;
         int crown = BridgeGeometry.effectiveCrownHalf(template.bridgeCrownHalfBlocks, first.centerline, sampler);
         int crownMin = BridgeGeometry.effectiveCrownMinLen(template.bridgeCrownMinLenBlocks);
         if (crown == first.crownHalf && crownMin == first.crownMinLen) return first.withTemplate(template);
-        return evaluate(world, sampler, start, end, micro, template).span;
-    }
-
-    public static String debugTryCreateReason(WorldServer world,
-                                              TerrainSampler sampler,
-                                              BlockPos start,
-                                              BlockPos end,
-                                              boolean micro) {
-        return evaluate(world, sampler, start, end, micro, null).reason;
+        return evaluate(world, sampler, start, end, template).span;
     }
 
     private static final class BridgeEval {
@@ -71,7 +62,6 @@ public final class BridgeFeasibility {
                                        TerrainSampler sampler,
                                        BlockPos start,
                                        BlockPos end,
-                                       boolean micro,
                                        @Nullable BridgeTemplate template) {
         if (!MPBConfig.BRIDGES.enabled) return fail("bridges disabled");
         if (!MPBConfig.BRIDGE_AWARE_PATHFINDING.enabled) return fail("bridge-aware pathfinding disabled");
@@ -372,7 +362,7 @@ public final class BridgeFeasibility {
             return fail("exitCorridorIsBuildable failed");
         }
 
-        return ok(new BridgeSpan(start, end, line, startHalf, endHalf, micro, waterDominant, validWaterBridge,
+        return ok(new BridgeSpan(start, end, line, startHalf, endHalf, waterDominant, validWaterBridge,
                 template, crownHalf, crownMinLen));
     }
 

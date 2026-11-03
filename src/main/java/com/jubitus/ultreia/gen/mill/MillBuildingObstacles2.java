@@ -91,8 +91,5 @@ public final class MillBuildingObstacles2 {
         // Hard no-paint/no-path zone = actual building bbox (NOT margins)
         out.addNoPaintRect(minX, maxX, minZ, maxZ, hardPenalty);
 
-        // Optional: margins as penalty only (do NOT hard block)
-        // If you want this, keep it small so you can still route to entrances easily.
-        // out.addRect(loc.minxMargin, loc.maxxMargin, loc.minzMargin, loc.maxzMargin, hardPenalty / 20, false);
     }
 }

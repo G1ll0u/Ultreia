@@ -73,20 +73,6 @@ public final class MPBRoadColumns {
         }
     }
 
-    public static void removeMillPathNearby(World world, BlockPos center, int dyMin, int dyMax, boolean dryRun) {
-        if (dryRun) return;
-
-        BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
-        for (int dy = dyMin; dy <= dyMax; dy++) {
-            p.setPos(center.getX(), center.getY() + dy, center.getZ());
-            IBlockState st = world.getBlockState(p);
-            if (st != null && MPBMillPathPalette.isMillPath(st.getBlock())) {
-                if (wouldCauseWaterFlow(world, p)) continue;
-                setAir(world, p);
-            }
-        }
-    }
-
     /**
      * Scans upward from {@code base.up(startDy)} and removes tree blocks that block the road corridor.
      *

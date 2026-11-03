@@ -19,14 +19,12 @@ public final class Earthworks {
     public static final class Settings {
         public final int roadHalfWidth;
         public final int shoulder;
-        public final int maxGradePerBlock;
         public final int maxCut;
         public final int maxFill;
 
-        public Settings(int roadHalfWidth, int shoulder, int maxGradePerBlock, int maxCut, int maxFill) {
+        public Settings(int roadHalfWidth, int shoulder, int maxCut, int maxFill) {
             this.roadHalfWidth = roadHalfWidth;
             this.shoulder = shoulder;
-            this.maxGradePerBlock = maxGradePerBlock;
             this.maxCut = maxCut;
             this.maxFill = maxFill;
         }

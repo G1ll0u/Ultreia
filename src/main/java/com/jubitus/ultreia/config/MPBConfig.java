@@ -4,20 +4,15 @@ import net.minecraftforge.common.config.Config;
 
 public class MPBConfig {
 
-    @Config.Name("General")
     public static final General GENERAL = new General();
 
-    @Config.Name("Network")
     public static final Network NETWORK = new Network();
 
-    @Config.Name("Pathfinding")
     public static final Pathfinding PATHFINDING = new Pathfinding();
 
-    @Config.Name("Painting")
     public static final Painting PAINTING = new Painting();
 
     // Paste inside MPBConfig class (near other config groups)
-    @Config.Name("Water")
     public static final WaterAvoid WATER_AVOID = new WaterAvoid();
 
     public static final class WaterAvoid {
@@ -95,9 +90,6 @@ public class MPBConfig {
         @Config.RangeInt(min = 20, max = 600)
         public int autoResumeDelayTicks = 100;
 
-        @Config.Comment("Force a data flush to disk every N completed edges (0 = only on world unload).")
-        @Config.RangeInt(min = 0, max = 200)
-        public int forceSaveEveryNEdges = 5;
     }
 
     public static class Network {
@@ -481,10 +473,8 @@ public class MPBConfig {
         public double earthworksSlopeRatioLoneTrail = 0.7;
     }
 
-    @Config.Name("Bridges")
     public static final Bridges BRIDGES = new Bridges();
 
-    @Config.Name("ValleyBridging")
     public static final ValleyBridging VALLEY_BRIDGING = new ValleyBridging();
 
     public static final class Bridges {
@@ -519,20 +509,9 @@ public class MPBConfig {
         @Config.Comment("Master switch for any bridge generation.")
         public boolean enabled = true;
 
-        @Config.Comment("Enable tiny spans (< microBridgeMaxLen) as slabs-only micro-bridges.")
-        public boolean microBridges = true;
-
-        @Config.Comment("Max length (in blocks) for a micro-bridge (slabs only). < 6 recommended.")
-        @Config.RangeInt(min = 2, max = 16)
-        public int microBridgeMaxLen = 7;
-
         @Config.Comment("Hard cap for any bridge length in blocks (supercover points count).")
         @Config.RangeInt(min = 8, max = 1024)
         public int maxBridgeLenBlocks = 128;
-
-        @Config.Comment("Place supports every N blocks (only for full bridges, not micro-bridges).")
-        @Config.RangeInt(min = 2, max = 32)
-        public int supportSpacing = 8;
 
         @Config.Comment("Max vertical distance supports may extend down before giving up.")
         @Config.RangeInt(min = 8, max = 128)
@@ -545,25 +524,9 @@ public class MPBConfig {
         @Config.Comment("Maximum slope angle (degrees) between bridge start and end deck heights. Longer bridges are allowed a proportionally larger height difference.")
         public double maxBridgeSlopeDegrees = 10.0;
 
-        @Config.Comment("Number of consecutive safe blocks required to accept a bridge exit. Prevents over-long bridges.")
-        @Config.RangeInt(min = 1, max = 8)
-        public int exitStableBlocks = 2;
-
-        @Config.Comment("Max blocks allowed after the last obstacle before ending the bridge. Prevents overhang.")
-        @Config.RangeInt(min = 0, max = 8)
-        public int maxOverhangAfterObstacle = 1;
-
         @Config.Comment("Max delta in bridge deck surface per block, in HALF blocks. 1 = 0.5 block per step.")
         @Config.RangeInt(min = 0, max = 4)
         public int maxDeckDeltaHalfPerBlock = 1;
-
-        @Config.Comment("How many blocks after a bridge exit we check to ensure the road does not immediately climb.")
-        @Config.RangeInt(min = 0, max = 12)
-        public int exitLookaheadBlocks = 3;
-
-        @Config.Comment("Max allowed rise (in blocks) within exitLookaheadBlocks after the exit. 0 = must be flat.")
-        @Config.RangeInt(min = 0, max = 8)
-        public int exitMaxRiseBlocks = 1;
 
         @Config.Comment("Extra lift applied near the middle of bridges, in HALF blocks. 0 = disabled.")
         @Config.RangeInt(min = 0, max = 12)
@@ -582,27 +545,10 @@ public class MPBConfig {
         @Config.Comment("Enable valley/canyon bridging (not only water).")
         public boolean enabled = true;
 
-        @Config.Comment("Max lookahead distance (blocks) to search for a valid exit point for a straight bridge.")
-        @Config.RangeInt(min = 16, max = 512)
-        public int maxLookahead = 128;
-
-        @Config.Comment("Minimum straight bridge length (blocks) to consider valley bridging (avoids spam).")
-        @Config.RangeInt(min = 8, max = 128)
-        public int minSpanLen = 14;
-
         @Config.Comment("Bridge if the terrain drops at least this many blocks below entry/exit baseline. 6 blocks catches more mountain valleys and gorges.")
         @Config.RangeInt(min = 2, max = 48)
         public int minValleyDepth = 6;
 
-        @Config.Comment("How tolerant we are to path curvature when deciding a straight bridge. Higher = more bridges.")
-        @Config.RangeInt(min = 1, max = 16)
-        public int maxLateralDeviation = 4;
-
-        @Config.Comment("Cooldown between two valley bridges along the same road (blocks).")
-        @Config.RangeInt(min = 0, max = 512)
-        public int cooldownBlocks = 8;
-
-        public int ridgeRiseBlocks = 2;
     }
     public static final Buildings BUILDINGS = new Buildings();
     public static final BridgeGeometry BRIDGE_GEOMETRY = new BridgeGeometry();
@@ -645,7 +591,6 @@ public class MPBConfig {
         public boolean useRaster8ForBridges = true;
         
     }
-    @Config.Name("BridgeAwarePathfinding")
     public static final BridgeAwarePathfinding BRIDGE_AWARE_PATHFINDING = new BridgeAwarePathfinding();
 
     public static final class BridgeAwarePathfinding {
@@ -663,10 +608,6 @@ public class MPBConfig {
         @Config.Comment("Maximum bridge probe length in blocks for A* bridge moves.")
         @Config.RangeInt(min = 8, max = 512)
         public int maxProbeLenBlocks = 128;
-
-        @Config.Comment("Probe step in blocks when searching bridge landing points.")
-        @Config.RangeInt(min = 1, max = 32)
-        public int probeLenStepBlocks = 4;
 
         @Config.Comment("Flat overhead penalty applied to all water-dominant bridge moves. Higher discourages water bridges more.")
         public double waterBridgeBasePenalty = 250.0;
@@ -764,8 +705,6 @@ public class MPBConfig {
         @Config.RangeInt(min = 1, max = 32)
         public int longBridgeRequiredMaxClearance = 6;
 
-        @Config.Comment("If true, disables the old opportunistic BridgePlanner fallback and only uses bridge-aware A* bridges.")
-        public boolean disableLegacyBridgePlannerFallback = true;
         @Config.Comment("Require this many buildable blocks straight ahead after bridge exit.")
         @Config.RangeInt(min = 1, max = 16)
         public int requiredExitCorridorBlocks = 1;
@@ -805,9 +744,6 @@ public class MPBConfig {
         @Config.RangeInt(min = 0, max = 8)
         public int maxRoadJoinDeltaHalfBlocks = 1;
 
-        @Config.Comment("Do not early-merge into an existing road until at least this many blocks after a bridge exit.")
-        @Config.RangeInt(min = 0, max = 64)
-        public int minBlocksAfterBridgeBeforeMerge = 8;
         @Config.Comment("Minimum terrain clearance required for a bridge cell to count as genuinely elevated.")
 
         @Config.RangeInt(min = 1, max = 32)
@@ -862,22 +798,8 @@ public class MPBConfig {
         })
         @Config.RangeDouble(min = 0.0, max = 80.0)
         public double bridgeEndpointMagnetismBonus = 12.0;
-
-        @Config.Comment({
-                "When crossing water, scan this many blocks perpendicular to the bridge direction",
-                "to find the narrowest crossing. 0 disables the narrow-crossing optimisation.",
-                "Higher values find better crossings but cost more A* time."
-        })
-        @Config.RangeInt(min = 0, max = 64)
-        public int narrowCrossingLateralScan = 24;
-
-        @Config.Comment("Cost discount per block saved by choosing a narrower water crossing.")
-        @Config.RangeDouble(min = 0.0, max = 30.0)
-        public double narrowCrossingSavingDiscountPerBlock = 14.0;
-
     }
 
-    @Config.Name("Debug")
     public static final Debug DEBUG = new Debug();
 
     public static final class Debug {
@@ -891,7 +813,6 @@ public class MPBConfig {
         public boolean debugRoadPainting = false;
     }
 
-    @Config.Name("RoadHierarchy")
     public static final RoadHierarchy ROAD_HIERARCHY = new RoadHierarchy();
 
     public static final class RoadHierarchy {
@@ -972,7 +893,6 @@ public class MPBConfig {
 
     }
 
-    @Config.Name("SpeedBoost")
     public static final SpeedBoost SPEED_BOOST = new SpeedBoost();
 
     public static final class SpeedBoost {

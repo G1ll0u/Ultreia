@@ -48,8 +48,6 @@ public class MPBWorldData extends WorldSavedData {
 
     // ---- Built edges --------------------------------------------------------
 
-    public int getBuiltEdgeCount() { return builtEdges.size(); }
-
     public boolean isBuilt(String edgeKey) {
         return edgeKey != null && builtEdges.contains(edgeKey);
     }
@@ -57,10 +55,6 @@ public class MPBWorldData extends WorldSavedData {
     public void markBuilt(String edgeKey) {
         if (edgeKey == null || edgeKey.isEmpty()) return;
         if (builtEdges.add(edgeKey)) markDirty();
-    }
-
-    public void clear() {
-        if (!builtEdges.isEmpty()) { builtEdges.clear(); markDirty(); }
     }
 
     // ---- Village population cache ------------------------------------------

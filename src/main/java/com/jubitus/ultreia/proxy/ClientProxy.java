@@ -13,11 +13,6 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 public final class ClientProxy implements IProxy {
 
     @Override
-    public void registerBlockModels() {
-        MPBBlocks.registerModels();
-    }
-
-    @Override
     public void registerClientPackets() {
         PacketOpenMapGui.setGuiOpener((cx, cz, radius, segments) -> {
             Minecraft mc = Minecraft.getMinecraft();

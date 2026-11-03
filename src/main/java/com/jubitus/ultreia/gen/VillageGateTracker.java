@@ -16,14 +16,6 @@ public final class VillageGateTracker {
         usageByXZ.defaultReturnValue(0);
     }
 
-    public int getUsage(BlockPos gate) {
-        return usageByXZ.get(xzKey(gate));
-    }
-
-    public int getUsage(int x, int z) {
-        return usageByXZ.get(xzKey(x, z));
-    }
-
     public void markUsed(BlockPos gate) {
         if (gate == null) return;
         long k = xzKey(gate);

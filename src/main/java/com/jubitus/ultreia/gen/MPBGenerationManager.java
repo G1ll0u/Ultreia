@@ -35,10 +35,6 @@ public final class MPBGenerationManager {
         }
     }
 
-    public static boolean isRunning(int dim) {
-        return JOBS.containsKey(dim);
-    }
-
     public static String status(World world) {
         if (world == null || world.provider == null) return "No world.";
         int dim = world.provider.getDimension();

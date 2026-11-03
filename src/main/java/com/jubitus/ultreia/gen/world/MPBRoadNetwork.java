@@ -69,16 +69,13 @@ public final class MPBRoadNetwork extends WorldSavedData {
     private final Long2ObjectOpenHashMap<IntArrayList> chunkIndex = new Long2ObjectOpenHashMap<>();
 
     // Bridge deck XZ key → segment ID for fast bridge lookup
-    private final Long2IntOpenHashMap bridgeDeckIndex = new Long2IntOpenHashMap();
 
     public MPBRoadNetwork() {
         super(NAME);
-        bridgeDeckIndex.defaultReturnValue(-1);
     }
 
     public MPBRoadNetwork(String name) {
         super(name);
-        bridgeDeckIndex.defaultReturnValue(-1);
     }
 
     // --- Static factory ---
@@ -184,7 +181,6 @@ public final class MPBRoadNetwork extends WorldSavedData {
 
         // Index all centerline XZ columns for fast bridge lookup
         for (BlockPos c : span.centerline) {
-            bridgeDeckIndex.put(RoadWaypoint.packXZ(c.getX(), c.getZ()), segId);
         }
         markDirty();
         return segId;
@@ -276,7 +272,6 @@ public final class MPBRoadNetwork extends WorldSavedData {
     public void readFromNBT(NBTTagCompound nbt) {
         segments.clear();
         chunkIndex.clear();
-        bridgeDeckIndex.clear();
         nextId = 0;
         legacyPending = false;
         revision = REVISION_SEQ.incrementAndGet();
@@ -315,7 +310,6 @@ public final class MPBRoadNetwork extends WorldSavedData {
 
             if (isBridge) {
                 for (RoadWaypoint wp : waypoints) {
-                    bridgeDeckIndex.put(RoadWaypoint.packXZ(wp.x, wp.z), id);
                 }
             }
         }

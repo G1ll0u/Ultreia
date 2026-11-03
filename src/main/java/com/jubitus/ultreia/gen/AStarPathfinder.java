@@ -1430,7 +1430,7 @@ public final class AStarPathfinder {
                 BlockPos startPos = new BlockPos(x, cur.surfaceY, z);
                 BlockPos endPos = new BlockPos(nx, ns.surfaceY, nz);
 
-                BridgeSpan span = BridgeFeasibility.tryCreate(world, sampler, startPos, endPos, false);
+                BridgeSpan span = BridgeFeasibility.tryCreate(world, sampler, startPos, endPos);
 
                 if (span == null) {
                     continue;
@@ -1510,233 +1510,6 @@ public final class AStarPathfinder {
                 this.score = score;
                 this.info = info;
             }
-        }
-
-        private List<BridgeMove> probeBridgeMovesInDirection(int x,
-                                                             int z,
-                                                             TerrainSampler.Sample startSample,
-                                                             int dirX,
-                                                             int dirZ) {
-            ArrayList<BridgeMove> out = new ArrayList<BridgeMove>();
-
-            final int minLen = Math.max(step * 2, MPBConfig.BRIDGE_AWARE_PATHFINDING.minBridgeLenBlocks);
-            final int maxLen = Math.max(minLen, MPBConfig.BRIDGE_AWARE_PATHFINDING.maxProbeLenBlocks);
-
-            final int minWaterRun = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.minWaterRunBlocks);
-            final int minGapRun = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.minMeaningfulGapRun);
-
-            final int maxLeadOut = Math.max(
-                    2,
-                    MPBConfig.BRIDGE_AWARE_PATHFINDING.maxWaterBridgeLeadOutBlocks + 2
-            );
-
-            final int bridgeDir = nearestDirIndex(dirX, dirZ);
-
-            int waterRun = 0;
-            int gapRun = 0;
-            boolean obstacleSeen = false;
-            boolean waterCrossingSeen = false;
-            boolean valleyCrossingSeen = false;
-            int dryAfterObstacle = 0;
-
-            int lastNX = Integer.MIN_VALUE;
-            int lastNZ = Integer.MIN_VALUE;
-
-            int baselineY = startSample.surfaceY;
-
-            for (int len = step; len <= maxLen; len += step) {
-                int nx = snap(x + dirX * len, step);
-                int nz = snap(z + dirZ * len, step);
-
-                if (nx == x && nz == z) continue;
-                if (nx == lastNX && nz == lastNZ) continue;
-
-                lastNX = nx;
-                lastNZ = nz;
-
-                if (!baseXZChecks(nx, nz)) break;
-
-                TerrainSampler.Sample ns = sampler.sample(nx, nz);
-                if (ns == null) break;
-
-                if (sampler.isProtectedNoPaint(nx, nz)) break;
-
-                boolean water = ns.isWater && !ns.isOcean;
-                boolean land = !ns.isWater && !ns.isOcean;
-                boolean valleyGap = land && isMeaningfulValleyRayCell(baselineY, ns);
-
-                if (water) {
-                    waterRun++;
-                    gapRun = 0;
-                    obstacleSeen = true;
-                    waterCrossingSeen = true;
-                    dryAfterObstacle = 0;
-                    continue;
-                }
-
-                if (valleyGap) {
-                    gapRun++;
-                    waterRun = 0;
-                    obstacleSeen = true;
-                    valleyCrossingSeen = true;
-                    dryAfterObstacle = 0;
-                    continue;
-                }
-
-                if (!land) {
-                    if (obstacleSeen) {
-                        dryAfterObstacle++;
-                        if (dryAfterObstacle > maxLeadOut) break;
-                    }
-                    continue;
-                }
-
-                if (sampler.forbidden(ns, TerrainSampler.Mode.PATHFINDING)) {
-                    if (obstacleSeen) {
-                        dryAfterObstacle++;
-                        if (dryAfterObstacle > maxLeadOut) break;
-                    }
-                    continue;
-                }
-
-                if (len < minLen) {
-                    if (obstacleSeen) {
-                        dryAfterObstacle++;
-                        if (dryAfterObstacle > maxLeadOut) break;
-                    }
-                    continue;
-                }
-
-                boolean realWaterCrossing = waterCrossingSeen && waterRun >= minWaterRun;
-                boolean realValleyCrossing = valleyCrossingSeen && gapRun >= minGapRun;
-
-                if (!realWaterCrossing && !realValleyCrossing) {
-                    if (obstacleSeen) {
-                        dryAfterObstacle++;
-                        if (dryAfterObstacle > maxLeadOut) break;
-                    }
-                    continue;
-                }
-
-                // --- Narrow crossing search ---
-                // For water crossings, scan perpendicular landing offsets to find the shortest span.
-                int bestLandX = nx, bestLandZ = nz;
-                int bestLandY = ns.surfaceY;
-                int bestWaterWidth = realWaterCrossing ? measureWaterWidth(x, z, dirX, dirZ, nx, nz) : Integer.MAX_VALUE;
-
-                if (realWaterCrossing) {
-                    int lateralScan = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.narrowCrossingLateralScan);
-                    if (lateralScan > 0) {
-                        // Perpendicular unit direction (rotated 90°)
-                        int perpX = -dirZ, perpZ = dirX;
-                        double perpLen = Math.sqrt(perpX * perpX + perpZ * perpZ);
-                        if (perpLen > 0.5) {
-                            int upx = (int) Math.round(perpX / perpLen);
-                            int upz = (int) Math.round(perpZ / perpLen);
-
-                            for (int sign = -1; sign <= 1; sign += 2) {
-                                for (int off = step; off <= lateralScan; off += step) {
-                                    int candX = nx + upx * off * sign;
-                                    int candZ = nz + upz * off * sign;
-                                    if (!baseXZChecks(candX, candZ)) break;
-                                    TerrainSampler.Sample cs2 = sampler.sampleIfLoaded(candX, candZ);
-                                    if (cs2 == null) break;
-                                    if (cs2.isWater || cs2.isOcean) break;
-                                    if (sampler.forbidden(cs2, TerrainSampler.Mode.PATHFINDING)) break;
-
-                                    int w = measureWaterWidth(x, z, dirX, dirZ, candX, candZ);
-                                    if (w < bestWaterWidth) {
-                                        bestWaterWidth = w;
-                                        bestLandX = candX;
-                                        bestLandZ = candZ;
-                                        bestLandY = cs2.surfaceY;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                // --- End narrow crossing search ---
-
-                BridgeSpan span = BridgeFeasibility.tryCreate(
-                        world,
-                        sampler,
-                        new BlockPos(x, startSample.surfaceY, z),
-                        new BlockPos(bestLandX, bestLandY, bestLandZ),
-                        false
-                );
-
-                if (span != null) {
-                    double cost = bridgeSpanCost(span);
-
-                    if (realWaterCrossing) {
-                        cost -= 80.0;
-                        cost -= Math.min(12, span.lengthBlocks()) * 2.0;
-                        // Extra discount when we found a shorter crossing
-                        int origWidth = measureWaterWidth(x, z, dirX, dirZ, nx, nz);
-                        int savedBlocks = origWidth - bestWaterWidth;
-                        if (savedBlocks > 0) {
-                            cost -= savedBlocks * Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.narrowCrossingSavingDiscountPerBlock);
-                        }
-                    } else if (realValleyCrossing) {
-                        cost -= 40.0;
-                    }
-
-                    out.add(new BridgeMove(bestLandX, bestLandZ, bridgeDir, cost, 0.0, span));
-
-                    if (realWaterCrossing) {
-                        break;
-                    }
-                }
-
-                if (obstacleSeen) {
-                    dryAfterObstacle++;
-                    if (dryAfterObstacle > maxLeadOut) break;
-                }
-            }
-
-            if (out.size() > 1) {
-                Collections.sort(out, new Comparator<BridgeMove>() {
-                    @Override
-                    public int compare(BridgeMove a, BridgeMove b) {
-                        return Double.compare(a.cost + a.turnCost, b.cost + b.turnCost);
-                    }
-                });
-
-                while (out.size() > 3) {
-                    out.remove(out.size() - 1);
-                }
-            }
-
-            return out;
-        }
-        private boolean isMeaningfulValleyRayCell(int baselineY, TerrainSampler.Sample s) {
-            if (s == null) return false;
-            if (s.isWater || s.isOcean) return false;
-            if (!MPBConfig.VALLEY_BRIDGING.enabled) return false;
-
-            int drop = baselineY - s.surfaceY;
-            return drop >= Math.max(2, MPBConfig.VALLEY_BRIDGING.minValleyDepth);
-        }
-
-        /**
-         * Count how many water blocks lie along the direct line from (startX,startZ)
-         * to (landX,landZ), used to prefer narrow river crossings over wide lake crossings.
-         */
-        private int measureWaterWidth(int startX, int startZ, int dirX, int dirZ, int landX, int landZ) {
-            int dx = landX - startX, dz = landZ - startZ;
-            double len = Math.sqrt(dx * dx + dz * dz);
-            if (len < 1) return 0;
-
-            int steps = Math.max(1, (int) Math.round(len));
-            int waterCount = 0;
-            for (int t = 1; t < steps; t++) {
-                int px = startX + (int) Math.round(dx * t / (double) steps);
-                int pz = startZ + (int) Math.round(dz * t / (double) steps);
-                TerrainSampler.Sample s = sampler.sampleIfLoaded(px, pz);
-                if (s != null && s.isWater && !s.isOcean) waterCount++;
-            }
-            return waterCount;
         }
 
         private double bridgeSpanCost(BridgeSpan span) {
@@ -2079,10 +1852,6 @@ public final class AStarPathfinder {
             }
 
             return free;
-        }
-
-        public List<BlockPos> getPath() {
-            return result.getPath();
         }
 
         public BridgeAwarePathResult getResult() {
@@ -2514,10 +2283,6 @@ public final class AStarPathfinder {
     private static int stateZ(long key) {
         int pz = (int) ((key >> STATE_DIR_BITS) & STATE_COORD_MASK);
         return unpackCoord26(pz);
-    }
-
-    private static int stateDir(long key) {
-        return (int) (key & 0x1fL); // 5 bits to match stateKey encoding
     }
 
     private static int packCoord26(int v) {

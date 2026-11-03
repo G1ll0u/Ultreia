@@ -104,7 +104,7 @@ public final class CommandUltreia extends CommandBase {
         }
 
         if ("generate".equals(sub)) {
-            PathGenerationService.generate(world, sender, false, false);
+            MPBGenerationManager.start(world, sender, false, false);
             return;
         }
 
@@ -140,7 +140,7 @@ public final class CommandUltreia extends CommandBase {
                 }
             }
 
-            PathGenerationService.generateCustom(world, sender, state.pos1, state.pos2, false, roadType);
+            MPBGenerationManager.startCustom(world, sender, state.pos1, state.pos2, false, roadType);
             return;
         }
 

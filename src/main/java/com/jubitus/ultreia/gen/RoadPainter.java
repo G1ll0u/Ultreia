@@ -85,10 +85,6 @@ public final class RoadPainter {
 
         private int planIdx = 0;
 
-        private int[] wobbleX;
-        private int[] wobbleZ;
-        private int[] radiusByIdx;
-        private boolean[] slabByIdx;
         private int[] edgeNoise;
 
         private final it.unimi.dsi.fastutil.longs.LongOpenHashSet planned = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
@@ -141,10 +137,6 @@ public final class RoadPainter {
 
         private final boolean allowEarlyMerge;
 
-        private boolean prunePrepared = false;
-        private long[] planKeysSnapshot = null;
-        private int pruneIdx = 0;
-        private final BridgePlanner bridgePlanner;
         private BridgeSpan pendingBridge = null;
         private int pendingBridgeEndIdx = -1;
 
@@ -172,7 +164,6 @@ public final class RoadPainter {
             this.plannedHalfByXZ.defaultReturnValue(Integer.MIN_VALUE);
             this.plannedPriorityByXZ.defaultReturnValue(Integer.MAX_VALUE);
 
-            this.bridgePlanner = new BridgePlanner(world, sampler);
 
             this.baseR = roadType.roadWidthBlocks() / 2;
             this.r = baseR;
@@ -227,7 +218,7 @@ public final class RoadPainter {
                 }
 
                 if (!planPruned) {
-                    if (!pruneAndReinforceStep(deadlineNs)) return PaintResult.RUNNING;
+                    pruneAndReinforce();
                     planPruned = true;
                     continue;
                 }
@@ -297,7 +288,6 @@ public final class RoadPainter {
                 }
 
                 BlockPos p = path.get(i);
-                bridgePlanner.tickAdvanceOneBlock();
 
                 if (pendingBridge != null) {
                     if (i >= pendingBridgeEndIdx) {
@@ -328,31 +318,10 @@ public final class RoadPainter {
                     continue;
                 }
 
-                if (!MPBConfig.BRIDGE_AWARE_PATHFINDING.disableLegacyBridgePlannerFallback) {
-                    BridgeSpan planned = bridgePlanner.tryPlanFromPath(path, i);
-                    if (planned != null) {
-                        pendingBridge = planned;
-                        pendingBridgeEndIdx = findIndexForXZ(planned.end.getX(), planned.end.getZ(), i + 1);
-
-                        if (planned.centerline.size() <= 1 || pendingBridgeEndIdx < 0) {
-                            pendingBridge = null;
-                            pendingBridgeEndIdx = -1;
-                        }
-
-                        i++;
-                        continue;
-                    }
-                }
-
                 beginPaintSweep(p, i);
             }
 
             return PaintResult.RUNNING;
-        }
-
-        private void resetPaintCursor(int localR) {
-            curDx = -localR;
-            curDz = -localR;
         }
 
 
@@ -709,18 +678,7 @@ public final class RoadPainter {
 
         private void buildProfiles() {
             int n = path.size();
-            wobbleX = new int[n];
-            wobbleZ = new int[n];
-            radiusByIdx = new int[n];
-            slabByIdx = new boolean[n];
             edgeNoise = new int[n];
-
-            for (int idx = 0; idx < n; idx++) {
-                wobbleX[idx] = 0;
-                wobbleZ[idx] = 0;
-                radiusByIdx[idx] = baseR;
-                slabByIdx[idx] = false;
-            }
 
             try {
                 centerHalf = MPBRoadHalfProfile.build(path, forcedBridges, sampler, roadType);
@@ -734,10 +692,6 @@ public final class RoadPainter {
                 failReason = "Road profile generation failed: " + t.getClass().getSimpleName() + ": " + t.getMessage();
                 centerHalf = new int[n];
                 return;
-            }
-
-            for (int idx = 0; idx < n; idx++) {
-                slabByIdx[idx] = (centerHalf[idx] & 1) != 0;
             }
 
             buildEdgeVariationProfile();
@@ -789,11 +743,11 @@ public final class RoadPainter {
         }
 
         private int centerXAt(int idx) {
-            return path.get(idx).getX() + wobbleX[idx];
+            return path.get(idx).getX();
         }
 
         private int centerZAt(int idx) {
-            return path.get(idx).getZ() + wobbleZ[idx];
+            return path.get(idx).getZ();
         }
 
         // For 1-wide paths, add a fill block at each diagonal step to smooth the staircase.
@@ -927,7 +881,7 @@ public final class RoadPainter {
 
                 // Once a merge is active, stop planning any new ribbon cells.
                 // The existing road at mergeTarget provides the continuation — painting nothing
-                // is correct here. Junction reinforcement (in pruneAndReinforceStep) will still
+                // is correct here. Junction reinforcement (in pruneAndReinforce) will still
                 // ensure a physical connection at the merge point via force-paint.
                 if (mergeActive && idx > mergeHitIndex) {
                     planIdx++;
@@ -947,7 +901,7 @@ public final class RoadPainter {
                 core.add(xzKey(cx, cz));
 
                 if (idx == 0) {
-                    int localR = radiusByIdx[idx];
+                    int localR = baseR;
                     int targetHalf = centerHalf != null && idx < centerHalf.length
                             ? centerHalf[idx]
                             : BridgeGeometry.naturalSurfaceHalfY(center.getY());
@@ -965,8 +919,8 @@ public final class RoadPainter {
                 int x1 = cx;
                 int z1 = cz;
 
-                int r0 = radiusByIdx[prevIdx];
-                int r1 = radiusByIdx[idx];
+                int r0 = baseR;
+                int r1 = baseR;
                 int localR = Math.max(r0, r1);
 
                 int half0 = centerHalf != null && prevIdx < centerHalf.length
@@ -1120,18 +1074,6 @@ public final class RoadPainter {
             return t;
         }
 
-        private double pointToSegmentDistanceSq(double px, double pz,
-                                                double ax, double az,
-                                                double bx, double bz) {
-            double t = segmentParam01(px, pz, ax, az, bx, bz);
-            double cx = ax + (bx - ax) * t;
-            double cz = az + (bz - az) * t;
-
-            double dx = px - cx;
-            double dz = pz - cz;
-            return dx * dx + dz * dz;
-        }
-
         private boolean isForcedBridgeCell(int x, int z) {
             for (BridgeSpan span : forcedBridges) {
                 if (span == null || span.centerline == null) continue;
@@ -1158,33 +1100,15 @@ public final class RoadPainter {
             return false;
         }
 
-        private boolean pruneAndReinforceStep(long deadlineNs) {
-            if (!prunePrepared) {
-                planKeysSnapshot = planned.toLongArray();
-                pruneIdx = 0;
-                prunePrepared = true;
-            }
-
-            while (pruneIdx < planKeysSnapshot.length && System.nanoTime() < deadlineNs) {
-                pruneIdx++;
-            }
-
-            if (pruneIdx < planKeysSnapshot.length) return false;
-
+        private void pruneAndReinforce() {
             it.unimi.dsi.fastutil.longs.LongOpenHashSet connected = keepOnlyConnectedToCore(planned, core);
-
-            it.unimi.dsi.fastutil.longs.LongOpenHashSet afterNoise = applyGentleBoundaryNoise(connected);
             planned.clear();
-            planned.addAll(afterNoise);
+            planned.addAll(connected);
 
             junctionReinforcement();
 
-            // Edge noise prune runs last so forcePaint (set by junctionReinforcement) is respected.
+            // Runs after junctionReinforcement: it may also trim forced cells on the edge.
             applyEdgeNoisePrune();
-
-            planKeysSnapshot = null;
-            prunePrepared = false;
-            return true;
         }
 
         // Removes planned edge cells that fall outside the edge noise boundary for their nearest
@@ -1297,10 +1221,6 @@ public final class RoadPainter {
             }
 
             return keep;
-        }
-
-        private it.unimi.dsi.fastutil.longs.LongOpenHashSet applyGentleBoundaryNoise(it.unimi.dsi.fastutil.longs.LongOpenHashSet in) {
-            return in;
         }
 
 
@@ -1436,7 +1356,7 @@ public final class RoadPainter {
                 if (curCenter == null) return true;
 
                 int idx = i;
-                int localR = radiusByIdx[idx];
+                int localR = baseR;
 
                 if (curDx > localR) {
                     return true;
@@ -1573,7 +1493,7 @@ public final class RoadPainter {
         private void beginPaintSweep(BlockPos center, int idx) {
             this.curCenter = center;
 
-            int localR = radiusByIdx[idx];
+            int localR = baseR;
             this.curDx = -localR;
             this.curDz = -localR;
             this.paintingCell = true;
@@ -1585,10 +1505,6 @@ public final class RoadPainter {
                 curDz = -localR;
                 curDx++;
             }
-        }
-
-        private boolean isInsidePaintRadius(int dx, int dz, int radius) {
-            return dx * dx + dz * dz <= radius * radius;
         }
 
         private void paintSingle(int x, int z, int surfaceY) {
@@ -1640,7 +1556,6 @@ public final class RoadPainter {
                 Earthworks.Settings st = new Earthworks.Settings(
                         rr,
                         shoulder,
-                        1,
                         Math.max(0, MPBConfig.PAINTING.earthworksMaxCut),
                         Math.max(0, MPBConfig.PAINTING.earthworksMaxFill)
                 );

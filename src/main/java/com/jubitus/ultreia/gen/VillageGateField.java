@@ -27,10 +27,6 @@ public final class VillageGateField {
         return count == 0;
     }
 
-    public int size() {
-        return count;
-    }
-
     /** True if (x, z) is within `step` blocks of any gate. */
     public boolean isAtGate(int x, int z, int step) {
         double thresh = (double) step * (double) step;
@@ -72,7 +68,4 @@ public final class VillageGateField {
         return new BlockPos(xs[bestIdx], ys[bestIdx], zs[bestIdx]);
     }
 
-    public BlockPos getGate(int index) {
-        return new BlockPos(xs[index], ys[index], zs[index]);
-    }
 }

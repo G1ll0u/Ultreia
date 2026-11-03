@@ -228,8 +228,8 @@ public final class MPBGenerationJob implements MPBAsyncJob {
                         bIsVillage ? gateFieldB : null);
 
                 if (MPBConfig.GENERAL.printFailureBreakdown) {
-                    msg("  anchorA " + MPBEndpointResolver.debugResolveEndpointAnchor(world, e.a, e.b, sampler, protectedAreas));
-                    msg("  anchorB " + MPBEndpointResolver.debugResolveEndpointAnchor(world, e.b, e.a, sampler, protectedAreas));
+                    msg("  anchorA node=(" + e.a.getX() + "," + e.a.getZ() + ") resolved=(" + a0.getX() + "," + a0.getY() + "," + a0.getZ() + ")");
+                    msg("  anchorB node=(" + e.b.getX() + "," + e.b.getZ() + ") resolved=(" + b0.getX() + "," + b0.getY() + "," + b0.getZ() + ")");
                 }
 
                 // 0 turns lone-building spurs off.

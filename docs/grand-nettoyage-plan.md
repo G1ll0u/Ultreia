@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-03)**: phase 0 done (build green, not committed yet, in-game checks pending). Next: phase 1.
+**Status (2026-11-03)**: phases 0 and 1 done (0.36 and phase 1 not committed yet; in-game checks pending). Next: phase 2.
 
 ## Goal
 
@@ -127,8 +127,20 @@ network build in the constructor and the endpoint scan cost (~58 000 columns per
   bridge multiplier (to ask at phase 5: should that multiplier apply to reusing an existing bridge?).
 - 0.33: snap radius 0 disables lone-building spurs; the dead "connect to the first village" fallback removed.
 - 0.34: route entry at the nearest waypoint; segment length measured along the waypoints. 0.35 done.
+- 0.36 (found on the test server: 10–24 s ticks at each edge start; user: fix now): village buildings listed from
+  Millénaire's building map instead of probing a 385×385×193 box (same list, same order); gate and outermost-path
+  searches go farthest-first and stop at the first path column (same result); `findMillPathY` scans from surface−3,
+  not Y=4; the failure-breakdown message prints the resolved anchors instead of resolving again; the chunk manager
+  uses several Forge tickets, each within `maximumChunksPerTicket`. The network build at job start stays in the
+  constructor until the server log shows it still costs (phase 7).
 
-### Phase 1 — Dead code — status: not started
+### Phase 1 — Dead code — status: done (~770 lines removed)
+
+Outcome: everything below removed after a usage search, except: `BridgeBuildService` kept (it now holds the
+missing-template warning and the choice log; phase 8 decides its place); the `dryRun` parameter (97 uses in the painter,
+bridge builder, earthworks) goes with the splits of phases 8–10; `force` is a real feature with no command (phase 7
+decides); `TerrainSampler.Sample.biome` goes with phase 6; `MPBRoadNavigator.extractFromWaypoint` was wrongly reported dead.
+Also removed: the no-op prune loop in the painter, `MPBRoadIndexData.initTransient`, `MPBWorldData.clear`.
 
 Zero visible change; every item re-checked by usage search before deletion.
 - `BridgePlanner` and its call/tick in `RoadPainter` (`:166, 283, 314`), `disableLegacyBridgePlannerFallback`, 11 legacy fields

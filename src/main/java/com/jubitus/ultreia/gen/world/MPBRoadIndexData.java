@@ -54,12 +54,7 @@ public class MPBRoadIndexData extends WorldSavedData {
             data = new MPBRoadIndexData();
             storage.setData(NAME, data);
         }
-        data.initTransient();
         return data;
-    }
-
-    private void initTransient() {
-        // scannedChunks is created in field init
     }
 
     public void attachChunkManager(@Nullable MPBChunkManager mgr) {

@@ -37,12 +37,9 @@ public final class GuiMPBMap extends GuiScreen {
     private static final int C_MAP_BG      = 0xFF090B12;
     private static final int C_PANEL_BG    = 0xFF140F08;
     private static final int C_SEPARATOR   = 0xFF443322;
-    private static final int C_ROAD        = 0xFFC8A060;
-    private static final int C_BRIDGE      = 0xFF40C0FF;
     private static final int C_VILLAGE     = 0xFFFFD060;
     private static final int C_PLAYER      = 0xFFFF4444;
     private static final int C_TEXT        = 0xFFCCAA66;
-    private static final int C_GRID        = 0x22AABBCC;
     private static final int C_NORTH       = 0xFFAABBFF;
     // Preview colors
     private static final int C_PRV_HUB     = 0xFFFFD060; // gold

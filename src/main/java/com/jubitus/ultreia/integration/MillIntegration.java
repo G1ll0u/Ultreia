@@ -72,25 +72,6 @@ public final class MillIntegration {
         return data;
     }
 
-    public static List<Point> getAllNodePoints(World world) {
-        MillWorldData data = ensureLoaded(world);
-        if (data == null) return Collections.emptyList();
-
-        List<Point> pts = new ArrayList<>();
-        pts.addAll(data.villagesList.pos);
-
-        if (MPBConfig.GENERAL.includeLoneBuildings) {
-            pts.addAll(data.loneBuildingsList.pos);
-        }
-
-        LinkedHashMap<String, Point> uniq = new LinkedHashMap<>();
-        for (Point p : pts) {
-            String k = p.getiX() + "," + p.getiY() + "," + p.getiZ();
-            uniq.put(k, p);
-        }
-        return new ArrayList<>(uniq.values());
-    }
-
     public static List<BlockPos> getAllNodePositions(World world) {
         if (!MillPresence.isPresent()) return new ArrayList<>();
 

@@ -97,17 +97,6 @@ public final class MPBEndpointResolver {
         return walkOutUntilFree(world, bypass, otherNodeCenter, sampler, protectedAreas);
     }
 
-    /** Backward-compatible overload (no gate tracker, no field output). */
-    public static BlockPos resolveEndpointAnchor(
-            WorldServer world,
-            BlockPos nodeCenter,
-            BlockPos otherNodeCenter,
-            TerrainSampler sampler,
-            @Nullable MPBProtectedAreas protectedAreas
-    ) {
-        return resolveEndpointAnchor(world, nodeCenter, otherNodeCenter, sampler, protectedAreas, null, null);
-    }
-
     // -------------------------------------------------------------------------
     // Gate candidate collection
     // -------------------------------------------------------------------------
@@ -149,6 +138,7 @@ public final class MPBEndpointResolver {
         // Per-gate: score its outward direction alignment, then search Mill-path blocks nearby.
         // Keep the best (highest scoring) Mill-path block per gate as its representative entry.
         List<GateCandidate> result = new ArrayList<>();
+        int[] offsets = null;
 
         for (MillVillageIndex.BuildingInfo bi : gates) {
             double gx = bi.chestPos.getX() - villageCenter.getX();
@@ -163,32 +153,31 @@ public final class MPBEndpointResolver {
             BlockPos bestForGate = null;
             double bestForGateScore = Double.NEGATIVE_INFINITY;
 
+            // Within one gate only proj varies in the score, so the first match in farthest-first
+            // order is the best one (same result as scoring every column, without reading them all).
+            if (offsets == null) offsets = farthestFirstOffsets(gateLocalRadius, ux, uz);
             int cgx = bi.chestPos.getX(), cgz = bi.chestPos.getZ();
-            for (int ox = -gateLocalRadius; ox <= gateLocalRadius; ox++) {
-                for (int oz = -gateLocalRadius; oz <= gateLocalRadius; oz++) {
-                    int tx = cgx + ox, tz = cgz + oz;
+            for (int packed : offsets) {
+                int tx = cgx + offsetX(packed), tz = cgz + offsetZ(packed);
 
-                    TerrainSampler.Sample sm = sampler.sample(tx, tz);
-                    if (sm == null || sm.isOcean || sm.isWater) continue;
+                double dxOurs = tx - villageCenter.getX(), dzOurs = tz - villageCenter.getZ();
+                double dxOther = tx - otherNodeCenter.getX(), dzOther = tz - otherNodeCenter.getZ();
+                double distOurs = Math.sqrt(dxOurs * dxOurs + dzOurs * dzOurs);
+                double distOther = Math.sqrt(dxOther * dxOther + dzOther * dzOther);
+                if (distOther < distOurs * 0.7) continue; // wrong-village guard
 
-                    Integer millY = findMillPathY(world, tx, tz, sm.surfaceY);
-                    if (millY == null) continue;
+                double proj = dxOurs * ux + dzOurs * uz;
+                if (proj <= 0.0) continue; // behind village center
 
-                    double dxOurs = tx - villageCenter.getX(), dzOurs = tz - villageCenter.getZ();
-                    double dxOther = tx - otherNodeCenter.getX(), dzOther = tz - otherNodeCenter.getZ();
-                    double distOurs = Math.sqrt(dxOurs * dxOurs + dzOurs * dzOurs);
-                    double distOther = Math.sqrt(dxOther * dxOther + dzOther * dzOther);
-                    if (distOther < distOurs * 0.7) continue; // wrong-village guard
+                TerrainSampler.Sample sm = sampler.sample(tx, tz);
+                if (sm == null || sm.isOcean || sm.isWater) continue;
 
-                    double proj = dxOurs * ux + dzOurs * uz;
-                    if (proj <= 0.0) continue; // behind village center
+                Integer millY = findMillPathY(world, tx, tz, sm.surfaceY);
+                if (millY == null) continue;
 
-                    double score = gateAlignment * 0.4 * dlen + proj * 0.6 - usagePenalty;
-                    if (score > bestForGateScore) {
-                        bestForGateScore = score;
-                        bestForGate = new BlockPos(tx, millY, tz);
-                    }
-                }
+                bestForGateScore = gateAlignment * 0.4 * dlen + proj * 0.6 - usagePenalty;
+                bestForGate = new BlockPos(tx, millY, tz);
+                break;
             }
 
             if (bestForGate != null) {
@@ -221,35 +210,60 @@ public final class MPBEndpointResolver {
         if (dlen < 1.0) return null;
         double ux = ddx / dlen, uz = ddz / dlen;
 
-        BlockPos best = null;
-        double bestProj = Double.NEGATIVE_INFINITY;
+        // Farthest-first: the first match has the largest projection (ties keep the old scan order).
+        for (int packed : farthestFirstOffsets(maxRadius, ux, uz)) {
+            int ox = offsetX(packed), oz = offsetZ(packed);
+            double proj = ox * ux + oz * uz;
+            if (proj <= 0.0) break; // sorted: everything after is behind the centre
 
-        for (int ox = -maxRadius; ox <= maxRadius; ox++) {
-            for (int oz = -maxRadius; oz <= maxRadius; oz++) {
-                double proj = ox * ux + oz * uz;
-                if (proj <= 0.0) continue;
+            int r2 = ox * ox + oz * oz;
+            if (r2 < 36 || r2 > maxRadius * maxRadius) continue;
 
-                int r2 = ox * ox + oz * oz;
-                if (r2 < 36 || r2 > maxRadius * maxRadius) continue;
+            int tx = cx + ox, tz = cz + oz;
+            if (protectedAreas != null && protectedAreas.contains(tx, tz)) continue;
 
-                if (proj <= bestProj) continue;
+            TerrainSampler.Sample sm = sampler.sample(tx, tz);
+            if (sm == null || sm.isOcean || sm.isWater) continue;
 
-                int tx = cx + ox, tz = cz + oz;
-                if (protectedAreas != null && protectedAreas.contains(tx, tz)) continue;
+            Integer millY = findMillPathY(world, tx, tz, sm.surfaceY);
+            if (millY == null) continue;
 
-                TerrainSampler.Sample sm = sampler.sample(tx, tz);
-                if (sm == null || sm.isOcean || sm.isWater) continue;
+            return new BlockPos(tx, millY, tz);
+        }
+        return null;
+    }
 
-                Integer millY = findMillPathY(world, tx, tz, sm.surfaceY);
-                if (millY == null) continue;
-
-                bestProj = proj;
-                best = new BlockPos(tx, millY, tz);
+    /**
+     * Offsets of the square of the given radius, ordered by projection on (ux, uz), largest first.
+     * Stable sort over the old x-then-z scan order, so equal projections keep their former priority.
+     */
+    private static int[] farthestFirstOffsets(int radius, double ux, double uz) {
+        int side = 2 * radius + 1;
+        int n = side * side;
+        Integer[] idx = new Integer[n];
+        double[] proj = new double[n];
+        int i = 0;
+        for (int ox = -radius; ox <= radius; ox++) {
+            for (int oz = -radius; oz <= radius; oz++) {
+                idx[i] = i;
+                proj[i] = ox * ux + oz * uz;
+                i++;
             }
         }
-
-        return best;
+        java.util.Arrays.sort(idx, (a, b) -> Double.compare(proj[b], proj[a])); // stable for objects
+        int[] packed = new int[n];
+        for (int k = 0; k < n; k++) {
+            int ox = idx[k] / side - radius;
+            int oz = idx[k] % side - radius;
+            packed[k] = (ox << 16) | (oz & 0xFFFF);
+        }
+        return packed;
     }
+
+    private static int offsetX(int packed) { return packed >> 16; }
+
+    private static int offsetZ(int packed) { return (short) packed; }
+
 
     /**
      * Scans the block column at (x, z) for the lowest Millénaire/MPB path block.
@@ -262,7 +276,8 @@ public final class MPBEndpointResolver {
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos(x, 0, z);
         // A chunk the chunk manager refused must not be loaded here behind its back.
         if (!world.isBlockLoaded(p)) return null;
-        for (int y = 4; y <= maxY; y++) {
+        // A path block is the surface itself; a small margin covers slabs and sampling quirks.
+        for (int y = Math.max(4, surfaceY - 3); y <= maxY; y++) {
             p.setPos(x, y, z);
             IBlockState st = world.getBlockState(p);
             if (st != null && MPBMillPathPalette.isMillPath(st.getBlock())) return y;
@@ -309,16 +324,4 @@ public final class MPBEndpointResolver {
         return new BlockPos(cur.getX(), sm != null ? sm.surfaceY : start.getY(), cur.getZ());
     }
 
-    public static String debugResolveEndpointAnchor(
-            WorldServer world,
-            BlockPos nodeCenter,
-            BlockPos otherNodeCenter,
-            TerrainSampler sampler,
-            @Nullable MPBProtectedAreas protectedAreas
-    ) {
-        BlockPos resolved = resolveEndpointAnchor(world, nodeCenter, otherNodeCenter, sampler, protectedAreas);
-        return "node=(" + nodeCenter.getX() + "," + nodeCenter.getZ() + ")"
-                + " other=(" + otherNodeCenter.getX() + "," + otherNodeCenter.getZ() + ")"
-                + " resolved=(" + resolved.getX() + "," + resolved.getY() + "," + resolved.getZ() + ")";
-    }
 }

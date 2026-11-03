@@ -20,7 +20,8 @@ public final class MPBChunkManager {
     // tracked here — they are not our responsibility to unload.
     private final LongOpenHashSet ours = new LongOpenHashSet();
     private final int edgeCap;
-    private ForgeChunkManager.Ticket ticket;
+    // Forge caps the chunks per ticket (forgeChunkLoading.cfg): more tickets are requested as they fill.
+    private final java.util.List<ForgeChunkManager.Ticket> tickets = new java.util.ArrayList<>();
 
     public MPBChunkManager(int edgeCap) {
         this.edgeCap = Math.max(0, edgeCap);
@@ -46,7 +47,7 @@ public final class MPBChunkManager {
             return false;
         }
 
-        ensureTicket(world);
+        ForgeChunkManager.Ticket ticket = ticketWithRoom(world);
         if (ticket == null) return false;
 
         try {
@@ -74,11 +75,9 @@ public final class MPBChunkManager {
         ChunkProviderServer cps = (ChunkProviderServer) world.getChunkProvider();
 
         // Unforce all chunks we own so canDropChunk() can return true for them
-        if (ticket != null) {
-            for (long k : ours) {
-                int cx = (int)(k >> 32);
-                int cz = (int)k;
-                try { ForgeChunkManager.unforceChunk(ticket, new ChunkPos(cx, cz)); }
+        for (ForgeChunkManager.Ticket t : tickets) {
+            for (ChunkPos pos : t.getChunkList()) {
+                try { ForgeChunkManager.unforceChunk(t, pos); }
                 catch (Throwable ignored) {}
             }
         }
@@ -136,14 +135,12 @@ public final class MPBChunkManager {
             try { cps.flushToDisk(); } catch (Throwable ignored) {}
             try { ThreadedFileIOBase.getThreadedIOInstance().waitForFinish(); } catch (Throwable ignored) {}
         }
-        if (ticket != null) {
-            try { ForgeChunkManager.releaseTicket(ticket); } catch (Throwable ignored) {}
-            ticket = null;
+        for (ForgeChunkManager.Ticket t : tickets) {
+            try { ForgeChunkManager.releaseTicket(t); } catch (Throwable ignored) {}
         }
+        tickets.clear();
         ours.clear();
     }
-
-    public int ownedCount() { return ours.size(); }
 
     // Queues non-essential loaded chunks for unload — catches side-effect loads.
     private int applyUnloadPressure(WorldServer world, ChunkProviderServer cps,
@@ -171,10 +168,9 @@ public final class MPBChunkManager {
 
     private boolean isForcedByOthers(ImmutableSetMultimap<ChunkPos, ForgeChunkManager.Ticket> forced, ChunkPos pos) {
         if (forced == null || !forced.containsKey(pos)) return false;
-        // Our own ticket doesn't count as "others"
-        if (ticket == null) return true;
+        // Our own tickets don't count as "others"
         for (ForgeChunkManager.Ticket t : forced.get(pos)) {
-            if (t != ticket) return true;
+            if (!tickets.contains(t)) return true;
         }
         return false;
     }
@@ -195,16 +191,18 @@ public final class MPBChunkManager {
         return false;
     }
 
-    private void ensureTicket(WorldServer world) {
-        if (ticket != null) return;
+    @javax.annotation.Nullable
+    private ForgeChunkManager.Ticket ticketWithRoom(WorldServer world) {
+        if (!tickets.isEmpty()) {
+            ForgeChunkManager.Ticket last = tickets.get(tickets.size() - 1);
+            if (last.getChunkList().size() < last.getMaxChunkListDepth()) return last;
+        }
         try {
-            ticket = ForgeChunkManager.requestTicket(Ultreia.INSTANCE, world, ForgeChunkManager.Type.NORMAL);
-            if (ticket != null) {
-                int depth = edgeCap > 0 ? edgeCap : Math.max(1, MPBConfig.GENERAL.maxForcedChunksPerJob);
-                ticket.setChunkListDepth(depth);
-            }
+            ForgeChunkManager.Ticket t = ForgeChunkManager.requestTicket(Ultreia.INSTANCE, world, ForgeChunkManager.Type.NORMAL);
+            if (t != null) tickets.add(t);
+            return t;
         } catch (Throwable t) {
-            ticket = null;
+            return null;
         }
     }
 

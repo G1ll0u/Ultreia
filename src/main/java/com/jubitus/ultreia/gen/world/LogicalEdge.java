@@ -12,8 +12,4 @@ public final class LogicalEdge {
         this.isLoneTrail = isLoneTrail;
     }
 
-    public double lengthSq() {
-        long dx = (long) x2 - x1, dz = (long) z2 - z1;
-        return (double) dx * dx + (double) dz * dz;
-    }
 }

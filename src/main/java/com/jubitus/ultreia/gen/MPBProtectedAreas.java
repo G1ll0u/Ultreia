@@ -32,10 +32,6 @@ public final class MPBProtectedAreas {
         addRect(cx - radius, cx + radius, cz - radius, cz + radius, penalty, false);
     }
 
-    public void addNoPaintSquare(int cx, int cz, int radius, int penalty) {
-        addRect(cx - radius, cx + radius, cz - radius, cz + radius, penalty, true);
-    }
-
     public void addNoPaintRect(int minX, int maxX, int minZ, int maxZ, int penalty) {
         addRect(minX, maxX, minZ, maxZ, penalty, true);
     }

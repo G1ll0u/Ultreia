@@ -73,19 +73,6 @@ public final class MillVillageIndex {
         }
     }
 
-    /**
-     * All known village centers for this world/dimension.
-     */
-    public static List<BlockPos> getAllVillageCenters(World world) {
-        MillWorldData wd = getWD(world);
-        if (wd == null || wd.villagesList == null || wd.villagesList.pos == null) {
-            return java.util.Collections.emptyList();
-        }
-        List<BlockPos> out = new ArrayList<>(wd.villagesList.pos.size());
-        for (Point p : wd.villagesList.pos) out.add(toBlockPos(p));
-        return out;
-    }
-
     @Nullable
     public static MillWorldData getWD(World world) {
         try {
@@ -98,28 +85,9 @@ public final class MillVillageIndex {
             return null;
         }
     }
-    // Tune these:
-
-
-    // ---------- Public API ----------
-
-    /**
-     * Find the VillageInfo whose TH is exactly at that BlockPos (Y ignored unless it differs).
-     */
 
     private static BlockPos toBlockPos(Point p) {
         return new BlockPos(p.getiX(), p.getiY(), p.getiZ());
-    }
-
-    /**
-     * Best-effort name: exact → nearest3D(128) → nearest2D(160) → "x/y/z".
-     */
-    public static String nameForApprox(World world, BlockPos approxTH) {
-        VillageInfo vi = findExact(world, approxTH);
-        if (vi == null) vi = findNearest3D(world, approxTH, 128);
-        if (vi == null) vi = findNearest2D(world, approxTH, 160);
-        if (vi != null) return vi.name;
-        return approxTH.getX() + "/" + approxTH.getY() + "/" + approxTH.getZ();
     }
 
     /**
@@ -149,51 +117,6 @@ public final class MillVillageIndex {
         if (bestP == null) return null;
         Building th = wd.getBuilding(bestP);
         return (th != null) ? buildInfo(wd, th) : null;
-    }
-
-    // ---------- Helpers ----------
-    @Nullable
-    public static String villageNameFor(World world, BlockPos approxTH) {
-        MillWorldData wd = getWD(world);
-        if (wd == null || wd.villagesList == null) return null;
-
-        // 1) Try exact match first
-        for (int i = 0; i < wd.villagesList.pos.size(); i++) {
-            Point p = wd.villagesList.pos.get(i);
-            if (p.getiX() == approxTH.getX() && p.getiY() == approxTH.getY() && p.getiZ() == approxTH.getZ()) {
-                Object name = wd.villagesList.names.get(i);
-                return name != null ? name.toString() : null;
-            }
-        }
-
-        // 2) Fall back to nearest 2D within a tolerance (Y can differ a lot)
-        final int maxRadius = 160; // tune if needed
-        final long maxSq = (long) maxRadius * (long) maxRadius;
-        int ox = approxTH.getX(), oz = approxTH.getZ();
-        int bestIdx = -1;
-        long bestD = Long.MAX_VALUE;
-
-        for (int i = 0; i < wd.villagesList.pos.size(); i++) {
-            Point p = wd.villagesList.pos.get(i);
-            long dx = p.getiX() - ox, dz = p.getiZ() - oz;
-            long d = dx * dx + dz * dz;
-            if (d <= maxSq && d < bestD) {
-                bestD = d;
-                bestIdx = i;
-            }
-        }
-
-        if (bestIdx >= 0) {
-            Object name = wd.villagesList.names.get(bestIdx);
-            return name != null ? name.toString() : null;
-        }
-
-        return null;
-    }
-
-    public static boolean isLoneBuildingStop(World world, BlockPos center) {
-        VillageInfo vi = findExact(world, center);
-        return vi != null && !vi.isVillage;
     }
 
     /**
@@ -340,18 +263,6 @@ public final class MillVillageIndex {
         return false;
     }
 
-    public static boolean hasVillageData(World world) {
-        MillWorldData wd = getWD(world);
-        return wd != null && wd.villagesList != null && wd.villagesList.pos != null && !wd.villagesList.pos.isEmpty();
-    }
-
-    public static List<BlockPos> getBuildingCenters(World world, BlockPos approxTH, int radiusXZ, int radiusY) {
-        List<BuildingInfo> infos = listBuildingsAroundVillage(world, approxTH, radiusXZ, radiusY);
-        List<BlockPos> out = new ArrayList<>(infos.size());
-        for (BuildingInfo bi : infos) out.add(bi.chestPos);
-        return out;
-    }
-
     /**
      * Brute-force scan around a village center to find Millénaire buildings and
      * return lightweight {@link BuildingInfo} for each.
@@ -362,51 +273,6 @@ public final class MillVillageIndex {
      * @param radiusXZ horizontal radius (blocks) to scan
      * @param radiusY  vertical radius (blocks up/down from TH Y) to scan
      */
-//    public static java.util.List<BuildingInfo> listBuildingsAroundVillage(
-//            World world,
-//            BlockPos approxTH,
-//            int radiusXZ,
-//            int radiusY) {
-//
-//        MillWorldData wd = getWD(world);
-//        if (wd == null) {
-//            return java.util.Collections.emptyList();
-//        }
-//
-//        // Try to lock to a “real” TH position (in case approxTH is slightly off)
-//        VillageInfo vi = findExact(world, approxTH);
-//        if (vi == null) vi = findNearest3D(world, approxTH, radiusXZ);
-//        if (vi == null) vi = findNearest2D(world, approxTH, radiusXZ);
-//
-//        if (vi == null) {
-//            // No village found around that center; nothing to scan.
-//            return java.util.Collections.emptyList();
-//        }
-//
-//        BlockPos center = vi.center;
-//        int cx = center.getX();
-//        int cy = center.getY();
-//        int cz = center.getZ();
-//
-//        java.util.List<BuildingInfo> result = new ArrayList<>();
-//        java.util.Set<Building> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
-//
-//        // Brute-force scan; reasonable radius keeps it fine performance-wise
-//        for (int dx = -radiusXZ; dx <= radiusXZ; dx++) {
-//            for (int dz = -radiusXZ; dz <= radiusXZ; dz++) {
-//                for (int dy = -radiusY; dy <= radiusY; dy++) {
-//                    Point p = new Point(cx + dx, cy + dy, cz + dz);
-//                    Building silva = wd.getBuilding(p);
-//                    if (silva == null) continue;
-//                    if (!seen.add(silva)) continue; // multiple chest blocks → same Building
-//
-//                    result.add(buildBuildingInfo(silva));
-//                }
-//            }
-//        }
-//
-//        return result;
-//    }
     public static List<BuildingInfo> listBuildingsAroundVillageCached(
             World world,
             BlockPos approxTH,
@@ -479,23 +345,27 @@ public final class MillVillageIndex {
         int cy = center.getY();
         int cz = center.getZ();
 
-        List<BuildingInfo> result = new ArrayList<>();
+        // Filter Millénaire's own building list instead of probing every position of the box.
+        // Sorted by (x, z, y) to keep the order the old position-by-position scan produced.
+        List<Building> inBox = new ArrayList<>();
         java.util.Set<Building> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
-
-        // Brute-force scan; reasonable radius keeps it fine performance-wise
-        for (int dx = -radiusXZ; dx <= radiusXZ; dx++) {
-            for (int dz = -radiusXZ; dz <= radiusXZ; dz++) {
-                for (int dy = -radiusY; dy <= radiusY; dy++) {
-                    Point p = new Point(cx + dx, cy + dy, cz + dz);
-                    Building b = wd.getBuilding(p);
-                    if (b == null) continue;
-                    if (!seen.add(b)) continue; // multiple chest blocks → same Building
-
-                    result.add(buildBuildingInfo(b));
-                }
-            }
+        for (Building b : wd.allBuildings()) {
+            if (b == null || !seen.add(b)) continue;
+            Point p = b.getPos();
+            if (p == null) continue;
+            if (Math.abs(p.getiX() - cx) > radiusXZ || Math.abs(p.getiZ() - cz) > radiusXZ
+                    || Math.abs(p.getiY() - cy) > radiusY) continue;
+            inBox.add(b);
         }
+        inBox.sort((a, b) -> {
+            Point pa = a.getPos(), pb = b.getPos();
+            if (pa.getiX() != pb.getiX()) return Integer.compare(pa.getiX(), pb.getiX());
+            if (pa.getiZ() != pb.getiZ()) return Integer.compare(pa.getiZ(), pb.getiZ());
+            return Integer.compare(pa.getiY(), pb.getiY());
+        });
 
+        List<BuildingInfo> result = new ArrayList<>(inBox.size());
+        for (Building b : inBox) result.add(buildBuildingInfo(b));
         return result;
     }
 
@@ -556,17 +426,6 @@ public final class MillVillageIndex {
         );
     }
 
-    public static List<BuildingInfo> getBuildingsWithTag(World world, BlockPos approxTH,
-                                                         int radiusXZ, int radiusY,
-                                                         String tag) {
-        List<BuildingInfo> all = listBuildingsAroundVillageCached(world, approxTH, radiusXZ, radiusY);
-        List<BuildingInfo> out = new ArrayList<>();
-        for (BuildingInfo bi : all) {
-            if (bi.tags.contains(tag)) out.add(bi);
-        }
-        return out;
-    }
-
     static boolean isGatePlanKey(String planKey) {
         if (planKey == null) return false;
         return planKey.contains("borderpost_gate")
@@ -598,16 +457,6 @@ public final class MillVillageIndex {
             }
             out.add(bi);
         }
-        return out;
-    }
-
-    public static List<BlockPos> getVillageGates(World world,
-                                                 BlockPos approxTH,
-                                                 int radiusXZ,
-                                                 int radiusY) {
-        List<BuildingInfo> infos = getVillageGateInfos(world, approxTH, radiusXZ, radiusY);
-        List<BlockPos> out = new ArrayList<>(infos.size());
-        for (BuildingInfo bi : infos) out.add(bi.chestPos);
         return out;
     }
 
@@ -697,34 +546,6 @@ public final class MillVillageIndex {
         return wd.getBuilding(p);
     }
 
-
-    /**
-     * Same as above but takes an already-resolved MillWorldData.
-     */
-    @Nullable
-    public static Building findAnyTownHallNear(MillWorldData wd, BlockPos center, int radiusXZ) {
-        if (wd == null || wd.villagesList == null || wd.villagesList.pos == null) {
-            return null;
-        }
-
-        int cx = center.getX();
-        int cz = center.getZ();
-        int r2 = radiusXZ * radiusXZ;
-
-        for (Point p : wd.villagesList.pos) {
-            if (p == null) continue;
-
-            int dx = p.getiX() - cx;
-            int dz = p.getiZ() - cz;
-            if (dx * dx + dz * dz > r2) continue;
-
-            Building b = wd.getBuilding(p);
-            if (b != null && b.isTownhall) {
-                return b;
-            }
-        }
-        return null;
-    }
 
 
     private static final class BuildingsCacheKey {
@@ -838,16 +659,6 @@ public final class MillVillageIndex {
                             String cultureKey,
                             String displayName,
                             List<String> tags,
-                            @Nullable BuildingLocation location) {
-            this(chestPos, isTownhall, planKey, cultureKey, displayName, tags, location, null);
-        }
-
-        public BuildingInfo(BlockPos chestPos,
-                            boolean isTownhall,
-                            String planKey,
-                            String cultureKey,
-                            String displayName,
-                            List<String> tags,
                             @Nullable BuildingLocation location,
                             @Nullable BlockPos townHallCenter) {
             this.chestPos = chestPos;
@@ -871,80 +682,6 @@ public final class MillVillageIndex {
                     ", tags=" + tags +
                     '}';
         }
-    }
-    /**
-     * Returns the *loaded* MillVillager entities that belong to the given village.
-     *
-     * @param world        World (server side preferred)
-     * @param approxCenter Approx Town Hall center (BlockPos) - can be slightly off
-     * @param maxRadius    Radius (blocks) used to "snap" approxCenter to a real TH
-     */
-    public static List<MillVillager> getLoadedVillagersForVillage(
-            World world,
-            BlockPos approxCenter,
-            int maxRadius
-    ) {
-        MillWorldData wd = getWD(world);
-        if (wd == null) return Collections.emptyList();
-
-        // Snap approxCenter to a real village center:
-        VillageInfo vi = findExact(world, approxCenter);
-        if (vi == null) vi = findNearest3D(world, approxCenter, maxRadius);
-        if (vi == null) vi = findNearest2D(world, approxCenter, maxRadius);
-
-        if (vi == null || !vi.isVillage) {
-            return Collections.emptyList(); // not found or it's a lone building
-        }
-
-        // Try to resolve the actual Town Hall Building instance:
-        Building th = getTownHallBuilding(wd, vi.center);
-
-        // If TH isn't loaded, we can still match by coordinates against villagers' TH.
-        // (Loaded villagers usually have a non-null getTownHall(), but be defensive.)
-        final int thX = vi.center.getX();
-        final int thY = vi.center.getY();
-        final int thZ = vi.center.getZ();
-
-        List<MillVillager> out = new ArrayList<>();
-
-        for (MillVillager v : wd.getAllKnownVillagers()) {
-            if (v == null) continue;
-            if (v.isDead) continue; // 1.12 field
-
-            Building vTh = v.getTownHall();
-            if (vTh == null) continue;
-
-            // Best case: identity match (fast + correct when buildings are loaded)
-            if (th != null) {
-                if (vTh == th) {
-                    out.add(v);
-                }
-                continue;
-            }
-
-            // Fallback: compare TH coordinates
-            Point p = vTh.getPos();
-            if (p != null && p.getiX() == thX && p.getiY() == thY && p.getiZ() == thZ) {
-                out.add(v);
-            }
-        }
-
-        return out;
-    }
-
-    /**
-     * Convenience: pick a random loaded villager from a given village.
-     */
-    @Nullable
-    public static MillVillager getRandomLoadedVillagerForVillage(
-            World world,
-            BlockPos approxCenter,
-            int maxRadius,
-            java.util.Random rand
-    ) {
-        List<MillVillager> list = getLoadedVillagersForVillage(world, approxCenter, maxRadius);
-        if (list.isEmpty()) return null;
-        return list.get(rand.nextInt(list.size()));
     }
 
 }

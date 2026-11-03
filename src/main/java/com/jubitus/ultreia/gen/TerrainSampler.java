@@ -39,7 +39,7 @@ import java.util.Set;
 public class TerrainSampler {
 
     public enum Mode { PATHFINDING, PAINTING }
-    public enum ForbiddenReason { NONE, OCEAN, BLACKLIST, WATER, WATER_BUFFER, BLOCKED }
+    public enum ForbiddenReason { NONE, OCEAN, BLACKLIST, WATER, BLOCKED }
 
     private static final int MAX_SAMPLE_CACHE  = 500_000;
     private static final int MAX_LIGHT_CACHE   = 400_000;
@@ -57,7 +57,6 @@ public class TerrainSampler {
     public enum BlockedDetail {
         NONE,
         NO_PAINT_ZONE,
-        WATER,
         NON_WALKABLE_GROUND,
         BAD_HEADROOM,
         MANMADE_NEARBY,
@@ -171,13 +170,6 @@ public class TerrainSampler {
         cache.clear();
         lightCache.clear();
         roadDistCache.clear();
-    }
-
-    public void invalidate(int x, int z) {
-        long k = key(x, z);
-        cache.remove(k);
-        lightCache.remove(k);
-        roadDistCache.remove(k);
     }
 
     public void invalidateAround(int x, int z, int r) {
@@ -388,7 +380,6 @@ public class TerrainSampler {
         if (r == ForbiddenReason.OCEAN) return "ocean biome";
         if (r == ForbiddenReason.BLACKLIST) return "blacklisted biome";
         if (r == ForbiddenReason.WATER) return "water requires explicit bridge";
-        if (r == ForbiddenReason.WATER_BUFFER) return "near water buffer";
         if (r == ForbiddenReason.BLOCKED) {
             BlockedDetail d = mode == Mode.PAINTING ? s.blockedPaintDetail : s.blockedPathDetail;
             return "blocked:" + d;
