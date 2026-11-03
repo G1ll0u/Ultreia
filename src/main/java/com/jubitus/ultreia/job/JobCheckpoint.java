@@ -20,8 +20,6 @@ public class JobCheckpoint extends WorldSavedData {
     private int built = 0;
     private int skipped = 0;
     private int failed = 0;
-    private boolean force = false;
-    private boolean dryRun = false;
     private final List<BlockPos[]> edges = new ArrayList<>();
 
     public JobCheckpoint() {
@@ -62,26 +60,16 @@ public class JobCheckpoint extends WorldSavedData {
         return failed;
     }
 
-    public boolean isForce() {
-        return force;
-    }
-
-    public boolean isDryRun() {
-        return dryRun;
-    }
-
     public List<BlockPos[]> getEdges() {
         return edges;
     }
 
-    public void save(List<NetworkPlanner.Edge> edgeList, int idx, int built, int skipped, int failed, boolean force, boolean dryRun) {
+    public void save(List<NetworkPlanner.Edge> edgeList, int idx, int built, int skipped, int failed) {
         this.active = true;
         this.edgeIndex = idx;
         this.built = built;
         this.skipped = skipped;
         this.failed = failed;
-        this.force = force;
-        this.dryRun = dryRun;
         this.edges.clear();
         for (NetworkPlanner.Edge e : edgeList) {
             this.edges.add(new BlockPos[]{e.a, e.b});
@@ -95,8 +83,6 @@ public class JobCheckpoint extends WorldSavedData {
         this.built = 0;
         this.skipped = 0;
         this.failed = 0;
-        this.force = false;
-        this.dryRun = false;
         this.edges.clear();
         markDirty();
     }
@@ -108,8 +94,6 @@ public class JobCheckpoint extends WorldSavedData {
         built = nbt.getInteger("built");
         skipped = nbt.getInteger("skipped");
         failed = nbt.getInteger("failed");
-        force = nbt.getBoolean("force");
-        dryRun = nbt.getBoolean("dryRun");
 
         edges.clear();
         NBTTagList list = nbt.getTagList("edges", 10);
@@ -128,8 +112,6 @@ public class JobCheckpoint extends WorldSavedData {
         nbt.setInteger("built", built);
         nbt.setInteger("skipped", skipped);
         nbt.setInteger("failed", failed);
-        nbt.setBoolean("force", force);
-        nbt.setBoolean("dryRun", dryRun);
 
         NBTTagList list = new NBTTagList();
         for (BlockPos[] pair : edges) {

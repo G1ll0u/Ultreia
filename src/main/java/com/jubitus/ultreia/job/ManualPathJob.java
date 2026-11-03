@@ -1,6 +1,7 @@
 package com.jubitus.ultreia.job;
 
 import com.jubitus.ultreia.route.AStarPathfinder;
+import com.jubitus.ultreia.route.EndpointResolver;
 import com.jubitus.ultreia.chunk.ChunkManager;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.paint.RoadPainter;
@@ -26,7 +27,6 @@ public final class ManualPathJob implements TickedJob {
 
     private final WorldServer world;
     private final WeakReference<ICommandSender> senderRef;
-    private final boolean dryRun;
     private final RoadType roadType;
 
     private final BlockPos requestedStart;
@@ -49,10 +49,9 @@ public final class ManualPathJob implements TickedJob {
     private boolean done = false;
     private boolean failed = false;
 
-    public ManualPathJob(WorldServer world, ICommandSender sender, BlockPos start, BlockPos goal, boolean dryRun, RoadType roadType) {
+    public ManualPathJob(WorldServer world, ICommandSender sender, BlockPos start, BlockPos goal, RoadType roadType) {
         this.world = world;
         this.senderRef = new WeakReference<>(sender);
-        this.dryRun = dryRun;
         this.roadType = (roadType != null) ? roadType : RoadType.VILLAGE_MAIN;
         this.requestedStart = start;
         this.requestedGoal = goal;
@@ -114,8 +113,8 @@ public final class ManualPathJob implements TickedJob {
             if (!initialized) {
                 initialized = true;
 
-                resolvedStart = VillageNetworkJob.findAnchor(world, requestedStart, sampler, 16);
-                resolvedGoal = VillageNetworkJob.findAnchor(world, requestedGoal, sampler, 16);
+                resolvedStart = EndpointResolver.findAnchor(world, requestedStart, sampler, 16);
+                resolvedGoal = EndpointResolver.findAnchor(world, requestedGoal, sampler, 16);
 
                 if (resolvedStart == null || resolvedGoal == null) {
                     fail("Could not resolve valid start/end anchors.");
@@ -166,7 +165,7 @@ public final class ManualPathJob implements TickedJob {
                     chunkManager.releaseEdge(world);
                     sampler.clearCache();
 
-                    curPainter = RoadPainter.start(world, coarse, bridges, sampler, protectedAreas, roadIndex, dryRun, allowEarlyMerge);
+                    curPainter = RoadPainter.start(world, coarse, bridges, sampler, protectedAreas, roadIndex, false, allowEarlyMerge);
                     curPainter.setRoadType(roadType);
                     curPainter.setRoadNetwork(roadNetwork, null, null);
                     continue;

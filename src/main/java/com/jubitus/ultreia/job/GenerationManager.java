@@ -66,7 +66,7 @@ public final class GenerationManager {
         }
     }
 
-    public static void start(WorldServer world, ICommandSender sender, boolean force, boolean dryRun) {
+    public static void start(WorldServer world, ICommandSender sender) {
         int dim = world.provider.getDimension();
         if (JOBS.containsKey(dim) || PENDING_RESUMES.containsKey(dim)) {
             if (sender != null) {
@@ -75,7 +75,7 @@ public final class GenerationManager {
             return;
         }
 
-        TickedJob job = new VillageNetworkJob(world, sender, force, dryRun);
+        TickedJob job = new VillageNetworkJob(world, sender);
         JOBS.put(dim, job);
 
         if (sender != null) {
@@ -83,7 +83,7 @@ public final class GenerationManager {
         }
     }
 
-    public static void startCustom(WorldServer world, ICommandSender sender, BlockPos start, BlockPos goal, boolean dryRun, RoadType roadType) {
+    public static void startCustom(WorldServer world, ICommandSender sender, BlockPos start, BlockPos goal, RoadType roadType) {
         int dim = world.provider.getDimension();
         if (JOBS.containsKey(dim) || PENDING_RESUMES.containsKey(dim)) {
             if (sender != null) {
@@ -92,7 +92,7 @@ public final class GenerationManager {
             return;
         }
 
-        TickedJob job = new ManualPathJob(world, sender, start, goal, dryRun, roadType);
+        TickedJob job = new ManualPathJob(world, sender, start, goal, roadType);
         JOBS.put(dim, job);
 
         if (sender != null) {

@@ -4,7 +4,6 @@ import com.jubitus.ultreia.terrain.ColumnSurface;
 import com.jubitus.ultreia.mill.MillBuildingZones;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
-import com.jubitus.ultreia.job.VillageNetworkJob;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.mill.MillPathPalette;
@@ -93,7 +92,7 @@ public final class EndpointResolver {
 
             // Rule 3: approach point just outside building noPaint zones
             BlockPos approx = stepToward(nodeCenter, otherNodeCenter, Math.max(8, protectR + 6));
-            BlockPos anchor = VillageNetworkJob.findAnchor(world, approx, sampler, 120);
+            BlockPos anchor = findAnchor(world, approx, sampler, 120);
             if (protectedAreas == null || !protectedAreas.contains(anchor.getX(), anchor.getZ())) {
                 return anchor;
             }
@@ -308,7 +307,7 @@ public final class EndpointResolver {
             @Nullable ProtectedAreas protectedAreas
     ) {
         if (protectedAreas == null) {
-            return VillageNetworkJob.findAnchor(world, start, sampler, 24);
+            return findAnchor(world, start, sampler, 24);
         }
         int dx = Integer.signum(toward.getX() - start.getX());
         int dz = Integer.signum(toward.getZ() - start.getZ());
@@ -316,7 +315,7 @@ public final class EndpointResolver {
 
         BlockPos cur = start;
         for (int i = 0; i < 20; i++) {
-            BlockPos a = VillageNetworkJob.findAnchor(world, cur, sampler, 16);
+            BlockPos a = findAnchor(world, cur, sampler, 16);
             if (!protectedAreas.contains(a.getX(), a.getZ())) return a;
             cur = cur.add(dx * 4, 0, dz * 4);
         }
@@ -324,4 +323,36 @@ public final class EndpointResolver {
         return new BlockPos(cur.getX(), sm != null ? sm.surfaceY : start.getY(), cur.getZ());
     }
 
+
+    /** Nearest open land cell (not forbidden, not water) within maxR of raw, ring by ring; raw's surface if none. */
+    public static BlockPos findAnchor(WorldServer world, BlockPos raw, TerrainSampler sampler, int maxR) {
+        int cx = raw.getX();
+        int cz = raw.getZ();
+
+        for (int r = 0; r <= maxR; r++) {
+            for (int dx = -r; dx <= r; dx++) {
+                BlockPos p1 = tryAnchorAt(cx + dx, cz - r, sampler);
+                if (p1 != null) return p1;
+                BlockPos p2 = tryAnchorAt(cx + dx, cz + r, sampler);
+                if (p2 != null) return p2;
+            }
+            for (int dz = -r + 1; dz <= r - 1; dz++) {
+                BlockPos p1 = tryAnchorAt(cx - r, cz + dz, sampler);
+                if (p1 != null) return p1;
+                BlockPos p2 = tryAnchorAt(cx + r, cz + dz, sampler);
+                if (p2 != null) return p2;
+            }
+        }
+
+        TerrainSampler.Sample s = sampler.sample(cx, cz);
+        return new BlockPos(cx, s.surfaceY, cz);
+    }
+
+    @Nullable
+    private static BlockPos tryAnchorAt(int x, int z, TerrainSampler sampler) {
+        TerrainSampler.Sample s = sampler.sample(x, z);
+        if (sampler.forbidden(s, TerrainSampler.Mode.PATHFINDING)) return null;
+        if (s.isOcean || s.isWater) return null;
+        return new BlockPos(x, s.surfaceY, z);
+    }
 }

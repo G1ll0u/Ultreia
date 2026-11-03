@@ -4,7 +4,7 @@ import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.job.GenerationManager;
 import com.jubitus.ultreia.job.ManualPathSelection;
-import com.jubitus.ultreia.job.VillageNetworkJob;
+import com.jubitus.ultreia.route.EndpointResolver;
 import com.jubitus.jubiconfig.network.MsgOpenConfigGui;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.ultreia.geom.Pos2D;
@@ -108,7 +108,7 @@ public final class CommandUltreia extends CommandBase {
         }
 
         if ("generate".equals(sub)) {
-            GenerationManager.start(world, sender, false, false);
+            GenerationManager.start(world, sender);
             return;
         }
 
@@ -144,7 +144,7 @@ public final class CommandUltreia extends CommandBase {
                 }
             }
 
-            GenerationManager.startCustom(world, sender, state.pos1, state.pos2, false, roadType);
+            GenerationManager.startCustom(world, sender, state.pos1, state.pos2, roadType);
             return;
         }
 
@@ -290,7 +290,7 @@ public final class CommandUltreia extends CommandBase {
     private static BlockPos resolveAnchor(WorldServer world, int x, int z) {
         TerrainSampler sampler = new TerrainSampler(world);
         try {
-            return VillageNetworkJob.findAnchor(world, new BlockPos(x, 0, z), sampler, 16);
+            return EndpointResolver.findAnchor(world, new BlockPos(x, 0, z), sampler, 16);
         } finally {
             sampler.clearCache();
         }

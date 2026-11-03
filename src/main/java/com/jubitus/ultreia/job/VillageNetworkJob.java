@@ -41,8 +41,6 @@ public final class VillageNetworkJob implements TickedJob {
 
     private final WorldServer world;
     private final WeakReference<ICommandSender> senderRef;
-    private final boolean force;
-    private final boolean dryRun;
 
     private final NetworkPlanData saved;
     private final JobCheckpoint checkpoint;
@@ -78,11 +76,9 @@ public final class VillageNetworkJob implements TickedJob {
     private final RoadNetwork roadNetwork;
 
     // Fresh-start constructor
-    public VillageNetworkJob(WorldServer world, ICommandSender sender, boolean force, boolean dryRun) {
+    public VillageNetworkJob(WorldServer world, ICommandSender sender) {
         this.world = world;
         this.senderRef = new WeakReference<>(sender);
-        this.force = force;
-        this.dryRun = dryRun;
 
         BridgeTemplateRegistry.invalidateTemplateCache();
         this.chunkManager = new ChunkManager(UltreiaConfig.GENERAL.maxForcedChunksPerJob);
@@ -114,18 +110,14 @@ public final class VillageNetworkJob implements TickedJob {
         Ultreia.LOGGER.info("Async generation: nodes={}, edges={}", nodes.size(), edges.size());
 
         // Persist the edge list immediately so a crash during the first edge is recoverable.
-        if (!dryRun) {
-            checkpoint.save(edges, 0, 0, 0, 0, force, false);
-            flushData();
-        }
+        checkpoint.save(edges, 0, 0, 0, 0);
+        flushData();
     }
 
     // Resume constructor — restores an interrupted job from a persisted checkpoint.
     VillageNetworkJob(WorldServer world, JobCheckpoint cp) {
         this.world = world;
         this.senderRef = new WeakReference<>(null);
-        this.force = cp.isForce();
-        this.dryRun = cp.isDryRun();
         this.edgeIndex = cp.getEdgeIndex();
         this.built = cp.getBuilt();
         this.skipped = cp.getSkipped();
@@ -193,7 +185,7 @@ public final class VillageNetworkJob implements TickedJob {
 
             if (curEdge == null && curSession == null && curPainter == null) {
                 if (edgeIndex >= edges.size()) {
-                    msg("Done. built=" + built + " skipped=" + skipped + " failed=" + failed + " dryRun=" + dryRun);
+                    msg("Done. built=" + built + " skipped=" + skipped + " failed=" + failed);
                     done = true;
                     return;
                 }
@@ -201,7 +193,7 @@ public final class VillageNetworkJob implements TickedJob {
                 NetworkPlanner.Edge e = edges.get(edgeIndex);
                 String key = e.key();
 
-                if (!force && saved.isBuilt(key)) {
+                if (saved.isBuilt(key)) {
                     skipped++;
                     edgeIndex++;
                     onEdgeFinished();
@@ -275,7 +267,7 @@ public final class VillageNetworkJob implements TickedJob {
                 // EndpointResolver — no further road-snapping needed here.
 
                 if (a0.getX() == b0.getX() && a0.getZ() == b0.getZ()) {
-                    if (!dryRun) saved.markBuilt(curEdge.key());
+                    saved.markBuilt(curEdge.key());
                     built++;
                     msg("  OK (already connected via existing road)");
                     curEdge = null;
@@ -340,7 +332,7 @@ public final class VillageNetworkJob implements TickedJob {
                     sampler.clearCache();
 
                     boolean allowEarlyMerge = true;
-                    curPainter = RoadPainter.start(world, coarse, bridges, sampler, protectedAreas, roadIndex, dryRun, allowEarlyMerge);
+                    curPainter = RoadPainter.start(world, coarse, bridges, sampler, protectedAreas, roadIndex, false, allowEarlyMerge);
                     curPainter.setRoadNetwork(roadNetwork, curFromVillage, curToVillage);
                     curPainter.setRoadType(curRoadType);
                     continue;
@@ -366,7 +358,7 @@ public final class VillageNetworkJob implements TickedJob {
                 }
 
                 if (pr == RoadPainter.PaintResult.OK) {
-                    if (!dryRun) saved.markBuilt(curEdge.key());
+                    saved.markBuilt(curEdge.key());
                     built++;
                     msg("  OK");
                 } else {
@@ -384,7 +376,6 @@ public final class VillageNetworkJob implements TickedJob {
 
     // Called after every edge completes (built, skipped, or failed).
     private void onEdgeFinished() {
-        if (dryRun) return;
         sampler.clearCache();
         chunkManager.releaseEdge(world);
         updateCheckpoint();
@@ -392,8 +383,7 @@ public final class VillageNetworkJob implements TickedJob {
     }
 
     private void updateCheckpoint() {
-        if (dryRun) return;
-        checkpoint.save(edges, edgeIndex, built, skipped, failed, force, false);
+        checkpoint.save(edges, edgeIndex, built, skipped, failed);
     }
 
     // Flush all dirty WorldSavedData to disk immediately.
@@ -407,18 +397,14 @@ public final class VillageNetworkJob implements TickedJob {
 
     // Called by the manager when the job finishes normally or is cancelled by the user.
     void onJobComplete() {
-        if (!dryRun) {
-            checkpoint.clear();
-            flushData();
-        }
+        checkpoint.clear();
+        flushData();
     }
 
     // Called by the manager just before a clean server stop.
     void onServerStopping() {
-        if (!dryRun) {
-            updateCheckpoint();
-            flushData();
-        }
+        updateCheckpoint();
+        flushData();
     }
 
     private void msg(String s) {
@@ -435,38 +421,6 @@ public final class VillageNetworkJob implements TickedJob {
     @Override
     public String completionMessage() {
         return "Ultreïa: generation completed.";
-    }
-
-    // Made public for EndpointResolver
-    public static BlockPos findAnchor(WorldServer world, BlockPos raw, TerrainSampler sampler, int maxR) {
-        int cx = raw.getX();
-        int cz = raw.getZ();
-
-        for (int r = 0; r <= maxR; r++) {
-            for (int dx = -r; dx <= r; dx++) {
-                BlockPos p1 = tryAnchorAt(cx + dx, cz - r, sampler);
-                if (p1 != null) return p1;
-                BlockPos p2 = tryAnchorAt(cx + dx, cz + r, sampler);
-                if (p2 != null) return p2;
-            }
-            for (int dz = -r + 1; dz <= r - 1; dz++) {
-                BlockPos p1 = tryAnchorAt(cx - r, cz + dz, sampler);
-                if (p1 != null) return p1;
-                BlockPos p2 = tryAnchorAt(cx + r, cz + dz, sampler);
-                if (p2 != null) return p2;
-            }
-        }
-
-        TerrainSampler.Sample s = sampler.sample(cx, cz);
-        return new BlockPos(cx, s.surfaceY, cz);
-    }
-
-    @Nullable
-    private static BlockPos tryAnchorAt(int x, int z, TerrainSampler sampler) {
-        TerrainSampler.Sample s = sampler.sample(x, z);
-        if (sampler.forbidden(s, TerrainSampler.Mode.PATHFINDING)) return null;
-        if (s.isOcean || s.isWater) return null;
-        return new BlockPos(x, s.surfaceY, z);
     }
 
     public void shutdown() {
