@@ -880,7 +880,7 @@ public final class RoadPainter {
             for (int pi = 0; pi < pending.size(); pi++) {
                 long k = pending.getLong(pi);
                 dbgSample(dbgForcedNoFitAt, pi + 1, Pos2D.xFromKey(k),
-                        BridgeGeometry.naturalSurfaceHalfY(sampler.sample(Pos2D.xFromKey(k), Pos2D.zFromKey(k)).surfaceY),
+                        HalfY.ofBlockTop(sampler.sample(Pos2D.xFromKey(k), Pos2D.zFromKey(k)).surfaceY),
                         Pos2D.zFromKey(k));
             }
         }
@@ -898,12 +898,12 @@ public final class RoadPainter {
                 hi = Math.min(hi, h + HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK);
             }
             if (lo == Integer.MIN_VALUE || lo > hi) return Integer.MIN_VALUE;
-            int terrain = BridgeGeometry.naturalSurfaceHalfY(sampler.sample(x, z).surfaceY);
+            int terrain = HalfY.ofBlockTop(sampler.sample(x, z).surfaceY);
             return Math.max(lo, Math.min(hi, terrain));
         }
 
         private static void dbgSample(StringBuilder sb, int count, int x, int half, int z) {
-            if (count <= 5) sb.append(" (").append(x).append(',').append(half / 2).append(',').append(z).append(')');
+            if (count <= 5) sb.append(" (").append(x).append(',').append(HalfY.walkBlockYFloor(half)).append(',').append(z).append(')');
         }
 
         /** One summary line per edge: suspicious side cells and steps above half a block between painted cells. */
@@ -976,7 +976,7 @@ public final class RoadPainter {
                     int localR = baseR;
                     int targetHalf = centerHalf != null && idx < centerHalf.length
                             ? centerHalf[idx]
-                            : BridgeGeometry.naturalSurfaceHalfY(center.getY());
+                            : HalfY.ofBlockTop(center.getY());
 
                     addEndCapToPlan(cx, cz, localR, targetHalf, idx, earthworks);
                     planIdx++;
@@ -997,11 +997,11 @@ public final class RoadPainter {
 
                 int half0 = centerHalf != null && prevIdx < centerHalf.length
                         ? centerHalf[prevIdx]
-                        : BridgeGeometry.naturalSurfaceHalfY(prev.getY());
+                        : HalfY.ofBlockTop(prev.getY());
 
                 int half1 = centerHalf != null && idx < centerHalf.length
                         ? centerHalf[idx]
-                        : BridgeGeometry.naturalSurfaceHalfY(center.getY());
+                        : HalfY.ofBlockTop(center.getY());
 
                 addRibbonSegmentToPlan(x0, z0, x1, z1, localR, half0, half1, idx, earthworks);
 
@@ -1356,7 +1356,7 @@ public final class RoadPainter {
 
                     int startHalf = (centerHalf != null && mergeHitIndex < centerHalf.length)
                             ? centerHalf[mergeHitIndex]
-                            : BridgeGeometry.naturalSurfaceHalfY(path.get(mergeHitIndex).getY());
+                            : HalfY.ofBlockTop(path.get(mergeHitIndex).getY());
                     Integer roadHalfVal = RoadJoins.findRoadSurfaceHalfY(
                             world, sampler, mergeTargetX, mergeTargetZ);
                     int endHalf = roadHalfVal != null ? roadHalfVal : startHalf;
@@ -1590,12 +1590,11 @@ public final class RoadPainter {
             long k = Pos2D.xzKey(x, z);
             int targetHalf = plannedHalfByXZ.get(k);
             if (targetHalf == Integer.MIN_VALUE) {
-                targetHalf = BridgeGeometry.naturalSurfaceHalfY(surfaceY);
+                targetHalf = HalfY.ofBlockTop(surfaceY);
             }
 
-            BridgeGeometry.SlabPlacement sp = BridgeGeometry.slabPlacementForSurfaceHalfY(targetHalf);
-            boolean useSlab = (targetHalf & 1) != 0;
-            int supportTopY = useSlab ? (sp.blockY - 1) : sp.blockY;
+            HalfY.SlabPlacement sp = HalfY.slabPlacement(targetHalf);
+            int supportTopY = HalfY.supportTopY(targetHalf);
 
             if (columnHasAnyMillPath(new BlockPos(x, sp.blockY, z))) {
                 if (roadIndex != null && !dryRun) roadIndex.markRoad(x, z);
@@ -1668,8 +1667,8 @@ public final class RoadPainter {
             int x = supportTop.getX();
             int z = supportTop.getZ();
 
-            BridgeGeometry.SlabPlacement sp = BridgeGeometry.slabPlacementForSurfaceHalfY(targetHalf);
-            boolean useBottomSlab = (targetHalf & 1) != 0;
+            HalfY.SlabPlacement sp = HalfY.slabPlacement(targetHalf);
+            boolean useBottomSlab = HalfY.isBottomSlab(targetHalf);
 
             BlockPos placePos = new BlockPos(x, sp.blockY, z);
 
@@ -1902,8 +1901,7 @@ public final class RoadPainter {
 
             int[] out = new int[n];
             for (int i = 0; i < n; i++) {
-                BridgeGeometry.SlabPlacement sp = BridgeGeometry.slabPlacementForSurfaceHalfY(centerHalf[i]);
-                out[i] = ((centerHalf[i] & 1) != 0) ? (sp.blockY - 1) : sp.blockY;
+                out[i] = HalfY.supportTopY(centerHalf[i]);
             }
 
             return out;
@@ -2035,7 +2033,7 @@ public final class RoadPainter {
                     // roadNetwork absent: at least mark bridge decks in the index
                     for (int i = 0; i < span.centerline.size(); i++) {
                         BlockPos c = span.centerline.get(i);
-                        int deckY = BridgeGeometry.surfaceYFromHalf(
+                        int deckY = HalfY.surfaceBlockY(
                                 (deckHalf != null && i < deckHalf.length) ? deckHalf[i] : c.getY() * 2);
                         roadIndex.markBridgeDeck(c.getX(), deckY, c.getZ());
                     }
@@ -2080,7 +2078,7 @@ public final class RoadPainter {
                 if (s.isOcean || s.isWater) continue;
                 if (sampler.forbidden(s, TerrainSampler.Mode.PAINTING)) continue;
 
-                int naturalHalf = BridgeGeometry.naturalSurfaceHalfY(s.surfaceY);
+                int naturalHalf = HalfY.ofBlockTop(s.surfaceY);
                 half = stepHalfToward(half, naturalHalf, maxHalfStep);
 
                 long k = Pos2D.xzKey(x, z);

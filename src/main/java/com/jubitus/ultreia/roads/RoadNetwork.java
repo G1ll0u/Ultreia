@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.roads;
 
+import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.planner.LogicalEdge;
 import com.jubitus.ultreia.planner.NetworkPlanData;
@@ -152,7 +153,7 @@ public final class RoadNetwork extends WorldSavedData {
         for (int i = 0; i < span.centerline.size(); i++) {
             BlockPos c = span.centerline.get(i);
             int deckY = (deckHalfY != null && i < deckHalfY.length)
-                    ? BridgeGeometry.surfaceYFromHalf(deckHalfY[i])
+                    ? HalfY.surfaceBlockY(deckHalfY[i])
                     : c.getY();
 
             // Bridges are stored at full resolution (every centerline block), unlike regular road

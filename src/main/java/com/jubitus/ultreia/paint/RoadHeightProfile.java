@@ -34,7 +34,7 @@ public final class RoadHeightProfile {
 
         int[] terrainHalf = new int[n];
         for (int i = 0; i < n; i++) {
-            terrainHalf[i] = BridgeGeometry.naturalSurfaceHalfY(path.get(i).getY());
+            terrainHalf[i] = HalfY.ofBlockTop(path.get(i).getY());
         }
 
         int[] fixedHalf = buildExactBridgeHalfByPathIndex(path, bridges, sampler);

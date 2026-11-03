@@ -1166,8 +1166,8 @@ public final class AStarPathfinder {
                 // The hop onto the deck is not a normal move: keep it walkable (one half-block per cell,
                 // plus one for the rounding of the stored deck Y).
                 int hopCells = Math.max(1, Math.max(Math.abs(cur.x - crossing.startX), Math.abs(cur.z - crossing.startZ)));
-                int hopDelta = Math.abs(BridgeGeometry.naturalSurfaceHalfY(cs.surfaceY)
-                        - BridgeGeometry.naturalSurfaceHalfY(crossing.startY));
+                int hopDelta = Math.abs(HalfY.ofBlockTop(cs.surfaceY)
+                        - HalfY.ofBlockTop(crossing.startY));
                 if (hopDelta > hopCells + 1) {
                     if (debug) Ultreia.LOGGER.info(
                             "[Ultreia Bridge] reuse candidate seg={} rejected: entrance step {} halves over {} cells",
@@ -1619,7 +1619,7 @@ public final class AStarPathfinder {
                 if (s == null) continue;
 
                 int terrainDepth = Math.max(0, baseline - s.surfaceY);
-                int deckY = BridgeGeometry.surfaceYFromHalf(deckHalf[i]);
+                int deckY = HalfY.surfaceBlockY(deckHalf[i]);
                 int clearance = Math.max(0, deckY - s.surfaceY);
 
                 sumDepth += terrainDepth;
@@ -1728,7 +1728,7 @@ public final class AStarPathfinder {
 
                 for (int ci = startGrace; ci < span.centerline.size(); ci++) {
                     BlockPos bridgePoint = span.centerline.get(ci);
-                    int deckSurfaceY = BridgeGeometry.surfaceYFromHalf(deckHalf[Math.min(ci, deckHalf.length - 1)]);
+                    int deckSurfaceY = HalfY.surfaceBlockY(deckHalf[Math.min(ci, deckHalf.length - 1)]);
 
                     for (int k = 0; k <= priorEnd; k++) {
                         BlockPos roadPoint = path.get(k);
@@ -1788,7 +1788,7 @@ public final class AStarPathfinder {
 
                     if (!out.isEmpty() && span.centerline != null && !span.centerline.isEmpty()) {
                         BlockPos firstBridge = span.centerline.get(0);
-                        int firstDeckY = BridgeGeometry.walkSurfaceBlockYFloor(deckHalf[0]);
+                        int firstDeckY = HalfY.walkBlockYFloor(deckHalf[0]);
                         BlockPos prevOut = out.get(out.size() - 1);
 
                         if (prevOut.getX() == firstBridge.getX() && prevOut.getZ() == firstBridge.getZ()) {
@@ -1798,7 +1798,7 @@ public final class AStarPathfinder {
 
                     for (int j = 1; j < span.centerline.size(); j++) {
                         BlockPos p = span.centerline.get(j);
-                        int deckY = BridgeGeometry.walkSurfaceBlockYFloor(deckHalf[j]);
+                        int deckY = HalfY.walkBlockYFloor(deckHalf[j]);
 
                         if (out.isEmpty() || out.get(out.size() - 1).getX() != p.getX() || out.get(out.size() - 1).getZ() != p.getZ()) {
                             out.add(new BlockPos(p.getX(), deckY, p.getZ()));
@@ -2110,8 +2110,8 @@ public final class AStarPathfinder {
                 return new SegmentWalkability(false, false, worst, roughness, terrainPenalty, maxPredictedCut, enclosedCells, longestEnclosedRun);
             }
 
-            int startHalf = BridgeGeometry.naturalSurfaceHalfY(first.surfaceY);
-            int endHalf = BridgeGeometry.naturalSurfaceHalfY(last.surfaceY);
+            int startHalf = HalfY.ofBlockTop(first.surfaceY);
+            int endHalf = HalfY.ofBlockTop(last.surfaceY);
 
             boolean earthworks = roadType.allowsEarthworks();
             int cutHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxCut + pfTolerance) * 2 : 0;

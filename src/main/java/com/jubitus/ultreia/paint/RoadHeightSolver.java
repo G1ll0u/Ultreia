@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.paint;
 
+import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
@@ -34,7 +35,7 @@ public final class RoadHeightSolver {
             TerrainSampler.Sample s = sampler.sample(p.getX(), p.getZ());
             if (s == null) return false;
 
-            int terrainHalf = BridgeGeometry.naturalSurfaceHalfY(s.surfaceY);
+            int terrainHalf = HalfY.ofBlockTop(s.surfaceY);
 
             if (allowEarthworks) {
                 minHalf[i] = terrainHalf - Math.max(0, cutHalf);

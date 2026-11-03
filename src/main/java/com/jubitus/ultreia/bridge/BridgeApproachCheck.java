@@ -82,7 +82,7 @@ public final class BridgeApproachCheck {
         }
 
         BlockPos far = line.get(line.size() - 1);
-        int farHalf = BridgeGeometry.naturalSurfaceHalfY(far.getY());
+        int farHalf = HalfY.ofBlockTop(far.getY());
 
         return RoadHeightSolver.isLineFeasible(
                 line,

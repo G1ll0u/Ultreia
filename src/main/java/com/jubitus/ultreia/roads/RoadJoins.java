@@ -93,7 +93,7 @@ public final class RoadJoins {
                     TerrainSampler.Sample s = sampler.sample(x, z);
                     if (s == null) continue;
 
-                    int groundHalf = naturalSurfaceHalf(s.surfaceY);
+                    int groundHalf = HalfY.ofBlockTop(s.surfaceY);
                     int deltaHalf = Math.abs(groundHalf - roadHalf);
                     if (deltaHalf > maxDeltaHalf) continue;
 
@@ -136,7 +136,7 @@ public final class RoadJoins {
         Integer roadHalf = findRoadSurfaceHalfY(world, sampler, roadX, roadZ);
         if (roadHalf == null) return false;
 
-        int pathHalf = naturalSurfaceHalf(pathY);
+        int pathHalf = HalfY.ofBlockTop(pathY);
         return Math.abs(pathHalf - roadHalf) <= Math.max(0, maxDeltaHalf);
     }
 
@@ -160,17 +160,13 @@ public final class RoadJoins {
 
             // Path slabs (ours and Millénaire's) carry the slab HALF property without extending BlockSlab.
             if (st.getPropertyKeys().contains(BlockSlab.HALF)) {
-                return st.getValue(BlockSlab.HALF) == BlockSlab.EnumBlockHalf.TOP ? y * 2 + 2 : y * 2 + 1;
+                return st.getValue(BlockSlab.HALF) == BlockSlab.EnumBlockHalf.TOP ? HalfY.ofBlockTop(y) : HalfY.ofBottomSlab(y);
             }
 
-            return y * 2 + 2;
+            return HalfY.ofBlockTop(y);
         }
 
         return null;
-    }
-
-    private static int naturalSurfaceHalf(int surfaceY) {
-        return BridgeGeometry.naturalSurfaceHalfY(surfaceY);
     }
 
     private static double pointToSegmentDistanceSq(int px, int pz, int ax, int az, int bx, int bz) {

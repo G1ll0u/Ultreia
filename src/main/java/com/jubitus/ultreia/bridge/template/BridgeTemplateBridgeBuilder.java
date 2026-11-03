@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.bridge.template;
 
+import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.bridge.BridgeFeasibility;
 import com.jubitus.ultreia.paint.HeadroomClearer;
 import com.jubitus.ultreia.geom.LineRaster;
@@ -78,7 +79,7 @@ public final class BridgeTemplateBridgeBuilder {
             BridgeGeometry.Dir2 dir = BridgeGeometry.localDir(span.centerline, i);
             BridgeGeometry.Dir2 perp = dir.perp();
 
-            BridgeGeometry.SlabPlacement sp = BridgeGeometry.slabPlacementForSurfaceHalfY(deckHalfY[i]);
+            HalfY.SlabPlacement sp = HalfY.slabPlacement(deckHalfY[i]);
             IBlockState deckState = withSlabHalf(deckBaseState, sp.top);
 
             boolean interior = i > 0 && i < span.centerline.size() - 1;
@@ -109,7 +110,7 @@ public final class BridgeTemplateBridgeBuilder {
 
             BridgeGeometry.Dir2 dir = BridgeGeometry.localDir(span.centerline, i);
             BridgeGeometry.Dir2 perp = dir.perp();
-            BridgeGeometry.SlabPlacement sp = BridgeGeometry.slabPlacementForSurfaceHalfY(deckHalfY[i]);
+            HalfY.SlabPlacement sp = HalfY.slabPlacement(deckHalfY[i]);
 
             List<BridgeTemplate.BlockEntry> sliceBlocks = blocksBySlice.get(slice);
             for (BridgeTemplate.BlockEntry b : sliceBlocks) {
@@ -219,7 +220,7 @@ public final class BridgeTemplateBridgeBuilder {
                                       int relY) {
         BlockPos center = line.get(bridgeIdx);
         BridgeGeometry.Dir2 perp = BridgeGeometry.localDir(line, bridgeIdx).perp();
-        BridgeGeometry.SlabPlacement sp = BridgeGeometry.slabPlacementForSurfaceHalfY(deckHalfY[bridgeIdx]);
+        HalfY.SlabPlacement sp = HalfY.slabPlacement(deckHalfY[bridgeIdx]);
 
         return new BlockPos(
                 center.getX() + perp.dx * lateral,
@@ -244,7 +245,7 @@ public final class BridgeTemplateBridgeBuilder {
                                     int cz,
                                     BridgeGeometry.Dir2 perp,
                                     int half,
-                                    BridgeGeometry.SlabPlacement sp,
+                                    HalfY.SlabPlacement sp,
                                     IBlockState slab,
                                     boolean dryRun,
                                     TerrainSampler sampler,
@@ -264,7 +265,7 @@ public final class BridgeTemplateBridgeBuilder {
                                         int cz,
                                         BridgeGeometry.Dir2 perp,
                                         int half,
-                                        BridgeGeometry.SlabPlacement sp,
+                                        HalfY.SlabPlacement sp,
                                         IBlockState slab,
                                         boolean dryRun,
                                         TerrainSampler sampler,
@@ -305,7 +306,7 @@ public final class BridgeTemplateBridgeBuilder {
     private static void placeDeckCell(WorldServer world,
                                       int x,
                                       int z,
-                                      BridgeGeometry.SlabPlacement sp,
+                                      HalfY.SlabPlacement sp,
                                       IBlockState slab,
                                       boolean dryRun,
                                       TerrainSampler sampler,

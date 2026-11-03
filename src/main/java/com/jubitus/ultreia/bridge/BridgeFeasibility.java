@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.bridge;
 
+import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.paint.HeadroomClearer;
 import com.jubitus.ultreia.route.AStarPathfinder;
 import com.jubitus.ultreia.geom.LineRaster;
@@ -181,8 +182,8 @@ public final class BridgeFeasibility {
             return fail("bridge length out of range len=" + len + " min=" + minLen + " max=" + maxLen);
         }
 
-        int startHalf = BridgeGeometry.naturalSurfaceHalfY(startSample.surfaceY);
-        int endHalf = BridgeGeometry.naturalSurfaceHalfY(endSample.surfaceY);
+        int startHalf = HalfY.ofBlockTop(startSample.surfaceY);
+        int endHalf = HalfY.ofBlockTop(endSample.surfaceY);
 
         int maxDeltaHalf = BridgeGeometry.maxBridgeDeltaHalfForLen(len);
         if (Math.abs(endHalf - startHalf) > maxDeltaHalf) {
@@ -245,8 +246,8 @@ public final class BridgeFeasibility {
                 return fail("bridge crosses settlement zone at i=" + i + " pos=(" + p.getX() + "," + p.getZ() + ")");
             }
 
-            BridgeGeometry.SlabPlacement slab = BridgeGeometry.slabPlacementForSurfaceHalfY(deckHalf[i]);
-            int deckSurfaceY = BridgeGeometry.surfaceYFromHalf(deckHalf[i]);
+            HalfY.SlabPlacement slab = HalfY.slabPlacement(deckHalf[i]);
+            int deckSurfaceY = HalfY.surfaceBlockY(deckHalf[i]);
             int deckBlockY = slab.blockY;
 
             if (!endpoint && sample.surfaceY > deckSurfaceY) {
@@ -387,7 +388,7 @@ public final class BridgeFeasibility {
                 TerrainSampler.Sample sample = sampler.sample(p.getX(), p.getZ());
                 if (sample == null) return fail("exit clearance sample null");
 
-                int deckSurfaceY = BridgeGeometry.surfaceYFromHalf(deckHalf[i]);
+                int deckSurfaceY = HalfY.surfaceBlockY(deckHalf[i]);
                 int gap = deckSurfaceY - sample.surfaceY;
                 if (gap < exitMinClearance) {
                     return fail("exit clearance too low at i=" + i + " gap=" + gap + " need=" + exitMinClearance);
@@ -582,8 +583,8 @@ public final class BridgeFeasibility {
         BridgeGeometry.Dir2 dir = BridgeGeometry.localDir(line, idx);
         BridgeGeometry.Dir2 perp = dir.perp();
 
-        BridgeGeometry.SlabPlacement slab = BridgeGeometry.slabPlacementForSurfaceHalfY(deckHalfY);
-        int deckSurfaceY = BridgeGeometry.surfaceYFromHalf(deckHalfY);
+        HalfY.SlabPlacement slab = HalfY.slabPlacement(deckHalfY);
+        int deckSurfaceY = HalfY.surfaceBlockY(deckHalfY);
         int deckBlockY = slab.blockY;
 
         for (int off = 1; off <= sideRadius; off++) {

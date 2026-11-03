@@ -11,7 +11,7 @@ public final class BridgeSpan {
     public final BlockPos end;
     public final List<BlockPos> centerline; // rasterised points from start to end (inclusive)
 
-    // Deck walking surface in half-block units, see BridgeGeometry.naturalSurfaceHalfY.
+    // Deck walking surface in half-block units, see HalfY.ofBlockTop.
     public final int startDeckSurfaceHalfY;
     public final int endDeckSurfaceHalfY;
 

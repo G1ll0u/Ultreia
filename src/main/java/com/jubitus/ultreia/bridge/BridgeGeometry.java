@@ -39,16 +39,6 @@ public final class BridgeGeometry {
         }
     }
 
-    public static final class SlabPlacement {
-        public final int blockY;
-        public final boolean top;
-
-        public SlabPlacement(int blockY, boolean top) {
-            this.blockY = blockY;
-            this.top = top;
-        }
-    }
-
     public static Dir2 localDir(List<BlockPos> line, int idx) {
         if (line == null || line.isEmpty()) return new Dir2(1, 0);
         if (line.size() == 1) return new Dir2(1, 0);
@@ -94,28 +84,6 @@ public final class BridgeGeometry {
         if (idx <= 0) return 1;
         if (idx >= size - 1) return size - 2;
         return idx;
-    }
-
-    public static SlabPlacement slabPlacementForSurfaceHalfY(int surfaceHalfY) {
-        if ((surfaceHalfY & 1) == 1) {
-            int y = (surfaceHalfY - 1) / 2;
-            return new SlabPlacement(y, false);
-        } else {
-            int y = (surfaceHalfY / 2) - 1;
-            return new SlabPlacement(y, true);
-        }
-    }
-
-    public static int surfaceYFromHalf(int surfaceHalfY) {
-        return (surfaceHalfY - 1) / 2;
-    }
-
-    public static int naturalSurfaceHalfY(int surfaceY) {
-        return surfaceY * 2 + 2;
-    }
-
-    public static int walkSurfaceBlockYFloor(int surfaceHalfY) {
-        return surfaceHalfY / 2;
     }
 
     /** The deck profile of a span, in half-blocks, one value per centerline cell. */

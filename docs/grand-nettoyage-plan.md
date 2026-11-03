@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Next: phase 6.
+**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Phase 6 in progress (6.1 done).
 
 ## Goal
 
@@ -200,7 +200,11 @@ Kept apart: the two `(lateral, relY)` keys in `BridgeTemplateBridgeBuilder` (not
   fallback, magnetism; magnetism made twisted or too-wide roads). Their fields are kept unchanged until decided.
 - Constant booleans (`ROAD_HIERARCHY_ENABLED`, `BUILDINGS_ENABLED`…) leave dead branches, removed in the splits (6–10).
 
-### Phase 6 — Terrain authorities — status: not started
+### Phase 6 — Terrain authorities — status: in progress
+
+Steps (approved): 6.1 `geom/HalfY` (done) · 6.2 `BlockRules` · 6.3 `ColumnSurface` · 6.4 one path-in-column scan ·
+6.5 `TerrainSampler` split (+ `TreeProbe`). Decided: lone trails keep earthworks.
+
 
 - `terrain/ColumnSurface`: one surface scan replacing `TerrainSampler.sample` loop, `sampleLightIfLoaded`,
   `hasWaterLikeNearColumn`, `RoadIndex.findSurfaceYForScan` (diverge: lava, trees, config).
