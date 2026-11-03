@@ -3,6 +3,7 @@ package com.jubitus.ultreia.bridge;
 import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.paint.RoadHeightSolver;
+import com.jubitus.ultreia.route.AStarPathfinder;
 import com.jubitus.ultreia.route.RoadType;
 
 import com.jubitus.ultreia.config.UltreiaConfig;
@@ -12,7 +13,11 @@ import net.minecraft.util.math.BlockPos;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Can roads reach both ends of a bridge: approach walks (an A* cost) and the exit corridor (a feasibility gate). */
 public final class BridgeApproachCheck {
+
+    // Require this many buildable blocks straight ahead after bridge exit.
+    private static final int REQUIRED_EXIT_CORRIDOR_BLOCKS = 1;
 
     private BridgeApproachCheck() {}
 
@@ -25,7 +30,7 @@ public final class BridgeApproachCheck {
         }
 
         int n = span.centerline.size();
-        int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
+        int[] deckHalf = BridgeDeckProfile.of(span);
 
         int maxStepHalf = Math.max(1, HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK);
         boolean earthworks = roadType.allowsEarthworks();
@@ -94,5 +99,43 @@ public final class BridgeApproachCheck {
                 fillHalf,
                 maxStepHalf
         );
+    }
+
+    /** The ground just past the bridge end, straight ahead, can take a road. */
+    static boolean exitCorridorIsBuildable(BridgeSite site, TerrainView sampler, BlockPos start, BlockPos end) {
+        int lookAhead = Math.max(1, REQUIRED_EXIT_CORRIDOR_BLOCKS);
+
+        int dx = Integer.signum(end.getX() - start.getX());
+        int dz = Integer.signum(end.getZ() - start.getZ());
+
+        if (dx == 0 && dz == 0) return false;
+
+        int maxDy = Math.max(1, AStarPathfinder.MAX_YDELTA_PER_STEP);
+
+        TerrainSampler.Sample prev = sampler.sample(end.getX(), end.getZ());
+        if (prev == null) return false;
+
+        int x = end.getX();
+        int z = end.getZ();
+
+        for (int i = 1; i <= lookAhead; i++) {
+            x += dx;
+            z += dz;
+
+            TerrainSampler.Sample sample = sampler.sample(x, z);
+            if (sample == null) return false;
+            if (sample.isWater || sample.isOcean) return false;
+            if (sampler.forbidden(sample, TerrainSampler.Mode.PATHFINDING)) return false;
+            if (sampler.isProtectedNoPaint(x, z)) return false;
+
+            int dy = Math.abs(sample.surfaceY - prev.surfaceY);
+            if (dy > maxDy + 1) return false;
+
+            if (!site.isRoadGround(x, sample.surfaceY, z)) return false;
+
+            prev = sample;
+        }
+
+        return true;
     }
 }

@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.paint;
 
+import com.jubitus.ultreia.bridge.BridgeDeckProfile;
 import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.route.RoadType;
@@ -77,7 +78,7 @@ public final class RoadHeightProfile {
         for (BridgeSpan span : bridges) {
             if (span == null || span.centerline == null || span.centerline.isEmpty()) continue;
 
-            int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
+            int[] deckHalf = BridgeDeckProfile.of(span);
 
             int from = 0;
             for (int j = 0; j < span.centerline.size() && j < deckHalf.length; j++) {

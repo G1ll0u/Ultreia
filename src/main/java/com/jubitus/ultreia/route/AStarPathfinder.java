@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.route;
 
+import com.jubitus.ultreia.bridge.BridgeClearanceCheck;
+import com.jubitus.ultreia.bridge.BridgeDeckProfile;
 import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.geom.LineRaster;
 import com.jubitus.ultreia.terrain.TerrainView;
@@ -1340,9 +1342,9 @@ public final class AStarPathfinder {
                     Math.max(16, Math.min(48, minLen + configuredApproach * 2))
             );
 
-            final int minWaterRun = Math.max(1, BridgeFeasibility.MIN_WATER_RUN_BLOCKS);
-            final int minGapRun = Math.max(1, BridgeFeasibility.MIN_MEANINGFUL_GAP_RUN);
-            final int maxLeadOut = Math.max(2, BridgeFeasibility.MAX_WATER_BRIDGE_LEAD_OUT_BLOCKS + 2);
+            final int minWaterRun = Math.max(1, BridgeClearanceCheck.MIN_WATER_RUN_BLOCKS);
+            final int minGapRun = Math.max(1, BridgeClearanceCheck.MIN_MEANINGFUL_GAP_RUN);
+            final int maxLeadOut = Math.max(2, BridgeClearanceCheck.MAX_WATER_BRIDGE_LEAD_OUT_BLOCKS + 2);
 
             int waterRun = 0;
             int gapRun = 0;
@@ -1509,9 +1511,12 @@ public final class AStarPathfinder {
                 BlockPos startPos = new BlockPos(x, cur.surfaceY, z);
                 BlockPos endPos = new BlockPos(nx, ns.surfaceY, nz);
 
-                BridgeSpan span = BridgeFeasibility.tryCreate(sampler, startPos, endPos);
+                BridgeFeasibility.Result feasibility = BridgeFeasibility.tryCreate(sampler, startPos, endPos);
+                BridgeSpan span = feasibility.span;
 
                 if (span == null) {
+                    debugBridge("reject feasibility start=(" + x + "," + z + ") end=(" + nx + "," + nz + ") reason="
+                            + feasibility.reason);
                     continue;
                 }
 
@@ -1611,7 +1616,7 @@ public final class AStarPathfinder {
             int longestWaterRun = 0;
             int curWaterRun = 0;
 
-            int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
+            int[] deckHalf = BridgeDeckProfile.of(span);
 
             for (int i = 1; i < span.centerline.size() - 1; i++) {
                 BlockPos p = span.centerline.get(i);
@@ -1709,7 +1714,7 @@ public final class AStarPathfinder {
         private boolean bridgesHaveApproachPathClearance(List<BlockPos> path, List<BridgeSpan> spans) {
             if (spans.isEmpty() || bridgePathStartIndices.size() != spans.size()) return true;
 
-            int minClearance = Math.max(0, BridgeFeasibility.UNDER_BRIDGE_ROAD_MIN_CLEARANCE_BLOCKS);
+            int minClearance = Math.max(0, BridgeClearanceCheck.UNDER_BRIDGE_ROAD_MIN_CLEARANCE_BLOCKS);
             if (minClearance <= 0) return true;
 
             // Skip the launch-ramp zone so the bridge connection point never triggers a false reject.
@@ -1724,7 +1729,7 @@ public final class AStarPathfinder {
                 int priorEnd = Math.min(bridgePathStartIndices.get(b), path.size() - 1);
                 if (priorEnd < 0) continue;
 
-                int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
+                int[] deckHalf = BridgeDeckProfile.of(span);
 
                 for (int ci = startGrace; ci < span.centerline.size(); ci++) {
                     BlockPos bridgePoint = span.centerline.get(ci);
@@ -1784,7 +1789,7 @@ public final class AStarPathfinder {
                     spans.add(span);
                     bridgePathStartIndices.add(out.isEmpty() ? 0 : out.size() - 1);
 
-                    int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
+                    int[] deckHalf = BridgeDeckProfile.of(span);
 
                     if (!out.isEmpty() && span.centerline != null && !span.centerline.isEmpty()) {
                         BlockPos firstBridge = span.centerline.get(0);

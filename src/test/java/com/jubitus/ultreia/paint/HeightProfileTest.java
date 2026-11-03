@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.paint;
 
+import com.jubitus.ultreia.bridge.BridgeDeckProfile;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.testutil.Golden;
@@ -51,7 +52,7 @@ class HeightProfileTest {
         int maxStep = Math.max(1, HalfY.MAX_DECK_DELTA_HALF_PER_BLOCK);
         int[][] cases = {{130, 130, 20, 6, 4}, {130, 140, 30, 6, 4}, {150, 132, 25, 12, 4}, {130, 131, 3, 6, 4}};
         for (int[] c : cases) {
-            int[] deck = BridgeGeometry.buildDeckHalfProfile(c[0], c[1], line(c[2]), c[3], c[4]);
+            int[] deck = BridgeDeckProfile.of(c[0], c[1], line(c[2]), c[3], c[4]);
             assertEquals(c[0], deck[0]);
             assertEquals(c[1], deck[deck.length - 1]);
             for (int i = 1; i < deck.length; i++) {
@@ -62,7 +63,7 @@ class HeightProfileTest {
 
     @Test
     void flatDeckGetsACrown() {
-        int[] deck = BridgeGeometry.buildDeckHalfProfile(130, 130, line(20), 6, 4);
+        int[] deck = BridgeDeckProfile.of(130, 130, line(20), 6, 4);
         assertTrue(deck[deck.length / 2] > 130);
     }
 
@@ -76,9 +77,9 @@ class HeightProfileTest {
         fixed[terrain.length - 1] = 138;
         sb.append("road r2 ").append(Arrays.toString(RoadHeightSolver.solveProfile(terrain, fixed, 4, 4, 1, 2))).append('\n');
         sb.append("road r0 ").append(Arrays.toString(RoadHeightSolver.solveProfile(terrain, fixed, 4, 4, 1, 0))).append('\n');
-        sb.append("deck flat ").append(Arrays.toString(BridgeGeometry.buildDeckHalfProfile(130, 130, line(20), 6, 4))).append('\n');
-        sb.append("deck rise ").append(Arrays.toString(BridgeGeometry.buildDeckHalfProfile(130, 140, line(30), 6, 4))).append('\n');
-        sb.append("deck fall ").append(Arrays.toString(BridgeGeometry.buildDeckHalfProfile(150, 132, line(25), 12, 4))).append('\n');
+        sb.append("deck flat ").append(Arrays.toString(BridgeDeckProfile.of(130, 130, line(20), 6, 4))).append('\n');
+        sb.append("deck rise ").append(Arrays.toString(BridgeDeckProfile.of(130, 140, line(30), 6, 4))).append('\n');
+        sb.append("deck fall ").append(Arrays.toString(BridgeDeckProfile.of(150, 132, line(25), 12, 4))).append('\n');
         Golden.check("height_profiles", sb.toString());
     }
 

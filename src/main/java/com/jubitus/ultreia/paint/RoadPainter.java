@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.paint;
 
+import com.jubitus.ultreia.bridge.BridgeDeckProfile;
 import com.jubitus.ultreia.terrain.ColumnSurface;
 import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.geom.LineRaster;
@@ -1990,7 +1991,7 @@ public final class RoadPainter {
             if (isBridgeAlreadyAt(span)) {
                 if (!dryRun) {
                     if (roadNetwork != null) {
-                        int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
+                        int[] deckHalf = BridgeDeckProfile.of(span);
                         roadNetwork.addBridgeSegment(span, deckHalf, roadIndex, fromVillage, toVillage, roadType);
                     }
                     if (roadIndex != null) markBridgeVolumeInIndex(span, roadIndex);
@@ -2006,7 +2007,7 @@ public final class RoadPainter {
             boolean built = BridgeBuildService.build(world, sampler, span, dryRun);
 
             if (built && !dryRun && (roadIndex != null || roadNetwork != null)) {
-                int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
+                int[] deckHalf = BridgeDeckProfile.of(span);
                 if (roadNetwork != null) {
                     roadNetwork.addBridgeSegment(span, deckHalf, roadIndex, fromVillage, toVillage, roadType);
                 } else if (roadIndex != null) {
@@ -2036,7 +2037,7 @@ public final class RoadPainter {
 
             if (dx == 0 && dz == 0) return;
 
-            int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
+            int[] deckHalf = BridgeDeckProfile.of(span);
             int exitHalf = deckHalf[deckHalf.length - 1];
 
             int maxHalfStep = Math.max(1, HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK);

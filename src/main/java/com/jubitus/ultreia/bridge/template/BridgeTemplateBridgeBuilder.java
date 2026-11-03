@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.bridge.template;
 
+import com.jubitus.ultreia.bridge.BridgeClearanceCheck;
+import com.jubitus.ultreia.bridge.BridgeDeckProfile;
 import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.bridge.BridgeFeasibility;
 import com.jubitus.ultreia.paint.HeadroomClearer;
@@ -65,7 +67,7 @@ public final class BridgeTemplateBridgeBuilder {
         int maxLen = Math.max(5, UltreiaConfig.BRIDGES.maxBridgeLenBlocks);
         if (len > maxLen) return false;
 
-        int[] deckHalfY = BridgeGeometry.buildDeckHalfProfile(span);
+        int[] deckHalfY = BridgeDeckProfile.of(span);
         LongOpenHashSet deckXZ = new LongOpenHashSet(Math.max(128, span.centerline.size() * 8));
 
         IBlockState deckBaseState = template.deckSlab.toState();
@@ -422,7 +424,7 @@ public final class BridgeTemplateBridgeBuilder {
     }
 
     private static boolean hasRoadUnderDeckTooClose(WorldServer world, int x, int z, int deckBlockY) {
-        int need = Math.max(0, BridgeFeasibility.UNDER_BRIDGE_ROAD_MIN_CLEARANCE_BLOCKS);
+        int need = Math.max(0, BridgeClearanceCheck.UNDER_BRIDGE_ROAD_MIN_CLEARANCE_BLOCKS);
         if (need <= 0) return false;
 
         int minY = Math.max(1, deckBlockY - need - 4);
