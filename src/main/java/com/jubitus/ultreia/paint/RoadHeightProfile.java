@@ -2,7 +2,7 @@ package com.jubitus.ultreia.paint;
 
 import com.jubitus.ultreia.route.RoadType;
 
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.bridge.BridgeSpan;
@@ -35,11 +35,11 @@ public final class RoadHeightProfile {
         int[] fixedHalf = buildExactBridgeHalfByPathIndex(path, bridges, sampler);
 
         boolean earthworks = roadType.allowsEarthworks();
-        int cutHalf = earthworks ? Math.max(0, MPBConfig.PAINTING.earthworksMaxCut) * 2 : 0;
-        int fillHalf = earthworks ? Math.max(0, MPBConfig.PAINTING.earthworksMaxFill) * 2 : 0;
+        int cutHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxCut) * 2 : 0;
+        int fillHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxFill) * 2 : 0;
 
-        int maxStepHalf = Math.max(1, MPBConfig.PAINTING.maxRoadStepHalfPerBlock);
-        int smoothRadius = Math.max(0, MPBConfig.PAINTING.verticalSmoothRadius);
+        int maxStepHalf = Math.max(1, UltreiaConfig.PAINTING.maxRoadStepHalfPerBlock);
+        int smoothRadius = Math.max(0, UltreiaConfig.PAINTING.verticalSmoothRadius);
 
         int[] solved = RoadHeightSolver.solveProfile(
                 terrainHalf,

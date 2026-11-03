@@ -1,8 +1,8 @@
 package com.jubitus.ultreia.mill;
 
 import com.jubitus.ultreia.MillPresence;
-import com.jubitus.ultreia.block.MPBBlocks;
-import com.jubitus.ultreia.block.MPBPathSlabBlock;
+import com.jubitus.ultreia.block.UltreiaBlocks;
+import com.jubitus.ultreia.block.PathSlabBlock;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.material.Material;
@@ -20,7 +20,7 @@ public final class MillPathPalette {
 
     public static IBlockState full(Kind k) {
         if (!MillPresence.isPresent()) {
-            return MPBBlocks.PATH_BLOCK.getDefaultState();
+            return UltreiaBlocks.PATH_BLOCK.getDefaultState();
         }
         IBlockState st;
         switch (k) {
@@ -37,8 +37,8 @@ public final class MillPathPalette {
 
     public static IBlockState slabBottom(Kind k) {
         if (!MillPresence.isPresent()) {
-            return MPBBlocks.PATH_SLAB.getDefaultState()
-                    .withProperty(MPBPathSlabBlock.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
+            return UltreiaBlocks.PATH_SLAB.getDefaultState()
+                    .withProperty(PathSlabBlock.HALF, BlockSlab.EnumBlockHalf.BOTTOM);
         }
         Block slab;
         switch (k) {
@@ -55,7 +55,7 @@ public final class MillPathPalette {
     }
 
     public static boolean isMillPath(Block b) {
-        if (b == MPBBlocks.PATH_BLOCK || b == MPBBlocks.PATH_SLAB) return true;
+        if (b == UltreiaBlocks.PATH_BLOCK || b == UltreiaBlocks.PATH_SLAB) return true;
         if (!MillPresence.isPresent()) return false;
         return b == MillBlocks.PATHDIRT || b == MillBlocks.PATHGRAVEL || b == MillBlocks.PATHSANDSTONE
                 || b == MillBlocks.PATHSLABS || b == MillBlocks.PATHOCHRESLABS || b == MillBlocks.PATHSNOW
@@ -67,7 +67,7 @@ public final class MillPathPalette {
     public static Kind kindFromState(IBlockState st) {
         if (st == null) return null;
         Block b = st.getBlock();
-        if (b == MPBBlocks.PATH_BLOCK || b == MPBBlocks.PATH_SLAB) return Kind.DIRT;
+        if (b == UltreiaBlocks.PATH_BLOCK || b == UltreiaBlocks.PATH_SLAB) return Kind.DIRT;
         if (!MillPresence.isPresent()) return null;
         if (b == MillBlocks.PATHDIRT || b == MillBlocks.PATHDIRT_SLAB) return Kind.DIRT;
         if (b == MillBlocks.PATHGRAVEL || b == MillBlocks.PATHGRAVEL_SLAB) return Kind.GRAVEL;

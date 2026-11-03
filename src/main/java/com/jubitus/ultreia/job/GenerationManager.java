@@ -2,7 +2,7 @@ package com.jubitus.ultreia.job;
 
 import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.Ultreia;
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.text.TextComponentString;
@@ -101,7 +101,7 @@ public final class GenerationManager {
     public static void queueResume(WorldServer world, JobCheckpoint checkpoint) {
         int dim = world.provider.getDimension();
         if (JOBS.containsKey(dim) || PENDING_RESUMES.containsKey(dim)) return;
-        int delay = Math.max(20, MPBConfig.GENERAL.autoResumeDelayTicks);
+        int delay = Math.max(20, UltreiaConfig.GENERAL.autoResumeDelayTicks);
         PENDING_RESUMES.put(dim, new PendingResume(world, checkpoint, delay));
         Ultreia.LOGGER.info("[MPB] Queued auto-resume for dim={} at edge {}/{} (starts in {} ticks)",
                 dim, checkpoint.getEdgeIndex(), checkpoint.getEdges().size(), delay);
@@ -119,7 +119,7 @@ public final class GenerationManager {
     @SubscribeEvent
     public void onWorldLoad(WorldEvent.Load event) {
         if (!(event.getWorld() instanceof WorldServer)) return;
-        if (!MPBConfig.GENERAL.autoResumeGeneration) return;
+        if (!UltreiaConfig.GENERAL.autoResumeGeneration) return;
 
         WorldServer world = (WorldServer) event.getWorld();
         JobCheckpoint checkpoint = JobCheckpoint.get(world);
@@ -157,7 +157,7 @@ public final class GenerationManager {
         if (JOBS.isEmpty()) return;
 
         // The budget is shared by every dimension's job, so two jobs never cost more than one.
-        long budgetNs = Math.max(1, MPBConfig.GENERAL.tickBudgetMs) * 1_000_000L / JOBS.size();
+        long budgetNs = Math.max(1, UltreiaConfig.GENERAL.tickBudgetMs) * 1_000_000L / JOBS.size();
 
         for (TickedJob job : JOBS.values()) {
             long start = System.nanoTime();

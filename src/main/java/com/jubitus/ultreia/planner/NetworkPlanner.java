@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.planner;
 
 import com.jubitus.ultreia.Ultreia;
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.mill.MillVillageIndex;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
@@ -60,7 +60,7 @@ public final class NetworkPlanner {
     public static NetworkResult build(WorldServer world, List<BlockPos> nodes) {
         if (nodes.size() < 2) return new NetworkResult(Collections.emptyList(), Collections.emptyMap());
 
-        int maxDist = MPBConfig.NETWORK.maxEdgeDistance;
+        int maxDist = UltreiaConfig.NETWORK.maxEdgeDistance;
         double maxDistSq = (double) maxDist * (double) maxDist;
 
         // 1. Classify nodes
@@ -84,7 +84,7 @@ public final class NetworkPlanner {
             }
         }
 
-        if (MPBConfig.NETWORK.debugNetwork) {
+        if (UltreiaConfig.NETWORK.debugNetwork) {
             long hubs   = sizes.values().stream().filter(s -> s == VillageClassifier.VillageSize.HUB).count();
             long medium = sizes.values().stream().filter(s -> s == VillageClassifier.VillageSize.MEDIUM).count();
             Ultreia.LOGGER.debug("[PNB] nodes={} villages={} (hubs={} medium={} small={}) lone={}",
@@ -95,17 +95,17 @@ public final class NetworkPlanner {
         List<Edge> committed = new ArrayList<>(); // ordered for crossing checks
 
         // 2. Backbone MST on villages
-        if (MPBConfig.NETWORK.buildMST && villages.size() >= 2) {
+        if (UltreiaConfig.NETWORK.buildMST && villages.size() >= 2) {
             List<Edge> mst = buildMST(villages, sizes, maxDistSq);
             for (Edge e : mst) { edgesMap.put(e.key(), e); committed.add(e); }
         }
 
         // 3. Extra edges: RNG or KNN
         if (villages.size() >= 2) {
-            if (MPBConfig.NETWORK.useRNG) {
+            if (UltreiaConfig.NETWORK.useRNG) {
                 addRngEdges(villages, sizes, maxDistSq, committed, edgesMap);
             } else {
-                int k = Math.max(0, MPBConfig.NETWORK.nearestNeighbors);
+                int k = Math.max(0, UltreiaConfig.NETWORK.nearestNeighbors);
                 if (k > 0) addKnnEdges(villages, k, maxDistSq, edgesMap);
             }
         }
@@ -198,12 +198,12 @@ public final class NetworkPlanner {
                 if (out.containsKey(edgeKey)) continue; // already in MST
 
                 // Redundancy check: skip if MST path is already short enough
-                if (MPBConfig.NETWORK.redundancyRatio > 0) {
+                if (UltreiaConfig.NETWORK.redundancyRatio > 0) {
                     double mstLen = mstPathLength(u, v, mstAdj);
                     if (mstLen != Double.POSITIVE_INFINITY) {
                         double direct = Math.sqrt(realD2);
-                        if (mstLen <= MPBConfig.NETWORK.redundancyRatio * direct) {
-                            if (MPBConfig.NETWORK.debugNetwork)
+                        if (mstLen <= UltreiaConfig.NETWORK.redundancyRatio * direct) {
+                            if (UltreiaConfig.NETWORK.debugNetwork)
                                 Ultreia.LOGGER.debug("[PNB] RNG edge pruned (redundant ratio={:.2f}): ({},{})→({},{})",
                                         mstLen / direct, u.getX(), u.getZ(), v.getX(), v.getZ());
                             continue;
@@ -212,13 +212,13 @@ public final class NetworkPlanner {
                 }
 
                 // Anti-crossing check
-                if (MPBConfig.NETWORK.avoidEdgeCrossings) {
+                if (UltreiaConfig.NETWORK.avoidEdgeCrossings) {
                     boolean crosses = false;
                     for (Edge e : committed) {
                         if (intersects2D(u, v, e.a, e.b)) { crosses = true; break; }
                     }
                     if (crosses) {
-                        if (MPBConfig.NETWORK.debugNetwork)
+                        if (UltreiaConfig.NETWORK.debugNetwork)
                             Ultreia.LOGGER.debug("[PNB] RNG edge pruned (crossing): ({},{})→({},{})",
                                     u.getX(), u.getZ(), v.getX(), v.getZ());
                         continue;
@@ -262,7 +262,7 @@ public final class NetworkPlanner {
         double d2 = distSq2D(a, b);
         if (sizes.get(a) == VillageClassifier.VillageSize.HUB
                 && sizes.get(b) == VillageClassifier.VillageSize.HUB) {
-            double scale = 1.0 - MPBConfig.NETWORK.hubConnectionBonus;
+            double scale = 1.0 - UltreiaConfig.NETWORK.hubConnectionBonus;
             return d2 * scale * scale;
         }
         return d2;

@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.bridge.template;
 
 import com.jubitus.ultreia.Ultreia;
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.bridge.BridgeSpan;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.world.WorldServer;
@@ -42,7 +42,7 @@ public final class BridgeTemplateSelector {
     @Nullable
     public static BridgeTemplate select(WorldServer world, BridgeSpan span) {
         List<BridgeTemplate> all = BridgeTemplateRegistry.loadAllTemplates();
-        String defaultName = BridgeTemplateRegistry.sanitizeName(MPBConfig.BRIDGES.defaultTemplateName);
+        String defaultName = BridgeTemplateRegistry.sanitizeName(UltreiaConfig.BRIDGES.defaultTemplateName);
 
         Biome biome = sampleBiome(world, span);
 

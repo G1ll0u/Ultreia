@@ -32,7 +32,7 @@ public final class BridgeTemplate {
     /** Maximum bridge length in blocks; 0 or null = no extra restriction beyond global config */
     public Integer maxLength;
 
-    // Per-template overrides — null means use the global MPBConfig value
+    // Per-template overrides — null means use the global UltreiaConfig value
     public Integer bridgeCrownHalfBlocks;
     public Integer bridgeCrownMinLenBlocks;
     public Integer maxSupportDepth;

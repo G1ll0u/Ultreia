@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.bridge.template;
 
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.GroundRules;
 import com.jubitus.ultreia.mill.MillPathPalette;
 import net.minecraft.block.Block;
@@ -105,13 +105,13 @@ public final class BridgeDebugExporter {
         BridgeTemplateDetector.DetectedDeck deck = BridgeTemplateDetector.findNearestMatchingDeck(
                 world,
                 origin,
-                Math.max(8, MPBConfig.BRIDGES.debugExportSearchRadius),
+                Math.max(8, UltreiaConfig.BRIDGES.debugExportSearchRadius),
                 required,
                 true
         );
 
         DebugFile out = new DebugFile();
-        out.activeTemplate = MPBConfig.BRIDGES.defaultTemplateName == null ? "" : MPBConfig.BRIDGES.defaultTemplateName.trim();
+        out.activeTemplate = UltreiaConfig.BRIDGES.defaultTemplateName == null ? "" : UltreiaConfig.BRIDGES.defaultTemplateName.trim();
 
         if (deck != null) {
             out.mode = "deck_component";
@@ -142,7 +142,7 @@ public final class BridgeDebugExporter {
                 ));
             }
         } else {
-            BlockPos seed = findFallbackSeed(world, origin, Math.max(8, MPBConfig.BRIDGES.debugExportSearchRadius));
+            BlockPos seed = findFallbackSeed(world, origin, Math.max(8, UltreiaConfig.BRIDGES.debugExportSearchRadius));
             if (seed == null) {
                 return ExportResult.fail("No nearby bridge-like structure was found.");
             }
@@ -188,10 +188,10 @@ public final class BridgeDebugExporter {
     }
 
     private static List<BlockPos> collectDeckComponent(WorldServer world, BridgeTemplateDetector.DetectedDeck deck) {
-        int maxLateral = Math.max(3, MPBConfig.BRIDGES.templateMaxLateral) + 2;
-        int maxAbove = Math.max(2, MPBConfig.BRIDGES.templateMaxAboveDeck) + 4;
-        int maxBelow = Math.max(2, MPBConfig.BRIDGES.templateMaxBelowDeck) + 8;
-        int maxBlocks = Math.max(64, MPBConfig.BRIDGES.templateMaxBlocks);
+        int maxLateral = Math.max(3, UltreiaConfig.BRIDGES.templateMaxLateral) + 2;
+        int maxAbove = Math.max(2, UltreiaConfig.BRIDGES.templateMaxAboveDeck) + 4;
+        int maxBelow = Math.max(2, UltreiaConfig.BRIDGES.templateMaxBelowDeck) + 8;
+        int maxBlocks = Math.max(64, UltreiaConfig.BRIDGES.templateMaxBlocks);
 
         ArrayDeque<BlockPos> queue = new ArrayDeque<BlockPos>();
         HashSet<Long> visited = new HashSet<Long>();
@@ -260,7 +260,7 @@ public final class BridgeDebugExporter {
     }
 
     private static List<BlockPos> collectFallbackComponent(WorldServer world, BlockPos seed) {
-        int maxBlocks = Math.max(64, MPBConfig.BRIDGES.templateMaxBlocks);
+        int maxBlocks = Math.max(64, UltreiaConfig.BRIDGES.templateMaxBlocks);
         ArrayDeque<BlockPos> queue = new ArrayDeque<BlockPos>();
         HashSet<Long> visited = new HashSet<Long>();
         ArrayList<BlockPos> out = new ArrayList<BlockPos>();

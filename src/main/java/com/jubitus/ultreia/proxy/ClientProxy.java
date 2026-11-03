@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.proxy;
 
 import com.jubitus.ultreia.Ultreia;
-import com.jubitus.ultreia.block.MPBBlocks;
+import com.jubitus.ultreia.block.UltreiaBlocks;
 import com.jubitus.ultreia.map.MapScreen;
 import com.jubitus.ultreia.map.PacketNetworkPreview;
 import com.jubitus.ultreia.map.PacketOpenMapGui;

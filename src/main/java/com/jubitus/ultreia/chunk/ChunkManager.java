@@ -2,7 +2,7 @@ package com.jubitus.ultreia.chunk;
 
 import com.google.common.collect.ImmutableSetMultimap;
 import com.jubitus.ultreia.Ultreia;
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.server.management.PlayerChunkMapEntry;
@@ -38,10 +38,10 @@ public final class ChunkManager {
             return true;
         }
 
-        if (!MPBConfig.GENERAL.allowChunkLoading) return false;
+        if (!UltreiaConfig.GENERAL.allowChunkLoading) return false;
 
         if (edgeCap > 0 && ours.size() >= edgeCap) {
-            if (MPBConfig.GENERAL.debugLogChunkLifecycle) {
+            if (UltreiaConfig.GENERAL.debugLogChunkLifecycle) {
                 Ultreia.LOGGER.warn("[MPB] Edge chunk cap ({}) reached, cannot load {},{}", edgeCap, cx, cz);
             }
             return false;
@@ -105,7 +105,7 @@ public final class ChunkManager {
         // This catches chunks loaded by MC neighbor generation or Millénaire during our pathfinding.
         int sideEffectQueued = applyUnloadPressure(world, cps, forced);
 
-        if (MPBConfig.GENERAL.debugLogChunkLifecycle) {
+        if (UltreiaConfig.GENERAL.debugLogChunkLifecycle) {
             Ultreia.LOGGER.debug(
                 "[MPB] releaseEdge: owned={} queued={} sideEffect={} totalLoaded={}",
                 ours.size(), ownedQueued, sideEffectQueued, cps.getLoadedChunkCount());
@@ -115,12 +115,12 @@ public final class ChunkManager {
 
         // Emergency drain: if loaded count is still far above the per-edge cap, help the queue.
         // Under normal operation the server's own cps.tick() drains the queue each game tick.
-        int softLimit = Math.max(200, edgeCap > 0 ? edgeCap : MPBConfig.GENERAL.maxForcedChunksPerJob);
+        int softLimit = Math.max(200, edgeCap > 0 ? edgeCap : UltreiaConfig.GENERAL.maxForcedChunksPerJob);
         if (cps.getLoadedChunkCount() > softLimit * 2) {
             for (int i = 0; i < 5; i++) {
                 try { cps.tick(); } catch (Throwable ignored) { break; }
             }
-            if (MPBConfig.GENERAL.debugLogChunkLifecycle) {
+            if (UltreiaConfig.GENERAL.debugLogChunkLifecycle) {
                 Ultreia.LOGGER.debug("[MPB] Emergency drain pass, now {} chunks loaded", cps.getLoadedChunkCount());
             }
         }

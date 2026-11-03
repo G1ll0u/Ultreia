@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.mill;
 
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
@@ -17,9 +17,9 @@ public final class MillBuildingZones {
     public static void addMillenaireZones(WorldServer world, ProtectedAreas pa) {
         MillWorldData data = MillWorldDataRegistry.ensureLoaded(world);
 
-        int vR = Math.max(0, MPBConfig.GENERAL.villageNoPaintRadius);
-        int lR = Math.max(0, MPBConfig.GENERAL.loneBuildingNoPaintRadius);
-        int penalty = (int) Math.max(0.0, MPBConfig.PATHFINDING.protectedZonePenalty);
+        int vR = Math.max(0, UltreiaConfig.GENERAL.villageNoPaintRadius);
+        int lR = Math.max(0, UltreiaConfig.GENERAL.loneBuildingNoPaintRadius);
+        int penalty = (int) Math.max(0.0, UltreiaConfig.PATHFINDING.protectedZonePenalty);
 
         if (data != null) {
             if (data.villagesList != null && data.villagesList.pos != null) {

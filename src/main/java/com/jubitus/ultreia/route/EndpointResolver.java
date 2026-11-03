@@ -4,7 +4,7 @@ import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.job.VillageNetworkJob;
 import com.jubitus.ultreia.Ultreia;
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.mill.MillPathPalette;
 import com.jubitus.ultreia.mill.MillVillageIndex;
 import net.minecraft.block.state.IBlockState;
@@ -45,14 +45,14 @@ public final class EndpointResolver {
         boolean isVillage = (vi != null && vi.isVillage);
 
         int protectR = isVillage
-                ? Math.max(0, MPBConfig.GENERAL.villageNoPaintRadius)
-                : Math.max(0, MPBConfig.GENERAL.loneBuildingNoPaintRadius);
+                ? Math.max(0, UltreiaConfig.GENERAL.villageNoPaintRadius)
+                : Math.max(0, UltreiaConfig.GENERAL.loneBuildingNoPaintRadius);
 
         if (isVillage) {
             // Collect all gate candidates with Mill-path entries.
             List<GateCandidate> candidates = collectGateCandidates(
                     world, sampler, nodeCenter, otherNodeCenter,
-                    MPBConfig.GENERAL.gateSearchRadius, MPBConfig.GENERAL.gateMillPathSearchRadius,
+                    UltreiaConfig.GENERAL.gateSearchRadius, UltreiaConfig.GENERAL.gateMillPathSearchRadius,
                     gateTracker);
 
             // Build VillageGateField from all candidates so A* can terminate at any gate.
@@ -70,7 +70,7 @@ public final class EndpointResolver {
             // Best candidate (highest score) = primary endpoint for the A* goal.
             if (!candidates.isEmpty()) {
                 BlockPos best = candidates.get(0).pos;
-                if (MPBConfig.GENERAL.printFailureBreakdown) {
+                if (UltreiaConfig.GENERAL.printFailureBreakdown) {
                     Ultreia.LOGGER.debug(
                             "[MPB] gate selected village={},{} other={},{} total_candidates={} -> ({},{},{})",
                             nodeCenter.getX(), nodeCenter.getZ(),

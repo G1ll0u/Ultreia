@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.bridge.template;
 
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
@@ -56,7 +56,7 @@ public final class BridgeTemplateAnalyzer {
         BridgeTemplateDetector.DetectedDeck deck = BridgeTemplateDetector.findNearestMatchingDeck(
                 world,
                 origin,
-                Math.max(8, MPBConfig.BRIDGES.templateCreateSearchRadius),
+                Math.max(8, UltreiaConfig.BRIDGES.templateCreateSearchRadius),
                 null,
                 false
         );
@@ -156,10 +156,10 @@ public final class BridgeTemplateAnalyzer {
 
     private static List<BlockPos> collectConnectedStructure(WorldServer world,
                                                             BridgeTemplateDetector.DetectedDeck deck) {
-        int maxLateral = Math.max(3, MPBConfig.BRIDGES.templateMaxLateral);
-        int maxAbove = Math.max(2, MPBConfig.BRIDGES.templateMaxAboveDeck);
-        int maxBelow = Math.max(2, MPBConfig.BRIDGES.templateMaxBelowDeck);
-        int maxBlocks = Math.max(64, MPBConfig.BRIDGES.templateMaxBlocks);
+        int maxLateral = Math.max(3, UltreiaConfig.BRIDGES.templateMaxLateral);
+        int maxAbove = Math.max(2, UltreiaConfig.BRIDGES.templateMaxAboveDeck);
+        int maxBelow = Math.max(2, UltreiaConfig.BRIDGES.templateMaxBelowDeck);
+        int maxBlocks = Math.max(64, UltreiaConfig.BRIDGES.templateMaxBlocks);
 
         ArrayDeque<BlockPos> queue = new ArrayDeque<BlockPos>();
         HashSet<Long> visited = new HashSet<Long>();

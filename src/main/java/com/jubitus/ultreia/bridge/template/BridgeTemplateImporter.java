@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.bridge.template;
 
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.GroundRules;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.mill.MillPathPalette;
@@ -163,7 +163,7 @@ public final class BridgeTemplateImporter {
         if (b.isLeaves(st, world, pos) || m == Material.LEAVES) return true;
         if (MillPathPalette.isMillPath(b)) return true;
 
-        if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
+        if (UltreiaConfig.PAINTING.clearTrees && UltreiaConfig.PAINTING.clearTreeTrunks) {
             if (b.isWood(world, pos) || m == Material.WOOD) return true;
         }
 

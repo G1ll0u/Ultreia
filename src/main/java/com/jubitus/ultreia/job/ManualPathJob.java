@@ -6,7 +6,7 @@ import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.paint.RoadPainter;
 import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.terrain.TerrainSampler;
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.route.PathResult;
 import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;
@@ -58,7 +58,7 @@ public final class ManualPathJob implements TickedJob {
         this.requestedGoal = goal;
 
         BridgeTemplateRegistry.invalidateTemplateCache();
-        this.chunkManager = new ChunkManager(MPBConfig.GENERAL.maxForcedChunksPerJob);
+        this.chunkManager = new ChunkManager(UltreiaConfig.GENERAL.maxForcedChunksPerJob);
 
         this.sampler = new TerrainSampler(world);
         this.sampler.setChunkManager(chunkManager);
@@ -128,7 +128,7 @@ public final class ManualPathJob implements TickedJob {
                     return;
                 }
 
-                int scanR = Math.max(16, MPBConfig.GENERAL.snapToExistingRoadRadius + 8);
+                int scanR = Math.max(16, UltreiaConfig.GENERAL.snapToExistingRoadRadius + 8);
                 roadIndex.ensureScannedRadius(world, resolvedStart.getX(), resolvedStart.getZ(), scanR);
                 roadIndex.ensureScannedRadius(world, resolvedGoal.getX(), resolvedGoal.getZ(), scanR);
 
@@ -172,7 +172,7 @@ public final class ManualPathJob implements TickedJob {
                     continue;
                 }
 
-                fail("Pathfinding failed: " + curSession.failureSummary(MPBConfig.GENERAL.printFailureBreakdown));
+                fail("Pathfinding failed: " + curSession.failureSummary(UltreiaConfig.GENERAL.printFailureBreakdown));
                 return;
             }
 

@@ -14,7 +14,7 @@ import com.jubitus.ultreia.route.VillageGateTracker;
 import com.jubitus.ultreia.MillPresence;
 
 import com.jubitus.ultreia.Ultreia;
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.route.PathResult;
 import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.roads.RoadJoins;
@@ -83,7 +83,7 @@ public final class VillageNetworkJob implements TickedJob {
         this.dryRun = dryRun;
 
         BridgeTemplateRegistry.invalidateTemplateCache();
-        this.chunkManager = new ChunkManager(MPBConfig.GENERAL.maxForcedChunksPerJob);
+        this.chunkManager = new ChunkManager(UltreiaConfig.GENERAL.maxForcedChunksPerJob);
         this.sampler = new TerrainSampler(world);
         this.sampler.setChunkManager(chunkManager);
 
@@ -130,7 +130,7 @@ public final class VillageNetworkJob implements TickedJob {
         this.failed = cp.getFailed();
 
         BridgeTemplateRegistry.invalidateTemplateCache();
-        this.chunkManager = new ChunkManager(MPBConfig.GENERAL.maxForcedChunksPerJob);
+        this.chunkManager = new ChunkManager(UltreiaConfig.GENERAL.maxForcedChunksPerJob);
         this.sampler = new TerrainSampler(world);
         this.sampler.setChunkManager(chunkManager);
 
@@ -218,7 +218,7 @@ public final class VillageNetworkJob implements TickedJob {
 
                 // At least one lone building endpoint → narrow terrain-following trail.
                 curRoadType = (aIsLone || bIsLone) ? RoadType.LONE_TRAIL : RoadType.VILLAGE_MAIN;
-                if (MPBConfig.ROAD_HIERARCHY.debugLogRoadType) {
+                if (UltreiaConfig.ROAD_HIERARCHY.debugLogRoadType) {
                     Ultreia.LOGGER.info("[MPB] Edge {} roadType={} aIsLone={} bIsLone={}",
                             e.key(), curRoadType, aIsLone, bIsLone);
                 }
@@ -238,13 +238,13 @@ public final class VillageNetworkJob implements TickedJob {
                         bIsVillage ? gateTracker : null,
                         bIsVillage ? gateFieldB : null);
 
-                if (MPBConfig.GENERAL.printFailureBreakdown) {
+                if (UltreiaConfig.GENERAL.printFailureBreakdown) {
                     msg("  anchorA node=(" + e.a.getX() + "," + e.a.getZ() + ") resolved=(" + a0.getX() + "," + a0.getY() + "," + a0.getZ() + ")");
                     msg("  anchorB node=(" + e.b.getX() + "," + e.b.getZ() + ") resolved=(" + b0.getX() + "," + b0.getY() + "," + b0.getZ() + ")");
                 }
 
                 // 0 turns lone-building spurs off.
-                int snapR = Math.max(0, MPBConfig.GENERAL.snapToExistingRoadRadius);
+                int snapR = Math.max(0, UltreiaConfig.GENERAL.snapToExistingRoadRadius);
                 BlockPos nearA = null, nearB = null;
                 if (snapR > 0) {
                     roadIndex.ensureScannedRadius(world, a0.getX(), a0.getZ(), snapR + 8);
@@ -286,7 +286,7 @@ public final class VillageNetworkJob implements TickedJob {
                 msg("Pathfinding: " + key + " (" + (edgeIndex + 1) + "/" + edges.size() + ")"
                         + " endpoints=(" + a0.getX() + "," + a0.getZ() + ")->(" + b0.getX() + "," + b0.getZ() + ")");
 
-                if (MPBConfig.GENERAL.printFailureBreakdown) {
+                if (UltreiaConfig.GENERAL.printFailureBreakdown) {
                     msg("  start " + AStarPathfinder.debugEndpoint(world, sampler, protectedAreas, roadIndex, a0));
                     msg("  goal  " + AStarPathfinder.debugEndpoint(world, sampler, protectedAreas, roadIndex, b0));
                 }
@@ -303,8 +303,8 @@ public final class VillageNetworkJob implements TickedJob {
                 // Pass all destination gates so A* can terminate at whichever gate it reaches first.
                 if (gateFieldB[0] != null) curSession.setDestinationGates(gateFieldB[0]);
                 // LONE_TRAIL: terminate A* at the nearest existing road instead of the destination village.
-                if (curRoadType == RoadType.LONE_TRAIL && MPBConfig.ROAD_HIERARCHY.enabled && roadIndex != null) {
-                    curSession.setSnapToRoad(roadIndex, MPBConfig.ROAD_HIERARCHY.loneTrailMergeSearchRadius);
+                if (curRoadType == RoadType.LONE_TRAIL && UltreiaConfig.ROAD_HIERARCHY.enabled && roadIndex != null) {
+                    curSession.setSnapToRoad(roadIndex, UltreiaConfig.ROAD_HIERARCHY.loneTrailMergeSearchRadius);
                 }
             }
 
@@ -345,8 +345,8 @@ public final class VillageNetworkJob implements TickedJob {
                 }
 
                 failed++;
-                msg("  FAILED: " + curSession.failureSummary(MPBConfig.GENERAL.printFailureBreakdown));
-                if (MPBConfig.GENERAL.printFailureBreakdown) {
+                msg("  FAILED: " + curSession.failureSummary(UltreiaConfig.GENERAL.printFailureBreakdown));
+                if (UltreiaConfig.GENERAL.printFailureBreakdown) {
                     msg("  start " + curSession.debugStartArea());
                     msg("  goal  " + curSession.debugGoalArea());
                 }

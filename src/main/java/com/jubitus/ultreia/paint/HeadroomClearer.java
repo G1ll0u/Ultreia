@@ -2,7 +2,7 @@ package com.jubitus.ultreia.paint;
 
 import com.jubitus.ultreia.terrain.GroundRules;
 import com.jubitus.ultreia.Ultreia;
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.mill.MillPathPalette;
 import com.jubitus.ultreia.terrain.TreeCompat;
 import net.minecraft.block.Block;
@@ -107,9 +107,9 @@ public final class HeadroomClearer {
 
             if (isWood && TreeCompat.isDynamicTreesBranch(st)) {
                 int radius = TreeCompat.getDTBranchRadius(st);
-                int threshold = MPBConfig.PAINTING.dtWholeTreeRemovalThreshold;
-                if (MPBConfig.PAINTING.dtRemoveWholeTree && radius >= threshold) {
-                    if (MPBConfig.DEBUG.logDTTreeRemoval) {
+                int threshold = UltreiaConfig.PAINTING.dtWholeTreeRemovalThreshold;
+                if (UltreiaConfig.PAINTING.dtRemoveWholeTree && radius >= threshold) {
+                    if (UltreiaConfig.DEBUG.logDTTreeRemoval) {
                         Ultreia.LOGGER.info(
                                 "[MPB] DT whole-tree removal at ({},{},{}) radius={}",
                                 p.getX(), p.getY(), p.getZ(), radius);
@@ -121,7 +121,7 @@ public final class HeadroomClearer {
                     world.destroyBlock(p.toImmutable(), false);
                 }
             } else if (isWood && TreeCompat.isDynamicTreesTrunkShell(st)) {
-                if (MPBConfig.PAINTING.dtRemoveWholeTree) {
+                if (UltreiaConfig.PAINTING.dtRemoveWholeTree) {
                     BlockPos seed = findAdjacentDTBranch(world, p.toImmutable());
                     return TreeCompat.removeDTTreeCompletely(world, seed);
                 }
@@ -157,7 +157,7 @@ public final class HeadroomClearer {
         if (b.isReplaceable(world, pos)) return true;
         if (TreeCompat.isTreeFoliageLike(world, pos, st)) return true;
 
-        if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
+        if (UltreiaConfig.PAINTING.clearTrees && UltreiaConfig.PAINTING.clearTreeTrunks) {
             if (TreeCompat.isTreeWoodLike(world, pos, st)) return true;
         }
 
@@ -170,7 +170,7 @@ public final class HeadroomClearer {
         if (MillPathPalette.isMillPath(st.getBlock())) return false;
 
         if (TreeCompat.isDynamicTreesBlock(st)) {
-            return MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks;
+            return UltreiaConfig.PAINTING.clearTrees && UltreiaConfig.PAINTING.clearTreeTrunks;
         }
 
         Material m = st.getMaterial();

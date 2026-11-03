@@ -3,7 +3,7 @@ package com.jubitus.ultreia.bridge;
 import com.jubitus.ultreia.paint.RoadHeightSolver;
 import com.jubitus.ultreia.route.RoadType;
 
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import net.minecraft.util.math.BlockPos;
 
@@ -25,10 +25,10 @@ public final class BridgeApproachCheck {
         int n = span.centerline.size();
         int[] deckHalf = BridgeGeometry.buildDeckHalfProfile(span);
 
-        int maxStepHalf = Math.max(1, MPBConfig.PAINTING.maxRoadStepHalfPerBlock);
+        int maxStepHalf = Math.max(1, UltreiaConfig.PAINTING.maxRoadStepHalfPerBlock);
         boolean earthworks = roadType.allowsEarthworks();
-        int cutHalf = earthworks ? Math.max(0, MPBConfig.PAINTING.earthworksMaxCut) * 2 : 0;
-        int fillHalf = earthworks ? Math.max(0, MPBConfig.PAINTING.earthworksMaxFill) * 2 : 0;
+        int cutHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxCut) * 2 : 0;
+        int fillHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxFill) * 2 : 0;
 
         int need = Math.max(1, approachBlocks);
 

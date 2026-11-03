@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.route;
 
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 
 /**
  * Road importance type set per A* session.
@@ -14,16 +14,16 @@ public enum RoadType {
 
     /** Widest painted width in blocks; roadEdgeVariation may trim one block on stretches. */
     public int roadWidthBlocks() {
-        int w = Math.max(1, MPBConfig.PAINTING.roadWidth);
+        int w = Math.max(1, UltreiaConfig.PAINTING.roadWidth);
         if ((w % 2) == 0) w++;
-        if (this == LONE_TRAIL && MPBConfig.ROAD_HIERARCHY.enabled) w = Math.max(1, w - 2);
+        if (this == LONE_TRAIL && UltreiaConfig.ROAD_HIERARCHY.enabled) w = Math.max(1, w - 2);
         return w;
     }
 
     /** Whether roads of this type may cut and fill terrain (pathfinding, profile and painting alike). */
     public boolean allowsEarthworks() {
-        if (!MPBConfig.PATHFINDING.allowEarthworks) return false;
-        return !(this == LONE_TRAIL && MPBConfig.ROAD_HIERARCHY.enabled
-                && !MPBConfig.ROAD_HIERARCHY.loneTrailEarthworksEnabled);
+        if (!UltreiaConfig.PATHFINDING.allowEarthworks) return false;
+        return !(this == LONE_TRAIL && UltreiaConfig.ROAD_HIERARCHY.enabled
+                && !UltreiaConfig.ROAD_HIERARCHY.loneTrailEarthworksEnabled);
     }
 }

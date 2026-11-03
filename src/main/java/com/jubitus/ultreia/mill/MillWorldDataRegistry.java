@@ -2,7 +2,7 @@ package com.jubitus.ultreia.mill;
 
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.MillPresence;
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import org.millenaire.common.utilities.Point;
@@ -83,7 +83,7 @@ public final class MillWorldDataRegistry {
             for (Point p : data.villagesList.pos) {
                 out.add(new BlockPos(p.getiX(), p.getiY(), p.getiZ()));
             }
-            if (MPBConfig.GENERAL.includeLoneBuildings) {
+            if (UltreiaConfig.GENERAL.includeLoneBuildings) {
                 for (Point p : data.loneBuildingsList.pos) {
                     out.add(new BlockPos(p.getiX(), p.getiY(), p.getiZ()));
                 }
@@ -92,7 +92,7 @@ public final class MillWorldDataRegistry {
 
         // Fallback: if runtime is empty, read files directly
         if (out.isEmpty()) {
-            List<BlockPos> fromFiles = MillFileNodeLoader.loadNodesFromFiles(world, MPBConfig.GENERAL.includeLoneBuildings);
+            List<BlockPos> fromFiles = MillFileNodeLoader.loadNodesFromFiles(world, UltreiaConfig.GENERAL.includeLoneBuildings);
             out.addAll(fromFiles);
             Ultreia.LOGGER.info("Millenaire nodes loaded from files: {}", out.size());
         }
@@ -118,6 +118,6 @@ public final class MillWorldDataRegistry {
         Ultreia.LOGGER.info("Millenaire nodes (runtime): villages={}, loneBuildings={}, includeLoneBuildings={}",
                 data.villagesList.pos.size(),
                 data.loneBuildingsList.pos.size(),
-                MPBConfig.GENERAL.includeLoneBuildings);
+                UltreiaConfig.GENERAL.includeLoneBuildings);
     }
 }

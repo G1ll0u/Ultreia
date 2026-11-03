@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.planner;
 
 import com.jubitus.ultreia.MillPresence;
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.mill.MillVillageIndex;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -14,8 +14,8 @@ public final class VillageClassifier {
 
     public static VillageSize classify(World world, BlockPos center) {
         int pop = getPopulation(world, center);
-        if (pop >= MPBConfig.NETWORK.hubMinVillagers)    return VillageSize.HUB;
-        if (pop >= MPBConfig.NETWORK.mediumMinVillagers) return VillageSize.MEDIUM;
+        if (pop >= UltreiaConfig.NETWORK.hubMinVillagers)    return VillageSize.HUB;
+        if (pop >= UltreiaConfig.NETWORK.mediumMinVillagers) return VillageSize.MEDIUM;
         return VillageSize.SMALL;
     }
 

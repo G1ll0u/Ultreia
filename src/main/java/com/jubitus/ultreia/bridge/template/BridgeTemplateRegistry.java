@@ -6,7 +6,7 @@ import com.jubitus.jubiconfig.ModConfig;
 
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.Tags;
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import net.minecraftforge.common.config.Config;
 import net.minecraftforge.common.config.ConfigManager;
 import net.minecraftforge.fml.common.Loader;
@@ -90,7 +90,7 @@ public final class BridgeTemplateRegistry {
 
     @Nullable
     public static BridgeTemplate getDefaultTemplate() {
-        String name = MPBConfig.BRIDGES.defaultTemplateName;
+        String name = UltreiaConfig.BRIDGES.defaultTemplateName;
         if (name == null || name.trim().isEmpty()) return null;
         return loadTemplate(name);
     }
@@ -100,7 +100,7 @@ public final class BridgeTemplateRegistry {
         if (name.isEmpty()) return false;
         if (!getTemplateFile(name).isFile()) return false;
 
-        MPBConfig.BRIDGES.defaultTemplateName = name;
+        UltreiaConfig.BRIDGES.defaultTemplateName = name;
         ModConfig mod = JubiConfig.get();
         if (mod != null) {
             mod.persistence.save(ConfigReflector.toOverrideMap(

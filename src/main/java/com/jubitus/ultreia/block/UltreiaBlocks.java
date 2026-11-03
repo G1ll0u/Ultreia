@@ -10,16 +10,16 @@ import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 import net.minecraftforge.registries.IForgeRegistry;
 
-public final class MPBBlocks {
+public final class UltreiaBlocks {
 
-    public static MPBPathBlock PATH_BLOCK;
-    public static MPBPathSlabBlock PATH_SLAB;
+    public static PathBlock PATH_BLOCK;
+    public static PathSlabBlock PATH_SLAB;
 
-    private MPBBlocks() {}
+    private UltreiaBlocks() {}
 
     public static void registerBlocks(IForgeRegistry<Block> registry) {
-        registry.register(PATH_BLOCK = new MPBPathBlock());
-        registry.register(PATH_SLAB = new MPBPathSlabBlock());
+        registry.register(PATH_BLOCK = new PathBlock());
+        registry.register(PATH_SLAB = new PathSlabBlock());
     }
 
     public static void registerItems(IForgeRegistry<Item> registry) {

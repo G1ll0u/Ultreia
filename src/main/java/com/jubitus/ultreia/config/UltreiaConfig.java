@@ -3,7 +3,7 @@ package com.jubitus.ultreia.config;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import net.minecraftforge.common.config.Config;
 
-public class MPBConfig {
+public class UltreiaConfig {
 
     public static final General GENERAL = new General();
 
@@ -13,7 +13,7 @@ public class MPBConfig {
 
     public static final Painting PAINTING = new Painting();
 
-    // Paste inside MPBConfig class (near other config groups)
+    // Paste inside UltreiaConfig class (near other config groups)
     public static final WaterAvoid WATER_AVOID = new WaterAvoid();
 
     public static final class WaterAvoid {

@@ -7,7 +7,7 @@ import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.Ultreia;
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.bridge.BridgeApproachCheck;
 import com.jubitus.ultreia.paint.RoadHeightSolver;
 import com.jubitus.ultreia.geom.Pos2D;
@@ -181,9 +181,9 @@ public final class AStarPathfinder {
             this.world = world;
             this.sampler = sampler;
 
-            this.configStep = Math.max(2, MPBConfig.PATHFINDING.gridStep);
+            this.configStep = Math.max(2, UltreiaConfig.PATHFINDING.gridStep);
             {
-                if (MPBConfig.PATHFINDING.adaptiveGridStep) {
+                if (UltreiaConfig.PATHFINDING.adaptiveGridStep) {
                     double roughDist = Math.sqrt(
                         (double)(start.getX() - goal.getX()) * (double)(start.getX() - goal.getX()) +
                         (double)(start.getZ() - goal.getZ()) * (double)(start.getZ() - goal.getZ())
@@ -252,7 +252,7 @@ public final class AStarPathfinder {
             this.segDz = bz - az;
             this.segLenSq = segDx * segDx + segDz * segDz;
 
-            int marginBase = Math.max(48, MPBConfig.PATHFINDING.searchMargin);
+            int marginBase = Math.max(48, UltreiaConfig.PATHFINDING.searchMargin);
 
             TerrainSampler.Sample ss = sampler.sample(this.sx, this.sz);
             TerrainSampler.Sample gs = sampler.sample(this.gx, this.gz);
@@ -260,9 +260,9 @@ public final class AStarPathfinder {
             this.startY = (ss != null) ? ss.surfaceY : 64;
             this.goalY  = (gs != null) ? gs.surfaceY : 64;
 
-            int m = Math.max(64, MPBConfig.PATHFINDING.searchMargin / 2);
+            int m = Math.max(64, UltreiaConfig.PATHFINDING.searchMargin / 2);
             // climbBoost scales up to corridorHalfWidthMax so the corridor covers full switchback room.
-            int climbBoost = Math.min(Math.max(256, MPBConfig.PATHFINDING.corridorHalfWidthMax), dyGoal * 8);
+            int climbBoost = Math.min(Math.max(256, UltreiaConfig.PATHFINDING.corridorHalfWidthMax), dyGoal * 8);
 
             int routeLen = (int) Math.round(Math.sqrt((double) segLenSq));
             int longRouteAllowance = Math.min(768, Math.max(128, routeLen / 3));
@@ -270,7 +270,7 @@ public final class AStarPathfinder {
             this.corridorHalfWidth = Math.max(m + climbBoost, longRouteAllowance);
 
             // Apply user-configured cap before adaptive step scaling.
-            int configuredMax = Math.max(64, MPBConfig.PATHFINDING.corridorHalfWidthMax);
+            int configuredMax = Math.max(64, UltreiaConfig.PATHFINDING.corridorHalfWidthMax);
             this.corridorHalfWidth = Math.min(this.corridorHalfWidth, configuredMax);
 
             // When using an adaptive larger step, tighten the corridor so the total
@@ -288,12 +288,12 @@ public final class AStarPathfinder {
             this.minZ = Math.min(sz, gz) - margin;
             this.maxZ = Math.max(sz, gz) + margin;
 
-            int mr = Math.max(0, MPBConfig.PATHFINDING.maxSearchRadius);
+            int mr = Math.max(0, UltreiaConfig.PATHFINDING.maxSearchRadius);
             this.maxRadSq = (mr > 0) ? (mr * mr) : -1;
 
             // For adaptive step: increase iteration budget proportionally to step ratio,
             // since each iteration covers more ground and the search finishes faster per cell.
-            int configMaxIt = MPBConfig.PATHFINDING.maxIterations;
+            int configMaxIt = UltreiaConfig.PATHFINDING.maxIterations;
             this.maxIt = (step == configStep)
                     ? configMaxIt
                     : (int) Math.min((long) configMaxIt * 2L, (long) configMaxIt * (long) step / (long) configStep);
@@ -370,7 +370,7 @@ public final class AStarPathfinder {
                 long nowNs = System.nanoTime();
 
                 // Wall-clock timeout guard — prevents infinite-seeming hangs on impossible terrain.
-                int maxWallSec = Math.max(30, MPBConfig.PATHFINDING.maxWallTimeSeconds);
+                int maxWallSec = Math.max(30, UltreiaConfig.PATHFINDING.maxWallTimeSeconds);
                 if (nowNs - sessionStartNs > (long) maxWallSec * 1_000_000_000L) {
                     if (beginPartialReconstruction("wall-clock timeout (" + maxWallSec + "s)")) {
                         return StepResult.RUNNING;
@@ -382,7 +382,7 @@ public final class AStarPathfinder {
                 }
 
                 // Periodic progress log so the user can see A* is still alive.
-                if (MPBConfig.GENERAL.printFailureBreakdown
+                if (UltreiaConfig.GENERAL.printFailureBreakdown
                         && nowNs - lastProgressLogNs > 10_000_000_000L) {
                     lastProgressLogNs = nowNs;
                     long elapsedSec = (nowNs - sessionStartNs) / 1_000_000_000L;
@@ -559,7 +559,7 @@ public final class AStarPathfinder {
                             // Guard: after too many full-path rejections, try a partial fallback.
                             // Note: beginPartialReconstruction must only be called here (not from
                             // inside a partial reconstruction) or it would loop silently.
-                            int maxRejections = Math.max(24, MPBConfig.PATHFINDING.profileRejectionLimit);
+                            int maxRejections = Math.max(24, UltreiaConfig.PATHFINDING.profileRejectionLimit);
                             if (profileRejectionCount >= maxRejections) {
                                 if (beginPartialReconstruction("non-feasible road profile after " + profileRejectionCount + " attempts")) {
                                     return StepResult.RUNNING;
@@ -618,7 +618,7 @@ public final class AStarPathfinder {
         }
 
         private boolean beginPartialReconstruction(String reason) {
-            if (!MPBConfig.PATHFINDING.allowPartialPathFallback) return false;
+            if (!UltreiaConfig.PATHFINDING.allowPartialPathFallback) return false;
             if (!hasUsefulPartialFallback()) return false;
 
             partialResult = true;
@@ -671,33 +671,33 @@ public final class AStarPathfinder {
         }
 
         private void expandNormalMoves(Node cur, long ck, TerrainSampler.Sample cs) {
-            final int configMaxDy = Math.max(1, MPBConfig.PATHFINDING.maxYDeltaPerStep);
+            final int configMaxDy = Math.max(1, UltreiaConfig.PATHFINDING.maxYDeltaPerStep);
             // LONE_TRAIL: no earthworks → path follows terrain strictly.
-            final boolean isLoneTrail = MPBConfig.ROAD_HIERARCHY.enabled && roadType == RoadType.LONE_TRAIL;
+            final boolean isLoneTrail = UltreiaConfig.ROAD_HIERARCHY.enabled && roadType == RoadType.LONE_TRAIL;
             final boolean earthworks = roadType.allowsEarthworks();
 
             // Scale maxDy proportionally when using an adaptive (larger) step,
             // so the grade limit stays the same regardless of step size.
-            final int configStep = Math.max(2, MPBConfig.PATHFINDING.gridStep);
+            final int configStep = Math.max(2, UltreiaConfig.PATHFINDING.gridStep);
             final int effectiveMaxDy = (step == configStep)
                     ? configMaxDy
                     : (int) Math.ceil((double) configMaxDy * (double) step / (double) configStep);
 
             // LONE_TRAIL uses a higher slope multiplier to make the trail wind around hills.
             final double slopeMultiplier = (isLoneTrail)
-                    ? Math.max(1.0, MPBConfig.ROAD_HIERARCHY.loneTrailSlopePenaltyMultiplier)
+                    ? Math.max(1.0, UltreiaConfig.ROAD_HIERARCHY.loneTrailSlopePenaltyMultiplier)
                     : 1.0;
 
             // Magnetism: cache radii once per call to avoid per-neighbor lookups when disabled.
-            final boolean magnetismActive = MPBConfig.ROAD_HIERARCHY.magnetismEnabled;
-            final int magRadius = magnetismActive ? Math.max(4, MPBConfig.ROAD_HIERARCHY.magnetismRadius) : 0;
+            final boolean magnetismActive = UltreiaConfig.ROAD_HIERARCHY.magnetismEnabled;
+            final int magRadius = magnetismActive ? Math.max(4, UltreiaConfig.ROAD_HIERARCHY.magnetismRadius) : 0;
 
             // Bridge-endpoint magnetism: pulls the search toward a known existing bridge crossing's
             // entrance from a distance, so buildExistingBridgeMoves' validated single-cell snap
             // (bug A fix) actually has a real adjacent node to trigger from instead of drifting past it.
-            final int bridgeReuseRadius = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeReuseSearchRadius);
-            final double bridgeMagnetismBonus = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeEndpointMagnetismBonus);
-            boolean bridgeMagnetismActive = MPBConfig.BRIDGE_AWARE_PATHFINDING.enabled
+            final int bridgeReuseRadius = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeReuseSearchRadius);
+            final double bridgeMagnetismBonus = Math.max(0.0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeEndpointMagnetismBonus);
+            boolean bridgeMagnetismActive = UltreiaConfig.BRIDGE_AWARE_PATHFINDING.enabled
                     && roadNetwork != null && bridgeReuseRadius > 0 && bridgeMagnetismBonus > 0.0;
             List<RoadNetwork.BridgeCrossing> nearbyCrossings = null;
             double curDistToCrossingStart = Double.POSITIVE_INFINITY;
@@ -739,8 +739,8 @@ public final class AStarPathfinder {
                 int dy = Math.abs(ns.surfaceY - cs.surfaceY);
 
                 double base = Math.sqrt((double) dx * (double) dx + (double) dz * (double) dz);
-                double slopeCost = (double) Math.min(dy, effectiveMaxDy) * MPBConfig.PATHFINDING.slopePenalty * slopeMultiplier;
-                double roughCost = (double) sw.roughness * MPBConfig.PATHFINDING.surfaceRoughnessPenalty;
+                double slopeCost = (double) Math.min(dy, effectiveMaxDy) * UltreiaConfig.PATHFINDING.slopePenalty * slopeMultiplier;
+                double roughCost = (double) sw.roughness * UltreiaConfig.PATHFINDING.surfaceRoughnessPenalty;
                 double terrainCutCost = sw.terrainPenalty;
                 double mountainCost = mountainTraversePenalty(cur.x, cur.z, dirIdx, cs.surfaceY, ns.surfaceY);
 
@@ -766,7 +766,7 @@ public final class AStarPathfinder {
                 // Direction-change penalty: produces smooth natural roads and prevents zigzagging on flat terrain.
                 // Same formula used for entering/exiting a bridge (see turnCost) — one turn-cost model for
                 // every kind of move, so a bridge never gets to attach at an angle a road turn wouldn't.
-                tentative += turnCost(cur.dir, dirIdx, step, MPBConfig.PATHFINDING.turnPenalty);
+                tentative += turnCost(cur.dir, dirIdx, step, UltreiaConfig.PATHFINDING.turnPenalty);
 
                 // Road magnetism: direction-aware attraction/repulsion around existing roads.
                 // Moving toward an existing road is discounted; moving away is penalised.
@@ -778,11 +778,11 @@ public final class AStarPathfinder {
                         if (distNeighbor < distCurrent) {
                             // Moving toward road → attraction bonus, strongest when almost on it.
                             double frac = 1.0 - (double) distNeighbor / scale;
-                            tentative -= Math.max(0.0, MPBConfig.ROAD_HIERARCHY.magnetismAttractionBonus) * frac;
+                            tentative -= Math.max(0.0, UltreiaConfig.ROAD_HIERARCHY.magnetismAttractionBonus) * frac;
                         } else if (distCurrent < magRadius && distNeighbor > distCurrent) {
                             // Moving away from road while inside the attraction zone → repulsion.
                             double frac = 1.0 - (double) distCurrent / scale;
-                            tentative += Math.max(0.0, MPBConfig.ROAD_HIERARCHY.magnetismRepulsionPenalty) * frac;
+                            tentative += Math.max(0.0, UltreiaConfig.ROAD_HIERARCHY.magnetismRepulsionPenalty) * frac;
                         }
                     }
                 }
@@ -817,12 +817,12 @@ public final class AStarPathfinder {
         private double mountainTraversePenalty(int x, int z, int dirIdx, int curY, int nextY) {
             if (dirIdx < 0 || dirIdx >= NEIGHBOR_DIRS.length) return 0.0;
 
-            int lookahead = Math.max(1, MPBConfig.PATHFINDING.mountainAscentLookahead);
+            int lookahead = Math.max(1, UltreiaConfig.PATHFINDING.mountainAscentLookahead);
             int[] dir = NEIGHBOR_DIRS[dirIdx];
 
-            int wallMinHeight = Math.max(1, MPBConfig.PATHFINDING.enclosedWallMinHeight);
-            int uphillMinRise = Math.max(1, MPBConfig.PATHFINDING.uphillLookaheadMinRise);
-            int allowedCut = Math.max(0, MPBConfig.PATHFINDING.predictedMaxCutDepth);
+            int wallMinHeight = Math.max(1, UltreiaConfig.PATHFINDING.enclosedWallMinHeight);
+            int uphillMinRise = Math.max(1, UltreiaConfig.PATHFINDING.uphillLookaheadMinRise);
+            int allowedCut = Math.max(0, UltreiaConfig.PATHFINDING.predictedMaxCutDepth);
 
             int stepDy = nextY - curY;
 
@@ -895,7 +895,7 @@ public final class AStarPathfinder {
 
             // Hard rock (stone, granite, etc.) multiplies cut cost — soft terrain (dirt, snow) stays at 1x.
             double hardnessMult = (maxHardnessCat >= 2)
-                    ? Math.max(1.0, MPBConfig.PATHFINDING.hardRockCutMultiplier)
+                    ? Math.max(1.0, UltreiaConfig.PATHFINDING.hardRockCutMultiplier)
                     : 1.0;
 
             // Open hillside cuts (terrain only on one side = natural embankment/talus) look realistic
@@ -905,7 +905,7 @@ public final class AStarPathfinder {
                     ? Math.min(1.0, (double) enclosedAhead / (double) lookahead)
                     : 0.0;
             double openHillsideFactor = 0.3 + 0.7 * enclosedFraction;
-            penalty += (double) sumPredictedCut * Math.max(0.0, MPBConfig.PATHFINDING.predictedCutPenaltyPerBlock) * 0.75 * hardnessMult * openHillsideFactor;
+            penalty += (double) sumPredictedCut * Math.max(0.0, UltreiaConfig.PATHFINDING.predictedCutPenaltyPerBlock) * 0.75 * hardnessMult * openHillsideFactor;
 
             if (maxPredictedCut > allowedCut) {
                 double extra = (double) (maxPredictedCut - allowedCut);
@@ -913,10 +913,10 @@ public final class AStarPathfinder {
             }
 
             if (enclosedAhead > 0) {
-                penalty += Math.max(0.0, MPBConfig.PATHFINDING.enclosedCutPenalty) * 0.5;
+                penalty += Math.max(0.0, UltreiaConfig.PATHFINDING.enclosedCutPenalty) * 0.5;
                 penalty += (double) enclosedAhead * 26.0;
                 penalty += (double) Math.max(0, longestEnclosedRun - 1)
-                        * Math.max(0.0, MPBConfig.PATHFINDING.sustainedEnclosedCutPenalty) * 0.6;
+                        * Math.max(0.0, UltreiaConfig.PATHFINDING.sustainedEnclosedCutPenalty) * 0.6;
                 penalty += (double) maxWallMin * 10.0;
             }
 
@@ -924,7 +924,7 @@ public final class AStarPathfinder {
             boolean sustainedDirectDescent = nextY < curY && maxDropAhead >= uphillMinRise;
 
             if ((sustainedDirectAscent || sustainedDirectDescent) && enclosedAhead > 0) {
-                penalty += Math.max(0.0, MPBConfig.PATHFINDING.mountainAscentPenalty);
+                penalty += Math.max(0.0, UltreiaConfig.PATHFINDING.mountainAscentPenalty);
 
                 int verticalCommit = Math.max(maxRiseAhead, maxDropAhead);
                 penalty += (double) verticalCommit * 8.0;
@@ -934,7 +934,7 @@ public final class AStarPathfinder {
         }
 
         private int[] lateralWallHeights(int x, int z, int roadY, int dirDx, int dirDz) {
-            int r = Math.max(1, MPBConfig.PATHFINDING.enclosedCutScanRadius);
+            int r = Math.max(1, UltreiaConfig.PATHFINDING.enclosedCutScanRadius);
 
             double len = Math.sqrt((double) dirDx * (double) dirDx + (double) dirDz * (double) dirDz);
             if (len <= 0.0) return new int[]{0, 0};
@@ -987,17 +987,17 @@ public final class AStarPathfinder {
 
         /** Bridge cost multiplier — LONE_TRAIL strongly discourages bridges in favour of land detours. */
         private double bridgeCostMultiplier() {
-            if (MPBConfig.ROAD_HIERARCHY.enabled && roadType == RoadType.LONE_TRAIL) {
-                return Math.max(1.0, MPBConfig.ROAD_HIERARCHY.loneTrailBridgeCostMultiplier);
+            if (UltreiaConfig.ROAD_HIERARCHY.enabled && roadType == RoadType.LONE_TRAIL) {
+                return Math.max(1.0, UltreiaConfig.ROAD_HIERARCHY.loneTrailBridgeCostMultiplier);
             }
             return 1.0;
         }
 
         private void expandBridgeMoves(Node cur, long ck, TerrainSampler.Sample cs) {
-            if (!MPBConfig.BRIDGE_AWARE_PATHFINDING.enabled) return;
-            if (!MPBConfig.BRIDGES.enabled) return;
+            if (!UltreiaConfig.BRIDGE_AWARE_PATHFINDING.enabled) return;
+            if (!UltreiaConfig.BRIDGES.enabled) return;
 
-            int minSpacing = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.minDistanceBetweenBridgesBlocks);
+            int minSpacing = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minDistanceBetweenBridgesBlocks);
             int distFromLastBridge = distSinceBridge.get(ck);
             if (distFromLastBridge < minSpacing) return;
 
@@ -1031,7 +1031,7 @@ public final class AStarPathfinder {
                     if (mv.reusedCrossing != null) {
                         cameBridge.remove(nk);
                         cameReusedBridge.put(nk, mv.reusedCrossing);
-                        if (MPBConfig.GENERAL.printBridgeDebug) {
+                        if (UltreiaConfig.GENERAL.printBridgeDebug) {
                             Ultreia.LOGGER.info(
                                     "[MPB Bridge] reuse transition taken: seg={} ({},{}) -> ({},{})",
                                     mv.reusedCrossing.segmentId, cur.x, cur.z, mv.nx, mv.nz);
@@ -1062,14 +1062,14 @@ public final class AStarPathfinder {
         private List<BridgeMove> buildExistingBridgeMoves(Node cur, long ck, TerrainSampler.Sample cs) {
             if (roadNetwork == null) return Collections.<BridgeMove>emptyList();
 
-            int reuseRadius = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeReuseSearchRadius);
+            int reuseRadius = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeReuseSearchRadius);
             if (reuseRadius <= 0) return Collections.<BridgeMove>emptyList();
 
             List<RoadNetwork.BridgeCrossing> crossings = roadNetwork.getBridgeCrossingsNear(cur.x, cur.z, reuseRadius);
             if (crossings.isEmpty()) return Collections.<BridgeMove>emptyList();
 
-            double bonus = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeReuseBonus);
-            boolean debug = MPBConfig.GENERAL.printBridgeDebug;
+            double bonus = Math.max(0.0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeReuseBonus);
+            boolean debug = UltreiaConfig.GENERAL.printBridgeDebug;
             // A validated "adjacent" tolerance, not a teleport radius: on the step-spaced A* grid, the
             // nearest lattice point to any target coordinate is at most step*sqrt(2)/2 away, so this is
             // always reachable once the search has genuinely arrived at the crossing's entrance cell.
@@ -1127,7 +1127,7 @@ public final class AStarPathfinder {
                 double cost = Math.max(0.1, bridgeCost - bonus);
 
                 int ndir = nearestDirIndex(endX - cur.x, endZ - cur.z);
-                double turn = turnCost(cur.dir, ndir, step, MPBConfig.PATHFINDING.turnPenalty);
+                double turn = turnCost(cur.dir, ndir, step, UltreiaConfig.PATHFINDING.turnPenalty);
 
                 if (debug) {
                     Ultreia.LOGGER.info(
@@ -1145,8 +1145,8 @@ public final class AStarPathfinder {
             if (cur.nearWaterLike) return true;
             if (cur.smallWater) return true;
 
-            int valleyDrop = MPBConfig.VALLEY_BRIDGING.enabled
-                    ? Math.max(4, MPBConfig.VALLEY_BRIDGING.minValleyDepth)
+            int valleyDrop = UltreiaConfig.VALLEY_BRIDGING.enabled
+                    ? Math.max(4, UltreiaConfig.VALLEY_BRIDGING.minValleyDepth)
                     : Integer.MAX_VALUE;
 
             for (int[] d : NEIGHBOR_DIRS) {
@@ -1167,7 +1167,7 @@ public final class AStarPathfinder {
             if (cur.isWater || cur.isOcean) return out;
             if (sampler.isProtectedNoPaint(x, z)) return out;
 
-            int minSpacing = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.minDistanceBetweenBridgesBlocks);
+            int minSpacing = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minDistanceBetweenBridgesBlocks);
             int distFromLastBridge = distSinceBridge.get(ck);
             if (distFromLastBridge < minSpacing) return out;
 
@@ -1190,14 +1190,14 @@ public final class AStarPathfinder {
                 hasIncoming = (inDx != 0 || inDz != 0);
             }
 
-            final int maxCandidates = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.maxBridgeCandidatesPerNode);
+            final int maxCandidates = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.maxBridgeCandidatesPerNode);
 
             ArrayList<BridgeDirScore> dirs = new ArrayList<BridgeDirScore>();
 
             for (int[] dir : BRIDGE_DIRS) {
-                if (MPBConfig.BRIDGE_AWARE_PATHFINDING.requireAlignedApproach && hasIncoming) {
+                if (UltreiaConfig.BRIDGE_AWARE_PATHFINDING.requireAlignedApproach && hasIncoming) {
                     double dot = normalizedDot(inDx, inDz, dir[0], dir[1]);
-                    if (dot < MPBConfig.BRIDGE_AWARE_PATHFINDING.minApproachDot) continue;
+                    if (dot < UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minApproachDot) continue;
                 }
 
                 QuickBridgeRayInfo info = scanBridgeRayQuick(x, z, cur.surfaceY, dir[0], dir[1]);
@@ -1256,18 +1256,18 @@ public final class AStarPathfinder {
             return out;
         }
         private QuickBridgeRayInfo scanBridgeRayQuick(int x, int z, int baselineY, int dirX, int dirZ) {
-            final int minLen = Math.max(step * 2, MPBConfig.BRIDGE_AWARE_PATHFINDING.minBridgeLenBlocks);
-            final int maxLen = Math.max(minLen, MPBConfig.BRIDGE_AWARE_PATHFINDING.maxProbeLenBlocks);
+            final int minLen = Math.max(step * 2, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minBridgeLenBlocks);
+            final int maxLen = Math.max(minLen, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.maxProbeLenBlocks);
 
-            final int configuredApproach = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeRoadApproachMaxBlocks);
+            final int configuredApproach = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeRoadApproachMaxBlocks);
             final int maxLaunchSearch = Math.min(
                     maxLen,
                     Math.max(16, Math.min(48, minLen + configuredApproach * 2))
             );
 
-            final int minWaterRun = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.minWaterRunBlocks);
-            final int minGapRun = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.minMeaningfulGapRun);
-            final int maxLeadOut = Math.max(2, MPBConfig.BRIDGE_AWARE_PATHFINDING.maxWaterBridgeLeadOutBlocks + 2);
+            final int minWaterRun = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minWaterRunBlocks);
+            final int minGapRun = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minMeaningfulGapRun);
+            final int maxLeadOut = Math.max(2, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.maxWaterBridgeLeadOutBlocks + 2);
 
             int waterRun = 0;
             int gapRun = 0;
@@ -1376,10 +1376,10 @@ public final class AStarPathfinder {
         private boolean isQuickValleyGap(int baselineY, TerrainSampler.Sample s) {
             if (s == null) return false;
             if (s.isWater || s.isOcean) return false;
-            if (!MPBConfig.VALLEY_BRIDGING.enabled) return false;
+            if (!UltreiaConfig.VALLEY_BRIDGING.enabled) return false;
 
             int drop = baselineY - s.surfaceY;
-            return drop >= Math.max(2, MPBConfig.VALLEY_BRIDGING.minValleyDepth);
+            return drop >= Math.max(2, UltreiaConfig.VALLEY_BRIDGING.minValleyDepth);
         }
 
         private List<BridgeMove> buildBridgeMovesFromQuickInfo(int x,
@@ -1448,7 +1448,7 @@ public final class AStarPathfinder {
                     cost -= 20.0;
                 }
 
-                double turn = turnCost(curDir, bridgeDir, step, MPBConfig.PATHFINDING.turnPenalty);
+                double turn = turnCost(curDir, bridgeDir, step, UltreiaConfig.PATHFINDING.turnPenalty);
 
                 debugBridge("accept span start=(" + x + "," + cur.surfaceY + "," + z + ")"
                         + " end=(" + nx + "," + ns.surfaceY + "," + nz + ")"
@@ -1519,9 +1519,9 @@ public final class AStarPathfinder {
         private double bridgeSpanCost(BridgeSpan span) {
             double euclid = Math.sqrt(distSq(span.start.getX(), span.start.getZ(), span.end.getX(), span.end.getZ()));
 
-            double fixed = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeFixedCost);
-            double mult = Math.max(1.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeLengthCostMultiplier);
-            double valleyBonus = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeValleyPreferenceBonusPerBlock);
+            double fixed = Math.max(0.0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeFixedCost);
+            double mult = Math.max(1.0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeLengthCostMultiplier);
+            double valleyBonus = Math.max(0.0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeValleyPreferenceBonusPerBlock);
 
             int baseline = Math.max(
                     sampler.sample(span.start.getX(), span.start.getZ()).surfaceY,
@@ -1591,7 +1591,7 @@ public final class AStarPathfinder {
             }
 
             if (waterCells <= 0 && deepCells <= 2) cost += 200.0;
-            int approachBlocks = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeApproachRampBlocks);
+            int approachBlocks = Math.max(1, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeApproachRampBlocks);
             if (!BridgeApproachCheck.canConnectBridgeApproaches(sampler, span, approachBlocks + 2, roadType)) {
                 cost += 120.0;
             }
@@ -1604,8 +1604,8 @@ public final class AStarPathfinder {
                                                     double meaningfulPct,
                                                     double euclid,
                                                     int waterCells) {
-            double base = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.waterBridgeBasePenalty);
-            double perBlock = Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.waterBridgeLengthPenaltyPerBlock);
+            double base = Math.max(0.0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.waterBridgeBasePenalty);
+            double perBlock = Math.max(0.0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.waterBridgeLengthPenaltyPerBlock);
             // Progressive penalty: longer water crossings cost proportionally more,
             // making A* strongly prefer narrow river crossings over wide lake crossings.
             return base + waterCells * perBlock;
@@ -1634,7 +1634,7 @@ public final class AStarPathfinder {
         private boolean bridgesHaveApproachPathClearance(List<BlockPos> path, List<BridgeSpan> spans) {
             if (spans.isEmpty() || bridgePathStartIndices.size() != spans.size()) return true;
 
-            int minClearance = Math.max(0, MPBConfig.BRIDGE_AWARE_PATHFINDING.underBridgeRoadMinClearanceBlocks);
+            int minClearance = Math.max(0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.underBridgeRoadMinClearanceBlocks);
             if (minClearance <= 0) return true;
 
             // Skip the launch-ramp zone so the bridge connection point never triggers a false reject.
@@ -1662,7 +1662,7 @@ public final class AStarPathfinder {
 
                         int freeBlocks = deckSurfaceY - roadPoint.getY() - 1;
                         if (freeBlocks < minClearance) {
-                            if (MPBConfig.GENERAL.printBridgeDebug) {
+                            if (UltreiaConfig.GENERAL.printBridgeDebug) {
                                 Ultreia.LOGGER.info(
                                         "[MPB Bridge] self-overlap bridge[{}]: deck Y={} at ({},{}) over approach road Y={} at ({},{}), clearance={} < {}",
                                         b, deckSurfaceY, bridgePoint.getX(), bridgePoint.getZ(),
@@ -1985,14 +1985,14 @@ public final class AStarPathfinder {
                     if (predictedCut > maxPredictedCut) maxPredictedCut = predictedCut;
 
                     if (predictedFill > 0) {
-                        terrainPenalty += (double) predictedFill * Math.max(0.0, MPBConfig.PATHFINDING.predictedFillPenaltyPerBlock);
+                        terrainPenalty += (double) predictedFill * Math.max(0.0, UltreiaConfig.PATHFINDING.predictedFillPenaltyPerBlock);
                     }
 
                     if (predictedCut > 0) {
-                        terrainPenalty += (double) predictedCut * Math.max(0.0, MPBConfig.PATHFINDING.predictedCutPenaltyPerBlock);
+                        terrainPenalty += (double) predictedCut * Math.max(0.0, UltreiaConfig.PATHFINDING.predictedCutPenaltyPerBlock);
 
                         // Only probe lateral walls when terrain actually needs cutting.
-                        int wallMinHeight = Math.max(1, MPBConfig.PATHFINDING.enclosedWallMinHeight);
+                        int wallMinHeight = Math.max(1, UltreiaConfig.PATHFINDING.enclosedWallMinHeight);
                         int[] walls = lateralWallHeights(p.getX(), p.getZ(), roadY, x1 - x0, z1 - z0);
 
                         boolean enclosed = walls[0] >= wallMinHeight && walls[1] >= wallMinHeight;
@@ -2001,7 +2001,7 @@ public final class AStarPathfinder {
                             enclosedCells++;
                             currentEnclosedRun++;
                             if (currentEnclosedRun > longestEnclosedRun) longestEnclosedRun = currentEnclosedRun;
-                            terrainPenalty += Math.max(0.0, MPBConfig.PATHFINDING.enclosedCutPenalty);
+                            terrainPenalty += Math.max(0.0, UltreiaConfig.PATHFINDING.enclosedCutPenalty);
                             terrainPenalty += (double) wallMin * 8.0;
                         } else {
                             currentEnclosedRun = 0;
@@ -2013,18 +2013,18 @@ public final class AStarPathfinder {
             }
 
             if (longestEnclosedRun > 1) {
-                terrainPenalty += (double) (longestEnclosedRun - 1) * Math.max(0.0, MPBConfig.PATHFINDING.sustainedEnclosedCutPenalty);
+                terrainPenalty += (double) (longestEnclosedRun - 1) * Math.max(0.0, UltreiaConfig.PATHFINDING.sustainedEnclosedCutPenalty);
             }
 
-            int maxRough = Math.max(0, MPBConfig.PATHFINDING.maxSegmentRoughness);
-            int maxPredictedCutAllowed = Math.max(0, MPBConfig.PATHFINDING.predictedMaxCutDepth);
+            int maxRough = Math.max(0, UltreiaConfig.PATHFINDING.maxSegmentRoughness);
+            int maxPredictedCutAllowed = Math.max(0, UltreiaConfig.PATHFINDING.predictedMaxCutDepth);
 
             // Extra tolerance applied only during pathfinding — lets A* find routes through steeper terrain
             // without changing what the painter actually does. Painter always uses its own earthworks limits.
-            int pfTolerance = Math.max(0, MPBConfig.PATHFINDING.pathfindingEarthworksTolerance);
+            int pfTolerance = Math.max(0, UltreiaConfig.PATHFINDING.pathfindingEarthworksTolerance);
 
             // Scale roughness limit proportionally with adaptive step (more raster points = higher budget).
-            int baseStep = Math.max(2, MPBConfig.PATHFINDING.gridStep);
+            int baseStep = Math.max(2, UltreiaConfig.PATHFINDING.gridStep);
             int scaledMaxRough = (step == baseStep)
                     ? maxRough
                     : (int) Math.ceil((double) maxRough * (double) step / (double) baseStep);
@@ -2045,9 +2045,9 @@ public final class AStarPathfinder {
             int endHalf = BridgeGeometry.naturalSurfaceHalfY(last.surfaceY);
 
             boolean earthworks = roadType.allowsEarthworks();
-            int cutHalf = earthworks ? Math.max(0, MPBConfig.PAINTING.earthworksMaxCut + pfTolerance) * 2 : 0;
-            int fillHalf = earthworks ? Math.max(0, MPBConfig.PAINTING.earthworksMaxFill + pfTolerance) * 2 : 0;
-            int maxStepHalf = Math.max(1, MPBConfig.PAINTING.maxRoadStepHalfPerBlock);
+            int cutHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxCut + pfTolerance) * 2 : 0;
+            int fillHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxFill + pfTolerance) * 2 : 0;
+            int maxStepHalf = Math.max(1, UltreiaConfig.PAINTING.maxRoadStepHalfPerBlock);
 
             boolean gradeFeasible = RoadHeightSolver.isLineFeasible(
                     line,
@@ -2155,7 +2155,7 @@ public final class AStarPathfinder {
 
             // Altitude progress: A* may be executing a switchback (lateral traversal with no XZ gain).
             // If it has climbed/descended at least 20% of the needed altitude, don't count as stagnant.
-            if (MPBConfig.PATHFINDING.switchbackStagnationBoost && hasAltitudeProgressTowardGoal()) {
+            if (UltreiaConfig.PATHFINDING.switchbackStagnationBoost && hasAltitudeProgressTowardGoal()) {
                 stagnationSteps = 0;
                 return false;
             }
@@ -2179,7 +2179,7 @@ public final class AStarPathfinder {
 
             // On steep mountain routes, switchbacks require more lateral exploration before making XZ progress.
             // Multiply the stagnation threshold so A* doesn't abort mid-switchback.
-            if (MPBConfig.PATHFINDING.switchbackStagnationBoost) {
+            if (UltreiaConfig.PATHFINDING.switchbackStagnationBoost) {
                 int totalDY = Math.abs(goalY - startY);
                 if (totalDY >= 12) {
                     int boostFactor = Math.min(4, 1 + totalDY / 16);
@@ -2220,7 +2220,7 @@ public final class AStarPathfinder {
             return (double) progressY / (double) totalDY >= 0.20;
         }
         private void debugBridge(String msg) {
-            if (!MPBConfig.GENERAL.printBridgeDebug) return;
+            if (!UltreiaConfig.GENERAL.printBridgeDebug) return;
 
             if (bridgeDebugPrinted < BRIDGE_DEBUG_LIMIT) {
                 Ultreia.LOGGER.info("[MPB bridge-debug] {}", msg);
@@ -2231,7 +2231,7 @@ public final class AStarPathfinder {
         }
 
         private void flushBridgeDebugSummary() {
-            if (!MPBConfig.GENERAL.printBridgeDebug) return;
+            if (!UltreiaConfig.GENERAL.printBridgeDebug) return;
             if (bridgeDebugSuppressed > 0) {
                 Ultreia.LOGGER.info("[MPB bridge-debug] suppressed {} additional bridge debug lines", bridgeDebugSuppressed);
                 bridgeDebugSuppressed = 0;
@@ -2350,12 +2350,12 @@ public final class AStarPathfinder {
         TerrainSampler.Sample s = sampler.sample(pos.getX(), pos.getZ());
         if (s == null) return "endpoint=(" + pos.getX() + "," + pos.getZ() + ") sample=null";
 
-        int free1 = countFreeNeighbors(pos.getX(), pos.getZ(), Math.max(2, MPBConfig.PATHFINDING.gridStep), sampler, 1);
-        int free2 = countFreeNeighbors(pos.getX(), pos.getZ(), Math.max(2, MPBConfig.PATHFINDING.gridStep), sampler, 2);
-        int free3 = countFreeNeighbors(pos.getX(), pos.getZ(), Math.max(2, MPBConfig.PATHFINDING.gridStep), sampler, 3);
+        int free1 = countFreeNeighbors(pos.getX(), pos.getZ(), Math.max(2, UltreiaConfig.PATHFINDING.gridStep), sampler, 1);
+        int free2 = countFreeNeighbors(pos.getX(), pos.getZ(), Math.max(2, UltreiaConfig.PATHFINDING.gridStep), sampler, 2);
+        int free3 = countFreeNeighbors(pos.getX(), pos.getZ(), Math.max(2, UltreiaConfig.PATHFINDING.gridStep), sampler, 3);
 
-        int blocked1 = countBlockedNeighbors(pos.getX(), pos.getZ(), Math.max(2, MPBConfig.PATHFINDING.gridStep), sampler, 1);
-        int blocked2 = countBlockedNeighbors(pos.getX(), pos.getZ(), Math.max(2, MPBConfig.PATHFINDING.gridStep), sampler, 2);
+        int blocked1 = countBlockedNeighbors(pos.getX(), pos.getZ(), Math.max(2, UltreiaConfig.PATHFINDING.gridStep), sampler, 1);
+        int blocked2 = countBlockedNeighbors(pos.getX(), pos.getZ(), Math.max(2, UltreiaConfig.PATHFINDING.gridStep), sampler, 2);
 
         int protectPenalty = protectedAreas != null ? protectedAreas.penaltyAt(pos.getX(), pos.getZ()) : 0;
         boolean noPaint = protectedAreas != null && protectedAreas.contains(pos.getX(), pos.getZ());

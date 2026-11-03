@@ -2,7 +2,7 @@ package com.jubitus.ultreia;
 
 import com.jubitus.jubiconfig.JubiConfig;
 import com.jubitus.ultreia.command.CommandUltreia;
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.bridge.template.BridgeDefaultTemplates;
 import com.jubitus.ultreia.job.GenerationManager;
 import com.jubitus.ultreia.chunk.ChunkLoadingCallback;
@@ -50,7 +50,7 @@ public class Ultreia {
         MinecraftForge.EVENT_BUS.register(new SpeedBoostHandler());
 
         File configDir = new File(event.getModConfigurationDirectory(), "ultreia");
-        JubiConfig.builder(Tags.MOD_ID, Tags.MOD_NAME, MPBConfig.class, NetworkHandler.CHANNEL, configDir)
+        JubiConfig.builder(Tags.MOD_ID, Tags.MOD_NAME, UltreiaConfig.class, NetworkHandler.CHANNEL, configDir)
                 .command("ultreia config")
                 .resetVersion(1) // config was restructured for this release, force a one-time reset
                 .register();

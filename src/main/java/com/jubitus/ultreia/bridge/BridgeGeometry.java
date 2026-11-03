@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.bridge;
 
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import net.minecraft.util.math.BlockPos;
 
@@ -122,8 +122,8 @@ public final class BridgeGeometry {
     /** Crown height in half-blocks: the template's value, else the global one, plus the water bonus. */
     public static int effectiveCrownHalf(@Nullable Integer templateCrown, List<BlockPos> line, TerrainSampler sampler) {
         int crown = templateCrown != null ? Math.max(0, templateCrown)
-                : Math.max(0, MPBConfig.BRIDGES.bridgeCrownHalfBlocks);
-        if (crown > 0 && MPBConfig.BRIDGES.extraWaterBridgeCrown && hasMeaningfulWaterInterior(line, sampler)) {
+                : Math.max(0, UltreiaConfig.BRIDGES.bridgeCrownHalfBlocks);
+        if (crown > 0 && UltreiaConfig.BRIDGES.extraWaterBridgeCrown && hasMeaningfulWaterInterior(line, sampler)) {
             crown += 1;
         }
         return crown;
@@ -131,12 +131,12 @@ public final class BridgeGeometry {
 
     public static int effectiveCrownMinLen(@Nullable Integer templateMinLen) {
         return templateMinLen != null ? Math.max(2, templateMinLen)
-                : Math.max(2, MPBConfig.BRIDGES.bridgeCrownMinLenBlocks);
+                : Math.max(2, UltreiaConfig.BRIDGES.bridgeCrownMinLenBlocks);
     }
 
     // Returns the max allowed endpoint height delta (in half-blocks) for a given bridge length.
     public static int maxBridgeDeltaHalfForLen(int lenBlocks) {
-        double slopeTan = Math.tan(Math.toRadians(Math.max(0.5, MPBConfig.BRIDGES.maxBridgeSlopeDegrees)));
+        double slopeTan = Math.tan(Math.toRadians(Math.max(0.5, UltreiaConfig.BRIDGES.maxBridgeSlopeDegrees)));
         return (int) Math.round(lenBlocks * slopeTan * 2.0);
     }
 
@@ -146,7 +146,7 @@ public final class BridgeGeometry {
         if (n == 0) return new int[0];
         if (n == 1) return new int[]{startHalf};
 
-        int maxStepHalf = Math.max(1, MPBConfig.BRIDGES.maxDeckDeltaHalfPerBlock);
+        int maxStepHalf = Math.max(1, UltreiaConfig.BRIDGES.maxDeckDeltaHalfPerBlock);
         int len = n - 1;
 
         // Cap crown so the sine arch slope never exceeds the step budget at the endpoints.
@@ -207,6 +207,6 @@ public final class BridgeGeometry {
             }
         }
 
-        return best >= Math.max(2, MPBConfig.BRIDGE_AWARE_PATHFINDING.minWaterRunBlocks);
+        return best >= Math.max(2, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minWaterRunBlocks);
     }
 }

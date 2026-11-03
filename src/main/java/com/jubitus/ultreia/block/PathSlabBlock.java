@@ -17,14 +17,14 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 
-public class MPBPathSlabBlock extends Block {
+public class PathSlabBlock extends Block {
 
     public static final PropertyEnum<BlockSlab.EnumBlockHalf> HALF = BlockSlab.HALF;
 
     private static final AxisAlignedBB AABB_BOTTOM = new AxisAlignedBB(0.0, 0.0, 0.0, 1.0, 0.5, 1.0);
     private static final AxisAlignedBB AABB_TOP    = new AxisAlignedBB(0.0, 0.5, 0.0, 1.0, 1.0, 1.0);
 
-    public MPBPathSlabBlock() {
+    public PathSlabBlock() {
         super(Material.GROUND);
         setRegistryName("ultreia", "path_slab");
         setTranslationKey("ultreia.path_slab");

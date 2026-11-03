@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.roads;
 
 import com.jubitus.ultreia.MillPresence;
-import com.jubitus.ultreia.block.MPBBlocks;
+import com.jubitus.ultreia.block.UltreiaBlocks;
 import com.jubitus.ultreia.chunk.ChunkManager;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.mill.MillPathPalette;
@@ -245,7 +245,7 @@ public class RoadIndex extends WorldSavedData {
                     Block b = st.getBlock();
                     // Only index MPB's own blocks — Millénaire village paths share the same
                     // palette but must NOT be treated as MPB-generated roads.
-                    if (b == MPBBlocks.PATH_BLOCK || b == MPBBlocks.PATH_SLAB) {
+                    if (b == UltreiaBlocks.PATH_BLOCK || b == UltreiaBlocks.PATH_SLAB) {
                         markRoad(x, yy, z);
                         break;
                     }

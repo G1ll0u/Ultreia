@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.boost;
 
 import com.jubitus.ultreia.Ultreia;
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.mill.MillPathPalette;
 import com.jubitus.ultreia.roads.RoadIndex;
 import net.minecraft.entity.Entity;
@@ -45,7 +45,7 @@ public final class SpeedBoostHandler {
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
 
-        MPBConfig.SpeedBoost cfg = MPBConfig.SPEED_BOOST;
+        UltreiaConfig.SpeedBoost cfg = UltreiaConfig.SPEED_BOOST;
 
         for (WorldServer world : DimensionManager.getWorlds()) {
             if (world == null) continue;
@@ -71,7 +71,7 @@ public final class SpeedBoostHandler {
         if (state != null) removeModifier(currentTarget(state));
     }
 
-    private void tickPlayer(EntityPlayerMP player, WorldServer world, RoadIndex roadIndex, MPBConfig.SpeedBoost cfg) {
+    private void tickPlayer(EntityPlayerMP player, WorldServer world, RoadIndex roadIndex, UltreiaConfig.SpeedBoost cfg) {
         UUID id = player.getUniqueID();
         State state = states.computeIfAbsent(id, k -> new State());
 

@@ -2,7 +2,7 @@ package com.jubitus.ultreia.route;
 
 import com.jubitus.ultreia.paint.RoadHeightProfile;
 
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.geom.RasterLine8;
@@ -36,7 +36,7 @@ public final class PathProfileCheck {
                 return false;
             }
 
-            int maxStepHalf = Math.max(1, MPBConfig.PAINTING.maxRoadStepHalfPerBlock);
+            int maxStepHalf = Math.max(1, UltreiaConfig.PAINTING.maxRoadStepHalfPerBlock);
             for (int i = 1; i < half.length; i++) {
                 if (Math.abs(half[i] - half[i - 1]) > maxStepHalf) {
                     return false;
@@ -66,7 +66,7 @@ public final class PathProfileCheck {
             BlockPos a = coarse.get(i - 1);
             BlockPos b = coarse.get(i);
 
-            List<BlockPos> line = MPBConfig.BRIDGE_GEOMETRY.useRaster8ForBridges
+            List<BlockPos> line = UltreiaConfig.BRIDGE_GEOMETRY.useRaster8ForBridges
                     ? RasterLine8.raster(a.getX(), a.getZ(), b.getX(), b.getZ(), 0)
                     : SupercoverLine.raster(a.getX(), a.getZ(), b.getX(), b.getZ(), 0);
 

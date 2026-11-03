@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.terrain;
 
 import com.jubitus.ultreia.chunk.ChunkManager;
-import com.jubitus.ultreia.config.MPBConfig;
+import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.mill.MillPathPalette;
 import com.jubitus.ultreia.roads.RoadIndex;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
@@ -135,7 +135,7 @@ public class TerrainSampler {
     public TerrainSampler(WorldServer world) {
         this.world = world;
         lightCache.defaultReturnValue(LIGHT_NOT_LOADED);
-        for (String s : MPBConfig.GENERAL.biomeBlacklist) {
+        for (String s : UltreiaConfig.GENERAL.biomeBlacklist) {
             if (s == null || s.trim().isEmpty()) continue;
             blacklist.add(new ResourceLocation(s.trim()));
         }
@@ -190,7 +190,7 @@ public class TerrainSampler {
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(x, 0, z);
 
         if (!world.isBlockLoaded(pos)) {
-            if (MPBConfig.GENERAL.allowChunkLoading && chunkManager != null) {
+            if (UltreiaConfig.GENERAL.allowChunkLoading && chunkManager != null) {
                 if (!chunkManager.ensureLoaded(world, x, z)) {
                     Sample out = new Sample(x, z, 1, false, false, false, true, true, false, false, false, 0, false, 0,
                             BlockedDetail.NON_WALKABLE_GROUND, BlockedDetail.NON_PAINTABLE_GROUND, world.getBiome(pos));
@@ -208,7 +208,7 @@ public class TerrainSampler {
         boolean isBlacklisted = biomeId != null && blacklist.contains(biomeId);
 
         boolean isOcean = false;
-        if (MPBConfig.GENERAL.forbidOcean) {
+        if (UltreiaConfig.GENERAL.forbidOcean) {
             isOcean = BiomeDictionary.hasType(biome, BiomeDictionary.Type.OCEAN)
                     || (biomeId != null && biomeId.getPath().contains("ocean"));
         }
@@ -263,8 +263,8 @@ public class TerrainSampler {
                 blockedPaint = true;
                 blockedPaintDetail = BlockedDetail.NO_PAINT_ZONE;
 
-                if (MPBConfig.BUILDINGS.enabled && MPBConfig.BUILDINGS.hardBlockInPathfinding) {
-                    if (MPBConfig.BUILDINGS.allowExistingRoadThroughBuildings && hasMillPathCol) {
+                if (UltreiaConfig.BUILDINGS.enabled && UltreiaConfig.BUILDINGS.hardBlockInPathfinding) {
+                    if (UltreiaConfig.BUILDINGS.allowExistingRoadThroughBuildings && hasMillPathCol) {
                         blockedPath = false;
                         blockedPathDetail = BlockedDetail.NONE;
                     } else {
@@ -305,9 +305,9 @@ public class TerrainSampler {
                 else if (manmade) blockedPaintDetail = BlockedDetail.MANMADE_NEARBY;
                 else if (tile) blockedPaintDetail = BlockedDetail.TILE_NEARBY;
 
-                if (!blockedPaint && MPBConfig.BUILDINGS.enabled && MPBConfig.BUILDINGS.extraPaintingGuard) {
-                    int rr = Math.max(1, MPBConfig.BUILDINGS.extraPaintingGuardRadius);
-                    int nearR = Math.max(2, MPBConfig.BUILDINGS.footprintPadding + 2);
+                if (!blockedPaint && UltreiaConfig.BUILDINGS.enabled && UltreiaConfig.BUILDINGS.extraPaintingGuard) {
+                    int rr = Math.max(1, UltreiaConfig.BUILDINGS.extraPaintingGuardRadius);
+                    int nearR = Math.max(2, UltreiaConfig.BUILDINGS.footprintPadding + 2);
                     if (isNearBuildingNoPaintZone(x, z, nearR)) {
                         if (looksLikeBuildingColumn(x, surfaceY, z, rr)) {
                             blockedPaint = true;
@@ -324,14 +324,14 @@ public class TerrainSampler {
         }
 
         boolean nearWaterLike = false;
-        if (!isWater && MPBConfig.WATER_AVOID.enabled) {
-            int r = Math.max(1, MPBConfig.WATER_AVOID.bufferRadius);
+        if (!isWater && UltreiaConfig.WATER_AVOID.enabled) {
+            int r = Math.max(1, UltreiaConfig.WATER_AVOID.bufferRadius);
             nearWaterLike = hasWaterLikeInManhattanRadius(x, z, surfaceY, r);
         }
 
         boolean hasTreeTrunk = false;
         int trunkRadius = 0;
-        if (!isWater && MPBConfig.PAINTING.clearTrees) {
+        if (!isWater && UltreiaConfig.PAINTING.clearTrees) {
             trunkRadius = detectTrunkRadius(x, surfaceY, z);
             hasTreeTrunk = trunkRadius > 0;
         }
@@ -357,8 +357,8 @@ public class TerrainSampler {
     }
 
     public boolean forbidden(Sample s, Mode mode) {
-        if (MPBConfig.GENERAL.forbidOcean && s.isOcean) return true;
-        if (MPBConfig.GENERAL.hardBlockBlacklistedBiomes && s.isBlacklisted) return true;
+        if (UltreiaConfig.GENERAL.forbidOcean && s.isOcean) return true;
+        if (UltreiaConfig.GENERAL.hardBlockBlacklistedBiomes && s.isBlacklisted) return true;
 
         if (mode == Mode.PATHFINDING && s.isWater) return true;
 
@@ -366,8 +366,8 @@ public class TerrainSampler {
     }
 
     public ForbiddenReason forbiddenReason(Sample s, Mode mode) {
-        if (MPBConfig.GENERAL.forbidOcean && s.isOcean) return ForbiddenReason.OCEAN;
-        if (MPBConfig.GENERAL.hardBlockBlacklistedBiomes && s.isBlacklisted) return ForbiddenReason.BLACKLIST;
+        if (UltreiaConfig.GENERAL.forbidOcean && s.isOcean) return ForbiddenReason.OCEAN;
+        if (UltreiaConfig.GENERAL.hardBlockBlacklistedBiomes && s.isBlacklisted) return ForbiddenReason.BLACKLIST;
         if (mode == Mode.PATHFINDING && s.isWater) return ForbiddenReason.WATER;
 
         if (mode == Mode.PAINTING ? s.blockedPaint : s.blockedPath) return ForbiddenReason.BLOCKED;
@@ -387,8 +387,8 @@ public class TerrainSampler {
     }
 
     public boolean forbiddenHard(Sample s) {
-        if (MPBConfig.GENERAL.forbidOcean && s.isOcean) return true;
-        return MPBConfig.GENERAL.hardBlockBlacklistedBiomes && s.isBlacklisted;
+        if (UltreiaConfig.GENERAL.forbidOcean && s.isOcean) return true;
+        return UltreiaConfig.GENERAL.hardBlockBlacklistedBiomes && s.isBlacklisted;
     }
 
     public boolean isProtectedNoPaint(int x, int z) {
@@ -459,7 +459,7 @@ public class TerrainSampler {
         if (y < 1) y = 1;
 
         boolean isOcean = false;
-        if (MPBConfig.GENERAL.forbidOcean && isWater) {
+        if (UltreiaConfig.GENERAL.forbidOcean && isWater) {
             Biome biome = world.getBiome(pos.setPos(x, 0, z));
             ResourceLocation biomeId = biome.getRegistryName();
             isOcean = BiomeDictionary.hasType(biome, BiomeDictionary.Type.OCEAN)
@@ -522,35 +522,35 @@ public class TerrainSampler {
     public double extraCost(Sample s, Mode mode) {
         double cost = 0.0;
         if (s.isWater && !s.isOcean) {
-            cost += MPBConfig.PATHFINDING.waterPenalty;
-            if (s.smallWater) cost += MPBConfig.PAINTING.smallWaterPenalty;
+            cost += UltreiaConfig.PATHFINDING.waterPenalty;
+            if (s.smallWater) cost += UltreiaConfig.PAINTING.smallWaterPenalty;
         }
-        if (s.isBlacklisted && !MPBConfig.GENERAL.hardBlockBlacklistedBiomes) cost += MPBConfig.PATHFINDING.blacklistedBiomePenalty;
+        if (s.isBlacklisted && !UltreiaConfig.GENERAL.hardBlockBlacklistedBiomes) cost += UltreiaConfig.PATHFINDING.blacklistedBiomePenalty;
 
-        if (mode == Mode.PATHFINDING && MPBConfig.BUILDINGS.enabled && MPBConfig.BUILDINGS.addPenaltyRing && protectedAreas != null) {
-            int ring = Math.max(0, MPBConfig.BUILDINGS.penaltyRingRadius);
+        if (mode == Mode.PATHFINDING && UltreiaConfig.BUILDINGS.enabled && UltreiaConfig.BUILDINGS.addPenaltyRing && protectedAreas != null) {
+            int ring = Math.max(0, UltreiaConfig.BUILDINGS.penaltyRingRadius);
             if (ring > 0 && !protectedAreas.contains(s.x, s.z)) {
                 if (isNearBuildingNoPaintZone(s.x, s.z, ring)) {
-                    cost += Math.max(0.0, MPBConfig.BUILDINGS.penaltyRingCost);
+                    cost += Math.max(0.0, UltreiaConfig.BUILDINGS.penaltyRingCost);
                 }
             }
         }
 
-        if (mode == Mode.PATHFINDING && MPBConfig.PATHFINDING.avoidProtectedZones && protectedAreas != null) {
+        if (mode == Mode.PATHFINDING && UltreiaConfig.PATHFINDING.avoidProtectedZones && protectedAreas != null) {
             cost += (double) protectedAreas.penaltyAt(s.x, s.z);
         }
 
         if (mode == Mode.PATHFINDING && roadIndex != null && roadIndex.isBridgeVolumeXZ(s.x, s.z)) {
-            cost += Math.max(0.0, MPBConfig.BRIDGE_AWARE_PATHFINDING.existingBridgeVolumeAvoidanceCost);
+            cost += Math.max(0.0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.existingBridgeVolumeAvoidanceCost);
         }
 
         if (mode == Mode.PATHFINDING && roadIndex != null) {
             boolean onRoad = roadIndex.isRoadXZ(s.x, s.z);
-            if (onRoad && MPBConfig.PATHFINDING.preferExistingRoads) {
-                cost -= Math.max(0.0, MPBConfig.PATHFINDING.existingRoadBonus);
-            } else if (!onRoad && MPBConfig.PATHFINDING.avoidParallelToExistingRoads) {
-                int maxR = Math.max(1, MPBConfig.PATHFINDING.parallelRoadAvoidRadius);
-                int step = Math.max(1, MPBConfig.PATHFINDING.parallelRoadAvoidScanStep);
+            if (onRoad && UltreiaConfig.PATHFINDING.preferExistingRoads) {
+                cost -= Math.max(0.0, UltreiaConfig.PATHFINDING.existingRoadBonus);
+            } else if (!onRoad && UltreiaConfig.PATHFINDING.avoidParallelToExistingRoads) {
+                int maxR = Math.max(1, UltreiaConfig.PATHFINDING.parallelRoadAvoidRadius);
+                int step = Math.max(1, UltreiaConfig.PATHFINDING.parallelRoadAvoidScanStep);
 
                 long kk = key(s.x, s.z);
                 int dist = roadDistCache.get(kk);
@@ -563,25 +563,25 @@ public class TerrainSampler {
                 if (dist > 1 && dist != Integer.MAX_VALUE) {
                     double t = (double) (maxR - dist + 1);
                     if (t > 0.0) {
-                        double base = MPBConfig.PATHFINDING.parallelRoadPenalty;
-                        double p = MPBConfig.PATHFINDING.parallelRoadPenaltyPower;
+                        double base = UltreiaConfig.PATHFINDING.parallelRoadPenalty;
+                        double p = UltreiaConfig.PATHFINDING.parallelRoadPenaltyPower;
                         if (p < 1.0) p = 1.0;
                         cost += base * Math.pow(t, p);
                     }
                 }
             }
         }
-        if (MPBConfig.WATER_AVOID.enabled && !s.isWater && s.nearWaterLike) {
-            int r = Math.max(1, MPBConfig.WATER_AVOID.bufferRadius);
+        if (UltreiaConfig.WATER_AVOID.enabled && !s.isWater && s.nearWaterLike) {
+            int r = Math.max(1, UltreiaConfig.WATER_AVOID.bufferRadius);
             cost += 35.0 * (double) r;
         }
-        if (mode == Mode.PATHFINDING && s.hasTreeTrunk && MPBConfig.PAINTING.clearTrees) {
+        if (mode == Mode.PATHFINDING && s.hasTreeTrunk && UltreiaConfig.PAINTING.clearTrees) {
             double mult = treePenaltyMultiplier(s.trunkRadius);
-            cost += MPBConfig.PATHFINDING.treePenalty * mult;
+            cost += UltreiaConfig.PATHFINDING.treePenalty * mult;
         }
 
         if (mode == Mode.PATHFINDING && s.hasFarmland) {
-            cost += MPBConfig.PATHFINDING.farmlandPenalty;
+            cost += UltreiaConfig.PATHFINDING.farmlandPenalty;
         }
 
         return cost;
@@ -640,7 +640,7 @@ public class TerrainSampler {
         if (b == Blocks.SNOW_LAYER) return true;
         if (isWaterSurfaceDecoration(st)) return true;
 
-        if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
+        if (UltreiaConfig.PAINTING.clearTrees && UltreiaConfig.PAINTING.clearTreeTrunks) {
             if (TreeCompat.isTreeWoodLike(world, pos, st)) return true;
             if (isLikelyTreeWood(st, pos)) return true;
         }
@@ -712,9 +712,9 @@ public class TerrainSampler {
 
         // --- Proximity scan for large DT trunks nearby ---
         // If a thick trunk is within the road footprint, apply the penalty to this centerline cell.
-        int proximityR = MPBConfig.PATHFINDING.dtTreeProximityCheckRadius;
+        int proximityR = UltreiaConfig.PATHFINDING.dtTreeProximityCheckRadius;
         if (proximityR > 0) {
-            int largeThreshold = MPBConfig.PATHFINDING.dtLargeTreeRadiusThreshold;
+            int largeThreshold = UltreiaConfig.PATHFINDING.dtLargeTreeRadiusThreshold;
             outer:
             for (int dx = -proximityR; dx <= proximityR; dx++) {
                 for (int dz = -proximityR; dz <= proximityR; dz++) {
@@ -764,9 +764,9 @@ public class TerrainSampler {
     private static double treePenaltyMultiplier(int radius) {
         if (radius <= 0) return 1.0;
         if (radius == 9) return 1.0; // vanilla tree
-        int threshold = MPBConfig.PATHFINDING.dtLargeTreeRadiusThreshold;
+        int threshold = UltreiaConfig.PATHFINDING.dtLargeTreeRadiusThreshold;
         if (radius >= threshold) {
-            return MPBConfig.PATHFINDING.dtLargeTreePenaltyMultiplier;
+            return UltreiaConfig.PATHFINDING.dtLargeTreePenaltyMultiplier;
         }
         return 1.0;
     }
@@ -793,8 +793,8 @@ public class TerrainSampler {
     }
 
     private boolean isSmallWaterPatch(int x, int surfaceY, int z) {
-        int r = Math.max(1, MPBConfig.PAINTING.smallWaterScanRadius);
-        int maxCells = Math.max(0, MPBConfig.PAINTING.smallWaterMaxCells);
+        int r = Math.max(1, UltreiaConfig.PAINTING.smallWaterScanRadius);
+        int maxCells = Math.max(0, UltreiaConfig.PAINTING.smallWaterMaxCells);
 
         int water = 0;
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
@@ -825,7 +825,7 @@ public class TerrainSampler {
         if (b.isReplaceable(world, pos)) return true;
         if (b == Blocks.SNOW_LAYER) return true;
 
-        if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
+        if (UltreiaConfig.PAINTING.clearTrees && UltreiaConfig.PAINTING.clearTreeTrunks) {
             if (TreeCompat.isTreeWoodLike(world, pos, st)) return true;
             if (isLikelyTreeWood(st, pos)) return true;
         }
@@ -868,7 +868,7 @@ public class TerrainSampler {
         p.setPos(x, 0, z);
 
         if (!world.isBlockLoaded(p)) {
-            if (MPBConfig.GENERAL.allowChunkLoading && chunkManager != null) {
+            if (UltreiaConfig.GENERAL.allowChunkLoading && chunkManager != null) {
                 if (!chunkManager.ensureLoaded(world, x, z)) return true;
             } else {
                 return true;
@@ -979,7 +979,7 @@ public class TerrainSampler {
                     if (MillPathPalette.isMillPath(st.getBlock())) continue;
 
                     // Ignore natural trees (we can clear them).
-                    if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
+                    if (UltreiaConfig.PAINTING.clearTrees && UltreiaConfig.PAINTING.clearTreeTrunks) {
                         if (isLikelyTreeWood(st, p) || st.getBlock().isWood(world, p) || st.getMaterial() == Material.WOOD) {
                             continue;
                         }
