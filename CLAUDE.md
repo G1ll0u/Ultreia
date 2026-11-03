@@ -11,7 +11,7 @@
 ./gradlew runClient / runServer
 ```
 
-There is no `src/test` yet.
+`./gradlew build` also runs the tests. Golden snapshots (`src/test/resources/golden/`) are rewritten (`ULTREIA_UPDATE_GOLDEN=1 ./gradlew test`) only for a change the user approved.
 
 ## How we work
 

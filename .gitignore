@@ -21,6 +21,7 @@ build
 eclipse
 run
 /.claude/
+/logs/
 
 # local, not versioned
 /libs/

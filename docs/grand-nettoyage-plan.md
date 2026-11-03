@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-03)**: phases 0, 1 and 2 done and committed (in-game checks pending). Next: phase 3.
+**Status (2026-11-03)**: phases 0–3 done (in-game checks pending). Next: phase 4.
 
 ## Goal
 
@@ -167,14 +167,16 @@ user so each says what the class does (e.g. `MPBRoadColumns` → `paint/Headroom
 (jubiconfig keys come from field names only). Save `NAME`s, NBT keys, config fields, block names, `MPBRoadAPI`,
 mixin classes and `mixins.ultreia.json` unchanged. Visible: none.
 
-### Phase 3 — Tests (lean) — status: not started
+### Phase 3 — Tests (lean) — status: done
 
-- `terrain/TerrainView`: the read-only questions A* and the painter's planning ask (sample, light sample, block at);
-  `TerrainSampler` implements it over the world. Check first which A* reads bypass the sampler (`world` field).
-- JUnit (`enable_junit_testing` is already on, `src/test/java`): deck profile, half-profile solver, `LineRaster`,
-  `Pos2D`, MST + RNG network topology, template rotation / JSON round-trip.
-- Golden tests: A* on 3 synthetic terrains (flat with obstacle, hills, river valley) stores the path; a split must
-  keep it identical. A snapshot is updated only for a change the user approved.
+- `terrain/TerrainView`: what A*, `PathProfileCheck`, `BridgeApproachCheck`, `RoadHeightSolver`/`RoadHeightProfile`,
+  `BridgeGeometry` and `BridgeFeasibility` ask of the terrain; `TerrainSampler` implements it. The only A* read that
+  bypasses it is `BridgeFeasibility.tryCreate` (block reads, Millénaire villages, template by biome).
+- Golden A* (`AStarGoldenTest`): flat with obstacle, hills, river valley (lone trail); default config, bridges off.
+  The fake terrain subclasses `TerrainSampler` so the real forbidden/cost rules run. A bridge golden comes with phase 8.
+- Unit tests: `Pos2D`, `RasterLine8`/`SupercoverLine`, road height solver and deck profile (step limits + snapshot),
+  MST + RNG topology (`NetworkPlanner.connect`, extracted from `build`), bundled template JSON round-trip.
+- Snapshots in `src/test/resources/golden/`; rewritten only with `ULTREIA_UPDATE_GOLDEN=1` for an approved change.
 
 ### Phase 4 — Shared small helpers — status: not started
 
