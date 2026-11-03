@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Phases 0–6 done (in-game checks pending). Next: phase 7.
+**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Phases 0–7 done (in-game checks pending). Next: phase 8.
 
 ## Goal
 
@@ -221,7 +221,15 @@ existing path); its comment promises otherwise.
 - `TerrainSampler` split: cache + sample (~350), `WaterProbe`, `BuildingGuard`; the A* cost part moves to `route/`.
 - Every divergence is asked before merging; golden tests updated only after approval.
 
-### Phase 7 — One generation job — status: not started
+### Phase 7 — One generation job — status: done (in-game check pending)
+
+Outcome: `RoadJob` (context built once in `JobContext`; edge → A* → painter) pulls `EdgeRequest`s from
+`VillageNetworkSource` or `ManualPathSource`; `TickedJob`, `VillageNetworkJob`, `ManualPathJob` removed; the manager
+has no type checks. `findAnchor` lives in `route/EndpointResolver` next to A*'s grid snap (both kept, user).
+Decided (user): manual paths keep their exact ends (no network join rules); `force` and `dryRun` removed from jobs
+and checkpoint (old keys ignored on load); the network build stays in the constructor (server log not checked).
+Both sources now get the endpoint debug lines; an empty A* path fails the edge instead of painting nothing.
+
 
 `RoadJob` (context built once, resolve → A* → paint → finish) pulling `EdgeRequest`s from `VillageNetworkSource`
 (edge list, gates, built set, checkpoint, lone-building spurs) or `ManualPathSource`. The manager loses its

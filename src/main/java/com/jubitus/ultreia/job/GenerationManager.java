@@ -12,7 +12,6 @@ import net.minecraftforge.event.world.WorldEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
-import java.lang.ref.WeakReference;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,7 +21,7 @@ public final class GenerationManager {
     // Delay in server ticks before auto-resuming a job after world load (gives Millenaire time to initialise).
     private static final int AUTO_RESUME_DELAY_TICKS = 100;
 
-    private static final ConcurrentHashMap<Integer, TickedJob> JOBS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer, RoadJob> JOBS = new ConcurrentHashMap<>();
 
     // Pending auto-resumes: dim → (world, checkpoint, ticksRemaining)
     private static final ConcurrentHashMap<Integer, PendingResume> PENDING_RESUMES = new ConcurrentHashMap<>();
@@ -42,7 +41,7 @@ public final class GenerationManager {
     public static String status(World world) {
         if (world == null || world.provider == null) return "No world.";
         int dim = world.provider.getDimension();
-        TickedJob job = JOBS.get(dim);
+        RoadJob job = JOBS.get(dim);
         if (job != null) return job.statusLine();
         PendingResume pr = PENDING_RESUMES.get(dim);
         if (pr != null) return "Resume pending in " + pr.remainingTicks + " ticks.";
@@ -53,12 +52,10 @@ public final class GenerationManager {
         if (world == null || world.provider == null) return;
         int dim = world.provider.getDimension();
         PENDING_RESUMES.remove(dim);
-        TickedJob job = JOBS.remove(dim);
+        RoadJob job = JOBS.remove(dim);
         if (job != null) {
-            // User explicitly cancelled: clear checkpoint so next /mpb generate starts fresh.
-            if (job instanceof VillageNetworkJob) {
-                ((VillageNetworkJob) job).onJobComplete();
-            }
+            // User explicitly cancelled: clear checkpoint so the next generate starts fresh.
+            job.onJobComplete();
             try {
                 job.shutdown();
             } catch (Throwable ignored) {
@@ -75,7 +72,7 @@ public final class GenerationManager {
             return;
         }
 
-        TickedJob job = new VillageNetworkJob(world, sender);
+        RoadJob job = RoadJob.villageNetwork(world, sender);
         JOBS.put(dim, job);
 
         if (sender != null) {
@@ -92,7 +89,7 @@ public final class GenerationManager {
             return;
         }
 
-        TickedJob job = new ManualPathJob(world, sender, start, goal, roadType);
+        RoadJob job = RoadJob.manualPath(world, sender, start, goal, roadType);
         JOBS.put(dim, job);
 
         if (sender != null) {
@@ -112,10 +109,8 @@ public final class GenerationManager {
 
     // Called from FMLServerStoppingEvent to persist latest progress for all active jobs.
     public static void onServerStopping() {
-        for (TickedJob job : JOBS.values()) {
-            if (job instanceof VillageNetworkJob) {
-                ((VillageNetworkJob) job).onServerStopping();
-            }
+        for (RoadJob job : JOBS.values()) {
+            job.onServerStopping();
         }
     }
 
@@ -146,7 +141,7 @@ public final class GenerationManager {
                     int dim = pr.world.provider.getDimension();
                     if (!JOBS.containsKey(dim)) {
                         try {
-                            VillageNetworkJob job = new VillageNetworkJob(pr.world, pr.checkpoint);
+                            RoadJob job = RoadJob.resume(pr.world, pr.checkpoint);
                             JOBS.put(dim, job);
                             Ultreia.LOGGER.info("[Ultreia] Auto-resumed generation for dim={}", dim);
                         } catch (Throwable t) {
@@ -162,7 +157,7 @@ public final class GenerationManager {
         // The budget is shared by every dimension's job, so two jobs never cost more than one.
         long budgetNs = Math.max(1, UltreiaConfig.GENERAL.tickBudgetMs) * 1_000_000L / JOBS.size();
 
-        for (TickedJob job : JOBS.values()) {
+        for (RoadJob job : JOBS.values()) {
             long start = System.nanoTime();
 
             try {
@@ -176,8 +171,7 @@ public final class GenerationManager {
                 } catch (Throwable ignored) {
                 }
 
-                WeakReference<ICommandSender> wr = job.getSenderRef();
-                ICommandSender sender = wr != null ? wr.get() : null;
+                ICommandSender sender = job.sender();
                 if (sender != null) {
                     sender.sendMessage(new TextComponentString("Ultreïa: generation failed with an internal error. See log. The job will resume on next server start."));
                 }
@@ -190,16 +184,13 @@ public final class GenerationManager {
                 JOBS.remove(job.getDim());
 
                 // Normal completion: clear the checkpoint.
-                if (job instanceof VillageNetworkJob) {
-                    ((VillageNetworkJob) job).onJobComplete();
-                }
+                job.onJobComplete();
                 try {
                     job.shutdown();
                 } catch (Throwable ignored) {
                 }
 
-                WeakReference<ICommandSender> wr = job.getSenderRef();
-                ICommandSender sender = wr != null ? wr.get() : null;
+                ICommandSender sender = job.sender();
                 if (sender != null) {
                     sender.sendMessage(new TextComponentString(job.completionMessage()));
                 }
