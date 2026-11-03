@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.gen.newp;
 
-import com.jubitus.ultreia.gen.TerrainSampler;
+import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.gen.bridge.BridgeGeometry;
 import net.minecraft.util.math.BlockPos;
 

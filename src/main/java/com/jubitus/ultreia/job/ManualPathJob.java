@@ -2,10 +2,10 @@ package com.jubitus.ultreia.job;
 
 import com.jubitus.ultreia.route.AStarPathfinder;
 import com.jubitus.ultreia.gen.MPBChunkManager;
-import com.jubitus.ultreia.gen.MPBProtectedAreas;
+import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.gen.RoadPainter;
 import com.jubitus.ultreia.route.RoadType;
-import com.jubitus.ultreia.gen.TerrainSampler;
+import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.route.PathResult;
 import com.jubitus.ultreia.gen.bridge.BridgeSpan;
@@ -34,7 +34,7 @@ public final class ManualPathJob implements TickedJob {
 
     private final MPBChunkManager chunkManager;
     private final TerrainSampler sampler;
-    private final MPBProtectedAreas protectedAreas;
+    private final ProtectedAreas protectedAreas;
     private final MPBRoadIndexData roadIndex;
     private final MPBRoadNetwork roadNetwork;
     private final AStarPathfinder astar = new AStarPathfinder();

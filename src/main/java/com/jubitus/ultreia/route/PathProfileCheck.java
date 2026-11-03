@@ -3,7 +3,7 @@ package com.jubitus.ultreia.route;
 import com.jubitus.ultreia.gen.newp.MPBRoadHalfProfile;
 
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.TerrainSampler;
+import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.gen.bridge.BridgeSpan;
 import com.jubitus.ultreia.gen.bridge.RasterLine8;
 import com.jubitus.ultreia.gen.bridge.SupercoverLine;

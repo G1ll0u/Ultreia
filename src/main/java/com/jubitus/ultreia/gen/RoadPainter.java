@@ -1,5 +1,8 @@
 package com.jubitus.ultreia.gen;
 
+import com.jubitus.ultreia.terrain.GroundRules;
+import com.jubitus.ultreia.terrain.ProtectedAreas;
+import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
@@ -55,7 +58,7 @@ public final class RoadPainter {
         private int baseR;
         private final WorldServer world;
         private final TerrainSampler sampler;
-        private final MPBProtectedAreas protectedAreas;
+        private final ProtectedAreas protectedAreas;
         private final boolean dryRun;
 
         private int r;
@@ -150,7 +153,7 @@ public final class RoadPainter {
                 List<BlockPos> coarsePath,
                 List<BridgeSpan> forcedBridges,
                 TerrainSampler sampler,
-                MPBProtectedAreas protectedAreas,
+                ProtectedAreas protectedAreas,
                 MPBRoadIndexData roadIndex,
                 boolean dryRun,
                 boolean allowEarlyMerge) {
@@ -2185,7 +2188,7 @@ public final class RoadPainter {
                                 List<BlockPos> coarsePath,
                                 List<BridgeSpan> forcedBridges,
                                 TerrainSampler sampler,
-                                MPBProtectedAreas protectedAreas,
+                                ProtectedAreas protectedAreas,
                                 MPBRoadIndexData roadIndex,
                                 boolean dryRun,
                                 boolean allowEarlyMerge) {
@@ -2196,7 +2199,7 @@ public final class RoadPainter {
     }
 
     private static boolean isNaturalGround(IBlockState st) {
-        return MPBGround.isRoadReplaceableGround(st);
+        return GroundRules.isRoadReplaceableGround(st);
     }
 
 }

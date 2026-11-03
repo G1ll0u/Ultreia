@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.route;
 
-import com.jubitus.ultreia.gen.MPBProtectedAreas;
-import com.jubitus.ultreia.gen.TerrainSampler;
+import com.jubitus.ultreia.terrain.ProtectedAreas;
+import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.job.VillageNetworkJob;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
@@ -37,7 +37,7 @@ public final class EndpointResolver {
             BlockPos nodeCenter,
             BlockPos otherNodeCenter,
             TerrainSampler sampler,
-            @Nullable MPBProtectedAreas protectedAreas,
+            @Nullable ProtectedAreas protectedAreas,
             @Nullable VillageGateTracker gateTracker,
             @Nullable VillageGateField[] gateFieldOut
     ) {
@@ -204,7 +204,7 @@ public final class EndpointResolver {
             BlockPos center,
             BlockPos other,
             int maxRadius,
-            @Nullable MPBProtectedAreas protectedAreas
+            @Nullable ProtectedAreas protectedAreas
     ) {
         int cx = center.getX(), cz = center.getZ();
         double ddx = other.getX() - cx;
@@ -308,7 +308,7 @@ public final class EndpointResolver {
             BlockPos start,
             BlockPos toward,
             TerrainSampler sampler,
-            @Nullable MPBProtectedAreas protectedAreas
+            @Nullable ProtectedAreas protectedAreas
     ) {
         if (protectedAreas == null) {
             return VillageNetworkJob.findAnchor(world, start, sampler, 24);

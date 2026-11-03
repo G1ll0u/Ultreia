@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.gen.mill;
 
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.MPBProtectedAreas;
+import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.integration.MillIntegration;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
@@ -15,7 +15,7 @@ public final class MillBuildingObstacles2 {
     private MillBuildingObstacles2() {}
 
     /** Soft penalty squares around village and lone-building centres, plus every building's box as no-paint. */
-    public static void addMillenaireZones(WorldServer world, MPBProtectedAreas pa) {
+    public static void addMillenaireZones(WorldServer world, ProtectedAreas pa) {
         MillWorldData data = MillIntegration.ensureLoaded(world);
 
         int vR = Math.max(0, MPBConfig.GENERAL.villageNoPaintRadius);
@@ -42,7 +42,7 @@ public final class MillBuildingObstacles2 {
 
     public static void addBuildingsFromLocationsAsNoPaint(
             WorldServer world,
-            MPBProtectedAreas out,
+            ProtectedAreas out,
             int expandHard,   // safety around bbox (0..2)
             int hardPenalty
     ) {
@@ -82,7 +82,7 @@ public final class MillBuildingObstacles2 {
         }
     }
 
-    private static void addOne(BuildingLocation loc, MPBProtectedAreas out, int expandHard, int hardPenalty) {
+    private static void addOne(BuildingLocation loc, ProtectedAreas out, int expandHard, int hardPenalty) {
         int minX = Math.min(loc.minx, loc.maxx) - expandHard;
         int maxX = Math.max(loc.minx, loc.maxx) + expandHard;
         int minZ = Math.min(loc.minz, loc.maxz) - expandHard;

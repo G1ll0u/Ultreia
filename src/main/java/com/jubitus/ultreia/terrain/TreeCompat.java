@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.newp;
+package com.jubitus.ultreia.terrain;
 
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.block.Block;
@@ -15,9 +15,9 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class MPBTreeCompat {
+public final class TreeCompat {
 
-    private MPBTreeCompat() {}
+    private TreeCompat() {}
 
     private static volatile Class<?> DT_BRANCH_CLASS;
     private static volatile Class<?> DT_TRUNK_SHELL_CLASS;

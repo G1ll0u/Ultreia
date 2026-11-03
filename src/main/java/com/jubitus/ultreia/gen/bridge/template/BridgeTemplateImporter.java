@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.gen.bridge.template;
 
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.MPBGround;
+import com.jubitus.ultreia.terrain.GroundRules;
 import com.jubitus.ultreia.gen.bridge.BridgeGeometry;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
 import net.minecraft.block.Block;
@@ -167,6 +167,6 @@ public final class BridgeTemplateImporter {
             if (b.isWood(world, pos) || m == Material.WOOD) return true;
         }
 
-        return MPBGround.isRoadReplaceableGround(st);
+        return GroundRules.isRoadReplaceableGround(st);
     }
 }

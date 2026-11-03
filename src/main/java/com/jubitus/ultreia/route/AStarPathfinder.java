@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.route;
 
-import com.jubitus.ultreia.gen.MPBProtectedAreas;
-import com.jubitus.ultreia.gen.TerrainSampler;
+import com.jubitus.ultreia.terrain.ProtectedAreas;
+import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.bridge.*;
@@ -2339,7 +2339,7 @@ public final class AStarPathfinder {
     }
     public static String debugEndpoint(WorldServer world,
                                        TerrainSampler sampler,
-                                       MPBProtectedAreas protectedAreas,
+                                       ProtectedAreas protectedAreas,
                                        MPBRoadIndexData roadIndex,
                                        BlockPos pos) {
         if (pos == null) return "endpoint=null";

@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.gen.bridge.template;
 
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.MPBGround;
+import com.jubitus.ultreia.terrain.GroundRules;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockFence;
@@ -220,7 +220,7 @@ public final class BridgeDebugExporter {
                 if (Math.abs(lc.lateral) > maxLateral) continue;
                 if (lc.relY > maxAbove || lc.relY < -maxBelow) continue;
 
-                if (MPBGround.isRoadReplaceableGround(st) && lc.relY <= -2) {
+                if (GroundRules.isRoadReplaceableGround(st) && lc.relY <= -2) {
                     continue;
                 }
 
@@ -287,7 +287,7 @@ public final class BridgeDebugExporter {
                 IBlockState ns = world.getBlockState(next);
                 if (ns == null || ns.getMaterial() == Material.AIR) continue;
 
-                if (MPBGround.isRoadReplaceableGround(ns) && !isBridgeLikeSeed(ns)) continue;
+                if (GroundRules.isRoadReplaceableGround(ns) && !isBridgeLikeSeed(ns)) continue;
 
                 queue.add(next);
             }

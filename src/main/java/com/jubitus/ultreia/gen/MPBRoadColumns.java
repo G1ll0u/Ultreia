@@ -1,9 +1,10 @@
 package com.jubitus.ultreia.gen;
 
+import com.jubitus.ultreia.terrain.GroundRules;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
-import com.jubitus.ultreia.gen.newp.MPBTreeCompat;
+import com.jubitus.ultreia.terrain.TreeCompat;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockDoublePlant;
 import net.minecraft.block.material.Material;
@@ -30,7 +31,7 @@ public final class MPBRoadColumns {
             if (st.getMaterial() == Material.AIR) continue;
 
             // DT saplings store species in a TileEntity but are safe to remove as vegetation.
-            if (hasTile(world, p) && !MPBTreeCompat.isDynamicTreesBlock(st)) continue;
+            if (hasTile(world, p) && !TreeCompat.isDynamicTreesBlock(st)) continue;
             if (isAlwaysKeep(st)) continue;
 
             if (wouldCauseWaterFlow(world, p)) continue;
@@ -57,7 +58,7 @@ public final class MPBRoadColumns {
             if (st.getMaterial() == Material.AIR) continue;
 
             // DT saplings store species in a TileEntity but are safe to remove as vegetation.
-            if (hasTile(world, p) && !MPBTreeCompat.isDynamicTreesBlock(st)) continue;
+            if (hasTile(world, p) && !TreeCompat.isDynamicTreesBlock(st)) continue;
             if (isAlwaysKeep(st)) continue;
 
             if (wouldCauseWaterFlow(world, p)) continue;
@@ -97,15 +98,15 @@ public final class MPBRoadColumns {
             p.setPos(base.getX(), y, base.getZ());
             IBlockState st = world.getBlockState(p);
             if (st.getMaterial() == Material.AIR) break;
-            boolean isWood = MPBTreeCompat.isTreeWoodLike(world, p, st);
-            boolean isFoliage = !isWood && MPBTreeCompat.isTreeFoliageLike(world, p, st);
+            boolean isWood = TreeCompat.isTreeWoodLike(world, p, st);
+            boolean isFoliage = !isWood && TreeCompat.isTreeFoliageLike(world, p, st);
             if (!isWood && !isFoliage) break;
             if (hasTile(world, p)) continue;
             if (isAlwaysKeep(st)) break;
             if (wouldCauseWaterFlow(world, p)) continue;
 
-            if (isWood && MPBTreeCompat.isDynamicTreesBranch(st)) {
-                int radius = MPBTreeCompat.getDTBranchRadius(st);
+            if (isWood && TreeCompat.isDynamicTreesBranch(st)) {
+                int radius = TreeCompat.getDTBranchRadius(st);
                 int threshold = MPBConfig.PAINTING.dtWholeTreeRemovalThreshold;
                 if (MPBConfig.PAINTING.dtRemoveWholeTree && radius >= threshold) {
                     if (MPBConfig.DEBUG.logDTTreeRemoval) {
@@ -114,15 +115,15 @@ public final class MPBRoadColumns {
                                 p.getX(), p.getY(), p.getZ(), radius);
                     }
                     // Returns the rootydirt pos (now plain dirt) so the caller can paint road over it.
-                    return MPBTreeCompat.removeDTTreeCompletely(world, p.toImmutable());
+                    return TreeCompat.removeDTTreeCompletely(world, p.toImmutable());
                 } else {
                     // Small branch → destroyBlock triggers DT cascade on orphaned sub-branches.
                     world.destroyBlock(p.toImmutable(), false);
                 }
-            } else if (isWood && MPBTreeCompat.isDynamicTreesTrunkShell(st)) {
+            } else if (isWood && TreeCompat.isDynamicTreesTrunkShell(st)) {
                 if (MPBConfig.PAINTING.dtRemoveWholeTree) {
                     BlockPos seed = findAdjacentDTBranch(world, p.toImmutable());
-                    return MPBTreeCompat.removeDTTreeCompletely(world, seed);
+                    return TreeCompat.removeDTTreeCompletely(world, seed);
                 }
                 world.setBlockState(p, Blocks.AIR.getDefaultState(), 3);
             } else {
@@ -140,7 +141,7 @@ public final class MPBRoadColumns {
         for (EnumFacing face : EnumFacing.values()) {
             BlockPos adj = shellPos.offset(face);
             IBlockState st = world.getBlockState(adj);
-            if (MPBTreeCompat.isDynamicTreesBranch(st)) return adj;
+            if (TreeCompat.isDynamicTreesBranch(st)) return adj;
         }
         return shellPos;
     }
@@ -154,10 +155,10 @@ public final class MPBRoadColumns {
         if (b == Blocks.SNOW_LAYER) return true;
         if (m.isReplaceable()) return true;
         if (b.isReplaceable(world, pos)) return true;
-        if (MPBTreeCompat.isTreeFoliageLike(world, pos, st)) return true;
+        if (TreeCompat.isTreeFoliageLike(world, pos, st)) return true;
 
         if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
-            if (MPBTreeCompat.isTreeWoodLike(world, pos, st)) return true;
+            if (TreeCompat.isTreeWoodLike(world, pos, st)) return true;
         }
 
         return false;
@@ -168,7 +169,7 @@ public final class MPBRoadColumns {
 
         if (MPBMillPathPalette.isMillPath(st.getBlock())) return false;
 
-        if (MPBTreeCompat.isDynamicTreesBlock(st)) {
+        if (TreeCompat.isDynamicTreesBlock(st)) {
             return MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks;
         }
 
@@ -177,7 +178,7 @@ public final class MPBRoadColumns {
         if (m == Material.LEAVES) return false;
         if (m == Material.WOOD) return false;
 
-        return MPBGround.isRoadReplaceableGround(st);
+        return GroundRules.isRoadReplaceableGround(st);
     }
 
     private static void clearWithPairIfNeeded(World world, BlockPos pos, IBlockState st) {

@@ -1,8 +1,8 @@
 package com.jubitus.ultreia.gen.bridge;
 
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.MPBProtectedAreas;
-import com.jubitus.ultreia.gen.TerrainSampler;
+import com.jubitus.ultreia.terrain.ProtectedAreas;
+import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
 import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
 import net.minecraft.block.Block;
@@ -25,7 +25,7 @@ public final class MPBRoadConnectionHelper {
                                                         BlockPos originalAnchor,
                                                         BlockPos otherAnchor,
                                                         @Nullable BlockPos snappedRoad,
-                                                        @Nullable MPBProtectedAreas protectedAreas) {
+                                                        @Nullable ProtectedAreas protectedAreas) {
         if (roadIndex == null || snappedRoad == null) return null;
 
         int minBlocks = Math.max(1, MPBConfig.BRIDGE_AWARE_PATHFINDING.bridgeRoadApproachMinBlocks);
@@ -53,7 +53,7 @@ public final class MPBRoadConnectionHelper {
                                                         BlockPos sourceAnchor,
                                                         BlockPos otherAnchor,
                                                         BlockPos roadPos,
-                                                        @Nullable MPBProtectedAreas protectedAreas,
+                                                        @Nullable ProtectedAreas protectedAreas,
                                                         int minBlocks,
                                                         int maxBlocks,
                                                         int maxDeltaHalf) {

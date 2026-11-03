@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.command;
 
+import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.job.GenerationManager;
 import com.jubitus.ultreia.job.ManualPathSelection;

@@ -1,8 +1,8 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.terrain;
 
+import com.jubitus.ultreia.gen.MPBChunkManager;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
-import com.jubitus.ultreia.gen.newp.MPBTreeCompat;
 import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -122,7 +122,7 @@ public class TerrainSampler {
     private final Long2ObjectOpenHashMap<Sample> cache = new Long2ObjectOpenHashMap<>();
     private final Long2IntOpenHashMap lightCache = new Long2IntOpenHashMap();
     private final Set<ResourceLocation> blacklist = new HashSet<>();
-    private MPBProtectedAreas protectedAreas;
+    private ProtectedAreas protectedAreas;
 
     private MPBChunkManager chunkManager;
     private MPBRoadIndexData roadIndex;
@@ -141,7 +141,7 @@ public class TerrainSampler {
         }
     }
 
-    public void setProtectedAreas(MPBProtectedAreas areas) {
+    public void setProtectedAreas(ProtectedAreas areas) {
         this.protectedAreas = areas;
     }
 
@@ -343,7 +343,7 @@ public class TerrainSampler {
         if (!isWater) {
             BlockPos.MutableBlockPos fp = new BlockPos.MutableBlockPos(x, surfaceY, z);
             IBlockState fst = world.getBlockState(fp);
-            hasFarmland = MPBGround.isFarmland(fst);
+            hasFarmland = GroundRules.isFarmland(fst);
             try {
                 float h = fst.getBlockHardness(world, fp);
                 surfaceHardnessCategory = hardnessCategoryFromFloat(h);
@@ -506,7 +506,7 @@ public class TerrainSampler {
 
         BlockPos top = new BlockPos(x, s.surfaceY, z);
         IBlockState st = world.getBlockState(top);
-        return MPBGround.isRoadReplaceableGround(st) || MPBMillPathPalette.isMillPath(st.getBlock());
+        return GroundRules.isRoadReplaceableGround(st) || MPBMillPathPalette.isMillPath(st.getBlock());
     }
 
     private Sample cachePut(long k, Sample out) {
@@ -596,7 +596,7 @@ public class TerrainSampler {
                     // DT blocks (saplings, rootydirt) carry TEs for species metadata only —
                     // they are safe to clear and must not trigger path/paint blocking.
                     IBlockState st = world.getBlockState(p);
-                    if (MPBTreeCompat.isDynamicTreesBlock(st)) continue;
+                    if (TreeCompat.isDynamicTreesBlock(st)) continue;
                     return true;
                 }
             }
@@ -634,14 +634,14 @@ public class TerrainSampler {
         // Lava is "replaceable" in vanilla: stop on it so the column reads as lava, not as the pool floor.
         if (m == Material.LAVA) return false;
 
-        if (MPBTreeCompat.isTreeFoliageLike(world, pos, st)) return true;
+        if (TreeCompat.isTreeFoliageLike(world, pos, st)) return true;
         if (m.isReplaceable()) return true;
         if (b.isReplaceable(world, pos)) return true;
         if (b == Blocks.SNOW_LAYER) return true;
         if (isWaterSurfaceDecoration(st)) return true;
 
         if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
-            if (MPBTreeCompat.isTreeWoodLike(world, pos, st)) return true;
+            if (TreeCompat.isTreeWoodLike(world, pos, st)) return true;
             if (isLikelyTreeWood(st, pos)) return true;
         }
 
@@ -693,7 +693,7 @@ public class TerrainSampler {
             if (tst == null) continue;
             int r = probeBlockTrunkRadius(tst, tp);
             // DT saplings (Tier-1) are not branches — treat as radius-1 obstacle so A* prefers routing around them.
-            if (r == 0 && MPBTreeCompat.isDTSapling(tst)) r = 1;
+            if (r == 0 && TreeCompat.isDTSapling(tst)) r = 1;
             if (r > best) best = r;
         }
 
@@ -701,7 +701,7 @@ public class TerrainSampler {
         if (best == 0) {
             tp.setPos(x, surfaceY, z);
             IBlockState surfSt = world.getBlockState(tp);
-            if (MPBTreeCompat.isDTRootyBlock(surfSt)) {
+            if (TreeCompat.isDTRootyBlock(surfSt)) {
                 // Trunk starts one block above the rootydirt
                 tp.setPos(x, surfaceY + 1, z);
                 IBlockState trunkSt = world.getBlockState(tp);
@@ -727,8 +727,8 @@ public class TerrainSampler {
                         tp.setPos(nx, yy, nz);
                         IBlockState tst = world.getBlockState(tp);
                         if (tst == null || tst.getMaterial() == net.minecraft.block.material.Material.AIR) continue;
-                        if (MPBTreeCompat.isDynamicTreesBranch(tst)) {
-                            int r = MPBTreeCompat.getDTBranchRadius(tst);
+                        if (TreeCompat.isDynamicTreesBranch(tst)) {
+                            int r = TreeCompat.getDTBranchRadius(tst);
                             if (r >= largeThreshold && r > best) {
                                 best = r;
                                 break outer; // Found a large trunk nearby — no need to keep scanning
@@ -745,11 +745,11 @@ public class TerrainSampler {
     /** Returns the trunk radius for a single block: 1-8 for DT branches, 9 for vanilla wood, 0 otherwise. */
     private int probeBlockTrunkRadius(IBlockState st, BlockPos pos) {
         if (st == null) return 0;
-        if (MPBTreeCompat.isDynamicTreesBranch(st)) {
-            int r = MPBTreeCompat.getDTBranchRadius(st);
+        if (TreeCompat.isDynamicTreesBranch(st)) {
+            int r = TreeCompat.getDTBranchRadius(st);
             return (r > 0) ? r : 1;
         }
-        if (MPBTreeCompat.isDynamicTreesTrunkShell(st)) return 4; // Trunk shell = thick trunk
+        if (TreeCompat.isDynamicTreesTrunkShell(st)) return 4; // Trunk shell = thick trunk
         if (isLikelyTreeWood(st, pos) || st.getBlock().isWood(world, pos) || st.getMaterial() == Material.WOOD) {
             return 9; // Vanilla/unknown tree
         }
@@ -820,13 +820,13 @@ public class TerrainSampler {
         if (m == Material.AIR) return true;
         if (m == Material.LAVA) return false;
 
-        if (MPBTreeCompat.isTreeFoliageLike(world, pos, st)) return true;
+        if (TreeCompat.isTreeFoliageLike(world, pos, st)) return true;
         if (m.isReplaceable()) return true;
         if (b.isReplaceable(world, pos)) return true;
         if (b == Blocks.SNOW_LAYER) return true;
 
         if (MPBConfig.PAINTING.clearTrees && MPBConfig.PAINTING.clearTreeTrunks) {
-            if (MPBTreeCompat.isTreeWoodLike(world, pos, st)) return true;
+            if (TreeCompat.isTreeWoodLike(world, pos, st)) return true;
             if (isLikelyTreeWood(st, pos)) return true;
         }
 
@@ -918,7 +918,7 @@ public class TerrainSampler {
     }
 
     private static boolean isNaturalGround(IBlockState st) {
-        return MPBGround.isRoadReplaceableGround(st);
+        return GroundRules.isRoadReplaceableGround(st);
     }
 
     private static long key(int x, int z) {
@@ -975,7 +975,7 @@ public class TerrainSampler {
                     if (m == Material.PLANTS || m == Material.VINE) continue;
                     if (m == Material.WATER) continue;
 
-                    if (MPBGround.isRoadReplaceableGround(st)) continue;
+                    if (GroundRules.isRoadReplaceableGround(st)) continue;
                     if (MPBMillPathPalette.isMillPath(st.getBlock())) continue;
 
                     // Ignore natural trees (we can clear them).

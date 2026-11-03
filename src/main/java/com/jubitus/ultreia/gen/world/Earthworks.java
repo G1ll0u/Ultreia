@@ -1,8 +1,8 @@
 package com.jubitus.ultreia.gen.world;
 
-import com.jubitus.ultreia.gen.MPBGround;
+import com.jubitus.ultreia.terrain.GroundRules;
 import com.jubitus.ultreia.gen.MPBRoadColumns;
-import com.jubitus.ultreia.gen.TerrainSampler;
+import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;

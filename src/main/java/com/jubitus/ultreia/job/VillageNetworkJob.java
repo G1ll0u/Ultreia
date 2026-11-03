@@ -3,12 +3,12 @@ package com.jubitus.ultreia.job;
 import com.jubitus.ultreia.route.AStarPathfinder;
 import com.jubitus.ultreia.gen.MPBChunkManager;
 import com.jubitus.ultreia.route.EndpointResolver;
-import com.jubitus.ultreia.gen.MPBProtectedAreas;
+import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.planner.NetworkPlanData;
 import com.jubitus.ultreia.planner.NetworkPlanner;
 import com.jubitus.ultreia.gen.RoadPainter;
 import com.jubitus.ultreia.route.RoadType;
-import com.jubitus.ultreia.gen.TerrainSampler;
+import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.route.VillageGateField;
 import com.jubitus.ultreia.route.VillageGateTracker;
 import com.jubitus.ultreia.MillPresence;
@@ -45,7 +45,7 @@ public final class VillageNetworkJob implements TickedJob {
     private final NetworkPlanData saved;
     private final JobCheckpoint checkpoint;
     private final TerrainSampler sampler;
-    private final MPBProtectedAreas protectedAreas;
+    private final ProtectedAreas protectedAreas;
 
     private final List<BlockPos> nodes;
     private final VillageGateTracker gateTracker = new VillageGateTracker();
@@ -424,8 +424,8 @@ public final class VillageNetworkJob implements TickedJob {
         if (sender != null) sender.sendMessage(new TextComponentString(s));
     }
 
-    static MPBProtectedAreas buildProtectedAreas(WorldServer world, TerrainSampler sampler) {
-        MPBProtectedAreas pa = new MPBProtectedAreas();
+    static ProtectedAreas buildProtectedAreas(WorldServer world, TerrainSampler sampler) {
+        ProtectedAreas pa = new ProtectedAreas();
         if (MillPresence.isPresent()) MillBuildingObstacles2.addMillenaireZones(world, pa);
         return pa;
     }

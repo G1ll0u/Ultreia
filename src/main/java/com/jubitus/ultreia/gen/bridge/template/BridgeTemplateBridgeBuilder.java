@@ -1,8 +1,8 @@
 package com.jubitus.ultreia.gen.bridge.template;
 
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.MPBGround;
-import com.jubitus.ultreia.gen.TerrainSampler;
+import com.jubitus.ultreia.terrain.GroundRules;
+import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.gen.bridge.BridgeGeometry;
 import com.jubitus.ultreia.gen.bridge.BridgeSpan;
 import com.jubitus.ultreia.gen.bridge.RasterLine8;
@@ -383,7 +383,7 @@ public final class BridgeTemplateBridgeBuilder {
             if (b.isWood(world, pos) || m == Material.WOOD) return true;
         }
 
-        return MPBGround.isRoadReplaceableGround(st);
+        return GroundRules.isRoadReplaceableGround(st);
     }
 
     private static void extendSupport(WorldServer world,
@@ -493,7 +493,7 @@ public final class BridgeTemplateBridgeBuilder {
                 }
             }
 
-            if (MPBGround.isRoadReplaceableGround(st)) {
+            if (GroundRules.isRoadReplaceableGround(st)) {
                 world.setBlockState(p, Blocks.AIR.getDefaultState(), 2);
             }
         }

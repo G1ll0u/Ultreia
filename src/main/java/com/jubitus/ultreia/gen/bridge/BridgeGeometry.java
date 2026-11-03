@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.gen.bridge;
 
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.TerrainSampler;
+import com.jubitus.ultreia.terrain.TerrainSampler;
 import net.minecraft.util.math.BlockPos;
 
 import javax.annotation.Nullable;

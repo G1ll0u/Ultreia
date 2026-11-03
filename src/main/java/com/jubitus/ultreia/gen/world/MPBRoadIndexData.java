@@ -3,7 +3,7 @@ package com.jubitus.ultreia.gen.world;
 import com.jubitus.ultreia.MillPresence;
 import com.jubitus.ultreia.block.MPBBlocks;
 import com.jubitus.ultreia.gen.MPBChunkManager;
-import com.jubitus.ultreia.gen.TerrainSampler;
+import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;

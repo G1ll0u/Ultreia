@@ -4,8 +4,8 @@ import com.jubitus.ultreia.gen.bridge.template.BridgeTemplate;
 import com.jubitus.ultreia.gen.bridge.template.BridgeTemplateSelector;
 
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.MPBGround;
-import com.jubitus.ultreia.gen.TerrainSampler;
+import com.jubitus.ultreia.terrain.GroundRules;
+import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
 import com.jubitus.ultreia.gen.mill.MillVillageIndex;
 import net.minecraft.block.Block;
@@ -685,13 +685,13 @@ public final class BridgeFeasibility {
 
     private static boolean isNaturalOrRoad(IBlockState state) {
         if (state == null) return false;
-        return MPBGround.isRoadReplaceableGround(state) || MPBMillPathPalette.isMillPath(state.getBlock());
+        return GroundRules.isRoadReplaceableGround(state) || MPBMillPathPalette.isMillPath(state.getBlock());
     }
 
     private static boolean isNaturalGroundOnly(IBlockState state) {
         if (state == null) return false;
         if (MPBMillPathPalette.isMillPath(state.getBlock())) return false;
-        return MPBGround.isRoadReplaceableGround(state);
+        return GroundRules.isRoadReplaceableGround(state);
     }
 
     private static boolean sameXZ(BlockPos a, BlockPos b) {

@@ -1,11 +1,11 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.terrain;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public final class MPBProtectedAreas {
+public final class ProtectedAreas {
 
     public static final class Zone {
         public final int minX, maxX, minZ, maxZ;

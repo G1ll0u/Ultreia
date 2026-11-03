@@ -1,28 +1,27 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.terrain;
 
 import net.minecraft.block.BlockWall;
 import net.minecraft.block.BlockStairs;
 import net.minecraft.block.BlockSlab;
 import com.jubitus.ultreia.gen.mill.MPBMillPathPalette;
-import com.jubitus.ultreia.gen.newp.MPBTreeCompat;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
 import net.minecraft.util.ResourceLocation;
 
-public final class MPBGround {
+public final class GroundRules {
 
-    private MPBGround() {}
+    private GroundRules() {}
 
-    // MPBGround.java
+    // GroundRules.java
     public static boolean isRoadReplaceableGround(IBlockState st) {
         if (st == null) return false;
 
         // Rootydirt is plain dirt anchoring a DT tree — valid painting surface once the tree is cleared.
-        if (MPBTreeCompat.isDTRootyBlock(st)) return true;
+        if (TreeCompat.isDTRootyBlock(st)) return true;
         // Other DT structural blocks (branches, trunkshell, saplings) are never ground.
-        if (MPBTreeCompat.isDynamicTreesBlock(st)) return false;
+        if (TreeCompat.isDynamicTreesBlock(st)) return false;
         Block b = st.getBlock();
         if (b == Blocks.AIR) return false;
 

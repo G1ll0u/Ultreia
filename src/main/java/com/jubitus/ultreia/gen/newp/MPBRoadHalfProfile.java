@@ -3,7 +3,7 @@ package com.jubitus.ultreia.gen.newp;
 import com.jubitus.ultreia.route.RoadType;
 
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.TerrainSampler;
+import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.gen.bridge.BridgeGeometry;
 import com.jubitus.ultreia.gen.bridge.BridgeSpan;
 import net.minecraft.util.math.BlockPos;
