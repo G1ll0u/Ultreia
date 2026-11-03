@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.terrain;
 
+import com.jubitus.ultreia.bridge.BridgeSite;
+import com.jubitus.ultreia.bridge.WorldBridgeSite;
 import com.jubitus.ultreia.chunk.ChunkManager;
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.geom.Pos2D;
@@ -126,6 +128,7 @@ public class TerrainSampler implements TerrainView {
     private final Long2IntOpenHashMap lightCache = new Long2IntOpenHashMap();
     private final Set<ResourceLocation> blacklist = new HashSet<>();
     private ProtectedAreas protectedAreas;
+    @Nullable private BridgeSite bridgeSite;
 
     private ChunkManager chunkManager;
     private RoadIndex roadIndex;
@@ -458,6 +461,12 @@ public class TerrainSampler implements TerrainView {
         }
         cache.put(k, out);
         return out;
+    }
+
+    @Override
+    public BridgeSite bridgeSite() {
+        if (bridgeSite == null) bridgeSite = new WorldBridgeSite(world);
+        return bridgeSite;
     }
 
     public double extraCost(Sample s, Mode mode) {

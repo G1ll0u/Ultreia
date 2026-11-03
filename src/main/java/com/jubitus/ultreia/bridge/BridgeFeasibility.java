@@ -58,8 +58,6 @@ public final class BridgeFeasibility {
     private static final int LONG_BRIDGE_REQUIRED_MAX_CLEARANCE = 6;
     // Require this many buildable blocks straight ahead after bridge exit.
     private static final int REQUIRED_EXIT_CORRIDOR_BLOCKS = 1;
-    // Require this many forward-aligned blocks after bridge exit.
-    private static final int REQUIRED_FORWARD_EXIT_BLOCKS = 1;
     // Minimum consecutive interior water cells required before a water crossing counts as a real bridge candidate.
     public static final int MIN_WATER_RUN_BLOCKS = 7;
     // For water bridges, max dry interior cells allowed before the first real water run.
@@ -88,20 +86,18 @@ public final class BridgeFeasibility {
 
     private BridgeFeasibility() {}
 
-    public static BridgeSpan tryCreate(WorldServer world,
-                                       TerrainView sampler,
-                                       BlockPos start,
-                                       BlockPos end) {
+    public static BridgeSpan tryCreate(TerrainView sampler, BlockPos start, BlockPos end) {
+        BridgeSite site = sampler.bridgeSite();
         // The template depends on the span (length, water), its crown changes the deck: check with the
         // global crown, pick the template, then check again with the deck that will really be built.
-        BridgeSpan first = evaluate(world, sampler, start, end, null).span;
+        BridgeSpan first = evaluate(site, sampler, start, end, null).span;
         if (first == null) return null;
-        BridgeTemplate template = BridgeTemplateSelector.select(world, first);
+        BridgeTemplate template = site.selectTemplate(first);
         if (template == null) return first;
         int crown = BridgeGeometry.effectiveCrownHalf(template.bridgeCrownHalfBlocks, first.centerline, sampler);
         int crownMin = BridgeGeometry.effectiveCrownMinLen(template.bridgeCrownMinLenBlocks);
         if (crown == first.crownHalf && crownMin == first.crownMinLen) return first.withTemplate(template);
-        return evaluate(world, sampler, start, end, template).span;
+        return evaluate(site, sampler, start, end, template).span;
     }
 
     private static final class BridgeEval {
@@ -122,7 +118,7 @@ public final class BridgeFeasibility {
         return new BridgeEval(null, reason);
     }
 
-    private static BridgeEval evaluate(WorldServer world,
+    private static BridgeEval evaluate(BridgeSite site,
                                        TerrainView sampler,
                                        BlockPos start,
                                        BlockPos end,
@@ -135,27 +131,27 @@ public final class BridgeFeasibility {
         TerrainSampler.Sample endSample = sampler.sample(end.getX(), end.getZ());
         if (startSample == null || endSample == null) return fail("start/end sample null");
 
-        if (!isValidBridgeEndpoint(world, sampler, startSample)) {
+        if (!isValidBridgeEndpoint(site, sampler, startSample)) {
             return fail("invalid start endpoint at (" + startSample.x + "," + startSample.z + ")"
                     + " water=" + startSample.isWater
                     + " ocean=" + startSample.isOcean
                     + " forbidden=" + sampler.describeForbidden(startSample, TerrainSampler.Mode.PATHFINDING));
         }
-        if (!isValidBridgeEndpoint(world, sampler, endSample)) {
+        if (!isValidBridgeEndpoint(site, sampler, endSample)) {
             return fail("invalid end endpoint at (" + endSample.x + "," + endSample.z + ")"
                     + " water=" + endSample.isWater
                     + " ocean=" + endSample.isOcean
                     + " forbidden=" + sampler.describeForbidden(endSample, TerrainSampler.Mode.PATHFINDING));
         }
 
-        if (isTooNearSettlement(world, start, true)) return fail("start too near settlement");
-        if (isTooNearSettlement(world, end, true)) return fail("end too near settlement");
+        if (isTooNearSettlement(site, start, true)) return fail("start too near settlement");
+        if (isTooNearSettlement(site, end, true)) return fail("end too near settlement");
 
         List<BlockPos> rawLine = LineRaster.forBridges(start.getX(), start.getZ(), end.getX(), end.getZ(), 0);
 
         if (rawLine == null || rawLine.size() < 2) return fail("raw bridge line too short");
 
-        TrimmedBridgeCandidate trimmed = trimBridgeEndBeforeTargetRoad(world, sampler, start, end, rawLine);
+        TrimmedBridgeCandidate trimmed = trimBridgeEndBeforeTargetRoad(sampler, start, end, rawLine);
         if (trimmed == null) return fail("trimBridgeEndBeforeTargetRoad failed");
 
         end = trimmed.end;
@@ -165,10 +161,10 @@ public final class BridgeFeasibility {
         endSample = sampler.sample(end.getX(), end.getZ());
         if (startSample == null || endSample == null) return fail("trimmed start/end sample null");
 
-        if (!isValidBridgeEndpoint(world, sampler, startSample)) {
+        if (!isValidBridgeEndpoint(site, sampler, startSample)) {
             return fail("trimmed start endpoint invalid at (" + startSample.x + "," + startSample.z + ")");
         }
-        if (!isValidBridgeEndpoint(world, sampler, endSample)) {
+        if (!isValidBridgeEndpoint(site, sampler, endSample)) {
             return fail("trimmed end endpoint invalid at (" + endSample.x + "," + endSample.z + ")");
         }
 
@@ -242,7 +238,7 @@ public final class BridgeFeasibility {
             if (sampler.isProtectedNoPaint(p.getX(), p.getZ())) {
                 return fail("protected no-paint at i=" + i + " pos=(" + p.getX() + "," + p.getZ() + ")");
             }
-            if (isTooNearSettlement(world, p, false)) {
+            if (isTooNearSettlement(site, p, false)) {
                 return fail("bridge crosses settlement zone at i=" + i + " pos=(" + p.getX() + "," + p.getZ() + ")");
             }
 
@@ -309,15 +305,15 @@ public final class BridgeFeasibility {
                 }
             }
 
-            if (!walkVolumePassable(world, p.getX(), p.getZ(), deckBlockY + 1, deckBlockY + clearAbove, endpoint)) {
+            if (!site.isWalkVolumePassable(p.getX(), p.getZ(), deckBlockY + 1, deckBlockY + clearAbove, endpoint)) {
                 return fail("walk volume blocked at i=" + i + " pos=(" + p.getX() + "," + p.getZ() + ")");
             }
 
-            if (!isBridgeColumnAcceptable(world, sampler, p.getX(), p.getZ(), deckSurfaceY, endpoint)) {
+            if (!isBridgeColumnAcceptable(site, sampler, p.getX(), p.getZ(), deckSurfaceY, endpoint)) {
                 return fail("bridge column unacceptable at i=" + i + " pos=(" + p.getX() + "," + p.getZ() + ")");
             }
 
-            if (!checkSideClearance(world, sampler, line, i, deckHalf[i], clearAbove, endpoint, sideRadius, minUnderRoadClearance)) {
+            if (!checkSideClearance(site, sampler, line, i, deckHalf[i], clearAbove, endpoint, sideRadius, minUnderRoadClearance)) {
                 return fail("side clearance failed at i=" + i + " pos=(" + p.getX() + "," + p.getZ() + ")");
             }
         }
@@ -413,13 +409,8 @@ public final class BridgeFeasibility {
             if (veryStrongPct < 35) return fail("long bridge veryStrongPct too low: " + veryStrongPct);
         }
 
-        int forwardLook = Math.max(1, REQUIRED_FORWARD_EXIT_BLOCKS);
-        if (!exitDirectionStaysForward(start, end, forwardLook, sampler)) {
-            return fail("exitDirectionStaysForward failed");
-        }
-
         int exitLookAhead = Math.max(1, REQUIRED_EXIT_CORRIDOR_BLOCKS);
-        if (!exitCorridorIsBuildable(world, sampler, start, end, exitLookAhead)) {
+        if (!exitCorridorIsBuildable(site, sampler, start, end, exitLookAhead)) {
             return fail("exitCorridorIsBuildable failed");
         }
 
@@ -438,8 +429,7 @@ public final class BridgeFeasibility {
     }
 
     @Nullable
-    private static TrimmedBridgeCandidate trimBridgeEndBeforeTargetRoad(WorldServer world,
-                                                                        TerrainView sampler,
+    private static TrimmedBridgeCandidate trimBridgeEndBeforeTargetRoad(TerrainView sampler,
                                                                         BlockPos start,
                                                                         BlockPos end,
                                                                         List<BlockPos> rawLine) {
@@ -523,7 +513,7 @@ public final class BridgeFeasibility {
         return new TrimmedBridgeCandidate(newEnd, trimmedLine);
     }
 
-    private static boolean isValidBridgeEndpoint(WorldServer world,
+    private static boolean isValidBridgeEndpoint(BridgeSite site,
                                                  TerrainView sampler,
                                                  TerrainSampler.Sample sample) {
         if (sample.isWater || sample.isOcean) return false;
@@ -531,43 +521,13 @@ public final class BridgeFeasibility {
         if (sampler.isProtectedNoPaint(sample.x, sample.z)) return false;
         if (sampler.isExistingRoadXZ(sample.x, sample.z)) return false;
 
-        BlockPos top = new BlockPos(sample.x, sample.surfaceY, sample.z);
-        IBlockState ground = world.getBlockState(top);
-        if (!BlockRules.isNaturalGroundOnly(ground)) return false;
-
-        IBlockState up1 = world.getBlockState(top.up());
-        IBlockState up2 = world.getBlockState(top.up(2));
-
-        if (!BlockRules.isBridgeClearable(world, top.up(), up1, true)) return false;
-        if (!BlockRules.isBridgeClearable(world, top.up(2), up2, true)) return false;
-
-        return true;
+        int y = sample.surfaceY;
+        if (!site.isNaturalGroundOnly(sample.x, y, sample.z)) return false;
+        return site.isBridgeClearable(sample.x, y + 1, sample.z, true)
+                && site.isBridgeClearable(sample.x, y + 2, sample.z, true);
     }
 
-    private static boolean walkVolumePassable(WorldServer world,
-                                              int x,
-                                              int z,
-                                              int yFrom,
-                                              int yTo,
-                                              boolean allowDeckSlabAtEndpoint) {
-        BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
-
-        for (int y = yFrom; y <= yTo; y++) {
-            p.setPos(x, y, z);
-            IBlockState st = world.getBlockState(p);
-
-            if (st == null) continue;
-            if (st.getMaterial() == Material.AIR) continue;
-            if (world.getTileEntity(p) != null) return false;
-
-            if (BlockRules.isBridgeClearable(world, p, st, allowDeckSlabAtEndpoint)) continue;
-            return false;
-        }
-
-        return true;
-    }
-
-    private static boolean checkSideClearance(WorldServer world,
+    private static boolean checkSideClearance(BridgeSite site,
                                               TerrainView sampler,
                                               List<BlockPos> line,
                                               int idx,
@@ -607,7 +567,7 @@ public final class BridgeFeasibility {
                     }
                 }
 
-                if (!walkVolumePassable(world, x, z, deckBlockY + 1, deckBlockY + clearAbove, endpoint)) {
+                if (!site.isWalkVolumePassable(x, z, deckBlockY + 1, deckBlockY + clearAbove, endpoint)) {
                     return false;
                 }
             }
@@ -616,7 +576,7 @@ public final class BridgeFeasibility {
         return true;
     }
 
-    private static boolean isBridgeColumnAcceptable(WorldServer world,
+    private static boolean isBridgeColumnAcceptable(BridgeSite site,
                                                     TerrainView sampler,
                                                     int x,
                                                     int z,
@@ -630,15 +590,13 @@ public final class BridgeFeasibility {
             if (sample.isWater || sample.isOcean) return false;
             if (sampler.isExistingRoadXZ(x, z)) return false;
 
-            BlockPos top = new BlockPos(x, sample.surfaceY, z);
-            IBlockState ground = world.getBlockState(top);
-            return BlockRules.isNaturalGroundOnly(ground);
+            return site.isNaturalGroundOnly(x, sample.surfaceY, z);
         }
 
         return sample.surfaceY <= deckSurfaceY;
     }
 
-    private static boolean isTooNearSettlement(WorldServer world, BlockPos pos, boolean endpoint) {
+    private static boolean isTooNearSettlement(BridgeSite site, BlockPos pos, boolean endpoint) {
         int villageRadius = endpoint
                 ? Math.max(0, ENDPOINT_VILLAGE_RADIUS)
                 : Math.max(0, CROSS_VILLAGE_RADIUS);
@@ -647,40 +605,13 @@ public final class BridgeFeasibility {
                 ? Math.max(0, ENDPOINT_LONE_BUILDING_RADIUS)
                 : Math.max(0, CROSS_LONE_BUILDING_RADIUS);
 
-        if (villageRadius > 0 && MillVillageIndex.isNearVillage(world, pos, villageRadius)) return true;
-        if (loneRadius > 0 && MillVillageIndex.isNearAnySettlement(world, pos, loneRadius)) return true;
+        if (villageRadius > 0 && site.isNearVillage(pos, villageRadius)) return true;
+        if (loneRadius > 0 && site.isNearAnySettlement(pos, loneRadius)) return true;
 
         return false;
     }
 
-    private static boolean exitDirectionStaysForward(BlockPos start,
-                                                     BlockPos end,
-                                                     int lookAhead,
-                                                     TerrainView sampler) {
-        if (lookAhead <= 0) return true;
-
-        int dx = Integer.signum(end.getX() - start.getX());
-        int dz = Integer.signum(end.getZ() - start.getZ());
-
-        if (dx == 0 && dz == 0) return false;
-
-        int x = end.getX();
-        int z = end.getZ();
-
-        for (int i = 1; i <= lookAhead; i++) {
-            x += dx;
-            z += dz;
-
-            TerrainSampler.Sample sample = sampler.sample(x, z);
-            if (sample == null) return false;
-            if (sample.isWater || sample.isOcean) return false;
-            if (sampler.forbidden(sample, TerrainSampler.Mode.PATHFINDING)) return false;
-        }
-
-        return true;
-    }
-
-    private static boolean exitCorridorIsBuildable(WorldServer world,
+    private static boolean exitCorridorIsBuildable(BridgeSite site,
                                                    TerrainView sampler,
                                                    BlockPos start,
                                                    BlockPos end,
@@ -713,8 +644,7 @@ public final class BridgeFeasibility {
             int dy = Math.abs(sample.surfaceY - prev.surfaceY);
             if (dy > maxDy + 1) return false;
 
-            BlockPos top = new BlockPos(x, sample.surfaceY, z);
-            if (!BlockRules.isRoadReplaceableGround(world.getBlockState(top))) return false;
+            if (!site.isRoadGround(x, sample.surfaceY, z)) return false;
 
             prev = sample;
         }

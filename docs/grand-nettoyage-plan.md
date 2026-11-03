@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Phases 0–7 done (in-game checks pending). Next: phase 8.
+**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Phases 0–7 done (in-game checks pending). Phase 8 in progress (8.1 done).
 
 ## Goal
 
@@ -236,7 +236,15 @@ Both sources now get the endpoint debug lines; an empty A* path fails the edge i
 `instanceof` checks. One "nearest valid ground point" (A*'s `nearestValidGrid` vs job `findAnchor`: asked).
 Visible (each confirmed): manual paths merge into existing roads; same scan radius for both.
 
-### Phase 8 — Bridges — status: not started
+### Phase 8 — Bridges — status: in progress
+
+Steps: 8.1 `BridgeSite` (world reads of feasibility) + gorge bridge golden (done) · 8.2 `BridgeDeckProfile`,
+`BridgeFeasibility` split + rejection log, exit corridor into `BridgeApproachCheck` · 8.3 bridge moves and cost out
+of A* · 8.4 `BridgeSegmentPainter` out of `RoadPainter` · 8.5 template side · 8.6 `CLAUDE.md` gatekeeper line.
+Decided (user): the approach check stays an A* cost; the whole-path profile check is the walkability gate.
+Already done earlier: one deck profile (0.20), templates validated once per loaded instance.
+The forward-exit check was a subset of the exit-corridor check on the same cell: removed.
+
 
 - `bridge/BridgeDeckProfile`: the only deck profile (today two diverging `buildDeckHalfProfile`), fed by the span's
   effective crown (follows 0.20).

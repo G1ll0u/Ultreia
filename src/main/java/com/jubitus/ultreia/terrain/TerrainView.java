@@ -3,6 +3,7 @@ package com.jubitus.ultreia.terrain;
 import com.jubitus.ultreia.terrain.TerrainSampler.ForbiddenReason;
 import com.jubitus.ultreia.terrain.TerrainSampler.Mode;
 import com.jubitus.ultreia.terrain.TerrainSampler.Sample;
+import com.jubitus.ultreia.bridge.BridgeSite;
 import net.minecraft.util.math.BlockPos;
 
 import javax.annotation.Nullable;
@@ -35,4 +36,7 @@ public interface TerrainView {
     int nearestRoadDistManhattan(int x, int z, int maxRadius, int scanStep);
 
     boolean isNaturalLandEndpoint(int x, int z);
+
+    /** World reads of bridge feasibility at this terrain. */
+    BridgeSite bridgeSite();
 }

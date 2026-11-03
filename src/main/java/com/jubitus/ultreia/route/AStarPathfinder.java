@@ -1509,7 +1509,7 @@ public final class AStarPathfinder {
                 BlockPos startPos = new BlockPos(x, cur.surfaceY, z);
                 BlockPos endPos = new BlockPos(nx, ns.surfaceY, nz);
 
-                BridgeSpan span = BridgeFeasibility.tryCreate(world, sampler, startPos, endPos);
+                BridgeSpan span = BridgeFeasibility.tryCreate(sampler, startPos, endPos);
 
                 if (span == null) {
                     continue;
