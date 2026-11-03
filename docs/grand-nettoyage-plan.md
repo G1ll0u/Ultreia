@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-03)**: phases 0–4 done (in-game checks pending). Next: phase 5.
+**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Next: phase 6.
 
 ## Goal
 
@@ -188,15 +188,17 @@ and open-cell test; light-sample pack/unpack → `TerrainSampler.packLight`/`lig
 (int overflowed beyond ~46 000 blocks). Moved: "player only" check ×6 → phase 11; Millénaire path column windows → phase 6.
 Kept apart: the two `(lateral, relY)` keys in `BridgeTemplateBridgeBuilder` (not xz); A* free-neighbour counts (16 vs 8 cells).
 
-### Phase 5 — Config cut — status: not started
+### Phase 5 — Config cut — status: done
 
-- The user picks, from a list of the ~120 internal fields, the ones they tune (likely `NETWORK.*`, turn/slope/reuse costs).
-  The rest become named constants beside their only reader, same values.
-- Walkability limits become constants: `maxRoadStepHalfPerBlock`, `maxDeckDeltaHalfPerBlock`, `maxRoadJoinDeltaHalfBlocks`.
-- To decide with the user here: overlapping switches (4 bridge on/off, 2 building penalties, 2 no-paint paddings,
-  ~6 road-reuse mechanisms); one debug boolean per subsystem in `DEBUG` (moving a debug flag only resets it to off);
-  `printFailureBreakdown` off by default; wrong or technical comments rewritten (list in the inventory).
-- Visible: removed fields vanish from the config screen; behaviour unchanged at default values.
+- 188 fields → 39 (user's pick). 137 became named constants beside their reader, same values; the walkability
+  limits live in `geom/HalfY`. Kept fields keep name and category; comments rewritten for players.
+- Bridges: `BRIDGES.enabled` is the only master switch (`BRIDGE_AWARE_PATHFINDING.enabled`, `PAINTING.buildBridges`
+  removed); `VALLEY_BRIDGING.enabled` stays. Debug: 6 switches in `DEBUG` (`logNetwork`, `logPathfinding`, `logBridges`,
+  `logPainting`, `logChunks`, `logSpeedBoost`); the failure detail is off by default.
+- Visible (approved): reusing an existing bridge no longer pays the lone-trail bridge multiplier.
+- Open (user: later): road reuse mechanisms are all off by default (reuse bonus, parallel-road avoidance, partial path
+  fallback, magnetism; magnetism made twisted or too-wide roads). Their fields are kept unchanged until decided.
+- Constant booleans (`ROAD_HIERARCHY_ENABLED`, `BUILDINGS_ENABLED`…) leave dead branches, removed in the splits (6–10).
 
 ### Phase 6 — Terrain authorities — status: not started
 

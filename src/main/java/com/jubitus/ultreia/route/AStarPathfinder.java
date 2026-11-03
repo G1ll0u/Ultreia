@@ -1097,7 +1097,9 @@ public final class AStarPathfinder {
                     continue;
                 }
 
-                double tentative = gScore.get(ck) + mv.cost * bridgeMult + mv.turnCost
+                // Reusing a built bridge builds nothing: the lone-trail multiplier only deters new bridges.
+                double moveMult = mv.reusedCrossing != null ? 1.0 : bridgeMult;
+                double tentative = gScore.get(ck) + mv.cost * moveMult + mv.turnCost
                         + sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
                 if (tentative < gScore.get(nk)) {
                     cameFrom.put(nk, ck);
