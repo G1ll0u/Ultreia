@@ -12,7 +12,9 @@ import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.UltreiaConfig;
-import com.jubitus.ultreia.bridge.BridgeApproachCheck;
+import com.jubitus.ultreia.bridge.BridgeMoveCost;
+import com.jubitus.ultreia.bridge.BridgeMoveGenerator;
+import com.jubitus.ultreia.bridge.BridgeMoveGenerator.BridgeMove;
 import com.jubitus.ultreia.paint.RoadHeightSolver;
 import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.roads.RoadIndex;
@@ -33,6 +35,13 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
+
+import static com.jubitus.ultreia.route.GridMoves.DIR_NONE;
+import static com.jubitus.ultreia.route.GridMoves.NEIGHBOR_DIRS;
+import static com.jubitus.ultreia.route.GridMoves.nearestDirIndex;
+import static com.jubitus.ultreia.route.GridMoves.normalizedDot;
+import static com.jubitus.ultreia.route.GridMoves.snap;
+import static com.jubitus.ultreia.route.GridMoves.turnCost;
 
 public final class AStarPathfinder {
 
@@ -84,40 +93,10 @@ public final class AStarPathfinder {
     private static final int PATHFINDING_EARTHWORKS_TOLERANCE = 4;
     // If true, automatically increases gridStep for very long routes to limit search space.
     private static final boolean ADAPTIVE_GRID_STEP = true;
-    // Bridge if the terrain drops at least this many blocks below entry/exit baseline.
-    private static final int MIN_VALLEY_DEPTH = 6;
-    // Flat overhead penalty applied to all water-dominant bridge moves.
-    private static final double WATER_BRIDGE_BASE_PENALTY = 250.0;
-    // Extra cost added per water interior cell for water-dominant bridges.
-    private static final double WATER_BRIDGE_LENGTH_PENALTY_PER_BLOCK = 8.0;
-    // Max accepted bridge candidates per expanded A* node.
-    private static final int MAX_BRIDGE_CANDIDATES_PER_NODE = 4;
-    // Fixed extra cost added to every bridge move.
-    private static final double BRIDGE_FIXED_COST = 230;
-    // Multiplier applied to bridge geometric length cost.
-    private static final double BRIDGE_LENGTH_COST_MULTIPLIER = 1.10;
-    // Bonus per block of valley depth.
-    private static final double BRIDGE_VALLEY_PREFERENCE_BONUS_PER_BLOCK = 1.23;
-    // Minimum number of normal path blocks between two bridges.
-    private static final int MIN_DISTANCE_BETWEEN_BRIDGES_BLOCKS = 28;
-    // Safety rail only, not the main alignment mechanism: rejects bridge directions that would require a...
-    private static final boolean REQUIRE_ALIGNED_APPROACH = true;
-    // Minimum normalized dot product between incoming direction and bridge direction (safety rail, see...
-    private static final double MIN_APPROACH_DOT = -0.3;
-    // Minimum number of land blocks on each bridge side that must be connectable with strict 0.5-block road steps.
-    private static final int BRIDGE_APPROACH_RAMP_BLOCKS = 3;
-    // Radius (blocks) around the current A* position to search for existing bridge crossings.
-    private static final int BRIDGE_REUSE_SEARCH_RADIUS = 36;
-    // Cost bonus applied when reusing an existing bridge (higher = stronger preference for reuse).
-    private static final double BRIDGE_REUSE_BONUS = 120.0;
     // Cost discount applied to normal A* moves that step closer to a known existing bridge crossing's entrance,...
     private static final double BRIDGE_ENDPOINT_MAGNETISM_BONUS = 12.0;
-    // Bridge cost multiplier for LONE_TRAIL routes (connections to lone buildings).
-    private static final double LONE_TRAIL_BRIDGE_COST_MULTIPLIER = 5.0;
 
     public enum StepResult { RUNNING, FOUND, PARTIAL, FAILED }
-
-    private static final int DIR_NONE = 16;
 
     private static final class Node {
         final int x, z;
@@ -132,33 +111,6 @@ public final class AStarPathfinder {
         }
     }
 
-    private static final class BridgeMove {
-        final int nx;
-        final int nz;
-        final int ndir;
-        final double cost;
-        /** Kept apart from {@code cost}: the lone-trail bridge multiplier must not scale it. */
-        final double turnCost;
-        final BridgeSpan span;
-        /** Set only for a move that enters an already-built bridge via {@code buildExistingBridgeMoves}. */
-        @javax.annotation.Nullable final RoadNetwork.BridgeCrossing reusedCrossing;
-
-        BridgeMove(int nx, int nz, int ndir, double cost, double turnCost, BridgeSpan span) {
-            this(nx, nz, ndir, cost, turnCost, span, null);
-        }
-
-        BridgeMove(int nx, int nz, int ndir, double cost, double turnCost, BridgeSpan span,
-                   @javax.annotation.Nullable RoadNetwork.BridgeCrossing reusedCrossing) {
-            this.nx = nx;
-            this.nz = nz;
-            this.ndir = ndir;
-            this.cost = cost;
-            this.turnCost = turnCost;
-            this.span = span;
-            this.reusedCrossing = reusedCrossing;
-        }
-    }
-
     public static final class Session {
         private int minX, maxX, minZ, maxZ;
         private int sx, sz;
@@ -168,6 +120,7 @@ public final class AStarPathfinder {
         private final TerrainView sampler;
         private final int step;
         private final int configStep;
+        private final BridgeMoveGenerator bridgeMoves;
         private int gx, gz;
 
         @javax.annotation.Nullable private RoadNetwork roadNetwork;
@@ -242,13 +195,6 @@ public final class AStarPathfinder {
         private int startY = 0;
         private int goalY = 0;
 
-        private static final int[][] NEIGHBOR_DIRS = new int[][]{
-                { 1, 0}, {-1, 0}, {0, 1}, {0, -1},
-                { 1, 1}, { 1,-1}, {-1, 1}, {-1,-1},
-                { 2, 1}, { 2,-1}, {-2, 1}, {-2,-1},
-                { 1, 2}, { 1,-2}, {-1, 2}, {-1,-2}
-        };
-
         private static final int BRIDGE_DEBUG_LIMIT = 16;
         private int bridgeDebugPrinted = 0;
         private int bridgeDebugSuppressed = 0;
@@ -274,6 +220,7 @@ public final class AStarPathfinder {
                     this.step = configStep;
                 }
             }
+            this.bridgeMoves = new BridgeMoveGenerator(sampler, step, this::baseXZChecks, this::debugBridge);
 
             int sx0 = snap(start.getX(), step);
             int sz0 = snap(start.getZ(), step);
@@ -771,7 +718,7 @@ public final class AStarPathfinder {
             // Bridge-endpoint magnetism: pulls the search toward a known existing bridge crossing's
             // entrance from a distance, so buildExistingBridgeMoves' validated single-cell snap
             // (bug A fix) actually has a real adjacent node to trigger from instead of drifting past it.
-            final int bridgeReuseRadius = Math.max(0, BRIDGE_REUSE_SEARCH_RADIUS);
+            final int bridgeReuseRadius = Math.max(0, BridgeMoveGenerator.BRIDGE_REUSE_SEARCH_RADIUS);
             final double bridgeMagnetismBonus = Math.max(0.0, BRIDGE_ENDPOINT_MAGNETISM_BONUS);
             boolean bridgeMagnetismActive = UltreiaConfig.BRIDGES.enabled
                     && roadNetwork != null && bridgeReuseRadius > 0 && bridgeMagnetismBonus > 0.0;
@@ -1061,30 +1008,37 @@ public final class AStarPathfinder {
             return t;
         }
 
-        /** Bridge cost multiplier — LONE_TRAIL strongly discourages bridges in favour of land detours. */
-        private double bridgeCostMultiplier() {
-            if (RoadType.ROAD_HIERARCHY_ENABLED && roadType == RoadType.LONE_TRAIL) {
-                return Math.max(1.0, LONE_TRAIL_BRIDGE_COST_MULTIPLIER);
-            }
-            return 1.0;
-        }
-
         private void expandBridgeMoves(Node cur, long ck, TerrainSampler.Sample cs) {
             if (!UltreiaConfig.BRIDGES.enabled) return;
 
-            int minSpacing = Math.max(0, MIN_DISTANCE_BETWEEN_BRIDGES_BLOCKS);
+            int minSpacing = Math.max(0, BridgeMoveGenerator.MIN_DISTANCE_BETWEEN_BRIDGES_BLOCKS);
             int distFromLastBridge = distSinceBridge.get(ck);
             if (distFromLastBridge < minSpacing) return;
 
-            final double bridgeMult = bridgeCostMultiplier();
+            final double bridgeMult = BridgeMoveCost.newBridgeMultiplier(roadType);
 
             // Offer existing bridge crossings as cheap moves before probing new ones.
             // This prevents building parallel bridges when one already exists nearby.
-            List<BridgeMove> moves = new ArrayList<>(buildExistingBridgeMoves(cur, ck, cs));
+            List<BridgeMove> moves = new ArrayList<>(
+                    bridgeMoves.existingBridgeMoves(roadNetwork, cur.x, cur.z, cur.dir, cs, gx, gz));
 
             // Only probe new bridges near water or valley edges — avoids stadium chunk loading
-            if (isNearWaterOrValleyEdge(cur.x, cur.z, cs)) {
-                moves.addAll(enumerateBridgeMoves(cur.x, cur.z, cur.dir, ck, cs));
+            if (bridgeMoves.isNearWaterOrValleyEdge(cur.x, cur.z, cs)) {
+                int inDx = 0;
+                int inDz = 0;
+                boolean hasIncoming = false;
+                long parentK = cameFrom.get(ck);
+                if (cur.dir != DIR_NONE) {
+                    int[] d = NEIGHBOR_DIRS[cur.dir];
+                    inDx = d[0];
+                    inDz = d[1];
+                    hasIncoming = true;
+                } else if (parentK != Long.MIN_VALUE) {
+                    inDx = Integer.signum(cur.x - stateX(parentK));
+                    inDz = Integer.signum(cur.z - stateZ(parentK));
+                    hasIncoming = (inDx != 0 || inDz != 0);
+                }
+                moves.addAll(bridgeMoves.newBridgeMoves(cur.x, cur.z, cur.dir, inDx, inDz, hasIncoming, cs, roadType));
             }
 
             for (BridgeMove mv : moves) {
@@ -1124,571 +1078,6 @@ public final class AStarPathfinder {
                     open.add(new Node(mv.nx, mv.nz, mv.ndir, f));
                 }
             }
-        }
-
-        /**
-         * Build cheap bridge moves that route through existing bridge crossings from RoadNetwork.
-         * A* will prefer these over building a new parallel bridge.
-         *
-         * The transition onto an existing bridge is only offered once the current A* node has actually,
-         * validly walked (via expandNormalMoves) to within one grid step of the crossing's exact entrance —
-         * never as a radius-wide teleport. The cost of getting there is already paid for by those normal
-         * moves (and by bridgeEndpointMagnetism biasing the search toward the entrance from a distance);
-         * this method must not add a separate straight-line "walk to start" cost on top of that.
-         */
-        private List<BridgeMove> buildExistingBridgeMoves(Node cur, long ck, TerrainSampler.Sample cs) {
-            if (roadNetwork == null) return Collections.<BridgeMove>emptyList();
-
-            int reuseRadius = Math.max(0, BRIDGE_REUSE_SEARCH_RADIUS);
-            if (reuseRadius <= 0) return Collections.<BridgeMove>emptyList();
-
-            List<RoadNetwork.BridgeCrossing> crossings = roadNetwork.getBridgeCrossingsNear(cur.x, cur.z, reuseRadius);
-            if (crossings.isEmpty()) return Collections.<BridgeMove>emptyList();
-
-            double bonus = Math.max(0.0, BRIDGE_REUSE_BONUS);
-            boolean debug = UltreiaConfig.DEBUG.logBridges;
-            // A validated "adjacent" tolerance, not a teleport radius: on the step-spaced A* grid, the
-            // nearest lattice point to any target coordinate is at most step*sqrt(2)/2 away, so this is
-            // always reachable once the search has genuinely arrived at the crossing's entrance cell.
-            double snapTol = (double) step;
-            double snapTolSq = snapTol * snapTol;
-            List<BridgeMove> out = new ArrayList<>();
-
-            for (RoadNetwork.BridgeCrossing crossing : crossings) {
-                double distToStartSq = Pos2D.distSq(cur.x, cur.z, crossing.startX, crossing.startZ);
-                if (distToStartSq > snapTolSq) {
-                    if (debug) {
-                        Ultreia.LOGGER.info(
-                                "[Ultreia Bridge] reuse candidate seg={} rejected: not yet adjacent to entrance (dist={}, tol={})",
-                                crossing.segmentId, Math.sqrt(distToStartSq), snapTol);
-                    }
-                    continue;
-                }
-
-                // The hop onto the deck is not a normal move: keep it walkable (one half-block per cell,
-                // plus one for the rounding of the stored deck Y).
-                int hopCells = Math.max(1, Math.max(Math.abs(cur.x - crossing.startX), Math.abs(cur.z - crossing.startZ)));
-                int hopDelta = Math.abs(HalfY.ofBlockTop(cs.surfaceY)
-                        - HalfY.ofBlockTop(crossing.startY));
-                if (hopDelta > hopCells + 1) {
-                    if (debug) Ultreia.LOGGER.info(
-                            "[Ultreia Bridge] reuse candidate seg={} rejected: entrance step {} halves over {} cells",
-                            crossing.segmentId, hopDelta, hopCells);
-                    continue;
-                }
-
-                int endX = crossing.endX, endZ = crossing.endZ;
-                if (!baseXZChecks(endX, endZ)) continue;
-
-                TerrainSampler.Sample endSample = sampler.sampleIfLoaded(endX, endZ);
-                if (endSample == null) continue;
-                if (endSample.isOcean) {
-                    if (debug) Ultreia.LOGGER.info(
-                            "[Ultreia Bridge] reuse candidate seg={} rejected: far end is ocean", crossing.segmentId);
-                    continue;
-                }
-
-                // Prefer crossings that go roughly toward our goal
-                double toGoalDot = normalizedDot(endX - cur.x, endZ - cur.z, gx - cur.x, gz - cur.z);
-                if (toGoalDot < -0.3) {
-                    if (debug) Ultreia.LOGGER.info(
-                            "[Ultreia Bridge] reuse candidate seg={} rejected: leads away from goal (dot={})",
-                            crossing.segmentId, toGoalDot);
-                    continue; // bridge goes away from goal — skip
-                }
-
-                // Cost: bridge traversal only, discounted by the reuse bonus. No walk-to-start cost:
-                // the hop from cur onto the exact entrance is bounded by snapTol and already implicitly
-                // covered by the normal moves that got A* here.
-                double bridgeCost = crossing.lengthBlocks * 1.0;
-                double cost = Math.max(0.1, bridgeCost - bonus);
-
-                int ndir = nearestDirIndex(endX - cur.x, endZ - cur.z);
-                double turn = turnCost(cur.dir, ndir, step, UltreiaConfig.PATHFINDING.turnPenalty);
-
-                if (debug) {
-                    Ultreia.LOGGER.info(
-                            "[Ultreia Bridge] reuse candidate seg={} accepted at ({},{}) -> ({},{}) cost={}",
-                            crossing.segmentId, cur.x, cur.z, endX, endZ, cost);
-                }
-                // span = null: this is an existing bridge, RoadPainter must not rebuild it.
-                out.add(new BridgeMove(endX, endZ, ndir, cost, turn, null, crossing));
-            }
-
-            return out;
-        }
-
-        private boolean isNearWaterOrValleyEdge(int x, int z, TerrainSampler.Sample cur) {
-            if (cur.nearWaterLike) return true;
-            if (cur.smallWater) return true;
-
-            int valleyDrop = UltreiaConfig.VALLEY_BRIDGING.enabled
-                    ? Math.max(2, MIN_VALLEY_DEPTH)
-                    : Integer.MAX_VALUE;
-
-            for (int[] d : NEIGHBOR_DIRS) {
-                int nx = x + d[0] * step;
-                int nz = z + d[1] * step;
-                TerrainSampler.Sample ns = sampler.sampleIfLoaded(nx, nz);
-                if (ns == null) continue;
-                if (ns.isWater && !ns.isOcean) return true;
-                if (!ns.isWater && !ns.isOcean && (cur.surfaceY - ns.surfaceY) >= valleyDrop) return true;
-            }
-            return false;
-        }
-
-        private List<BridgeMove> enumerateBridgeMoves(int x, int z, int curDir, long ck, TerrainSampler.Sample cur) {
-            ArrayList<BridgeMove> out = new ArrayList<BridgeMove>();
-
-            if (cur == null) return out;
-            if (cur.isWater || cur.isOcean) return out;
-            if (sampler.isProtectedNoPaint(x, z)) return out;
-
-            int minSpacing = Math.max(0, MIN_DISTANCE_BETWEEN_BRIDGES_BLOCKS);
-            int distFromLastBridge = distSinceBridge.get(ck);
-            if (distFromLastBridge < minSpacing) return out;
-
-            long parentK = cameFrom.get(ck);
-
-            int inDx = 0;
-            int inDz = 0;
-            boolean hasIncoming = false;
-
-            if (curDir != DIR_NONE) {
-                int[] d = NEIGHBOR_DIRS[curDir];
-                inDx = d[0];
-                inDz = d[1];
-                hasIncoming = true;
-            } else if (parentK != Long.MIN_VALUE) {
-                int px = stateX(parentK);
-                int pz = stateZ(parentK);
-                inDx = Integer.signum(x - px);
-                inDz = Integer.signum(z - pz);
-                hasIncoming = (inDx != 0 || inDz != 0);
-            }
-
-            final int maxCandidates = Math.max(1, MAX_BRIDGE_CANDIDATES_PER_NODE);
-
-            ArrayList<BridgeDirScore> dirs = new ArrayList<BridgeDirScore>();
-
-            for (int[] dir : NEIGHBOR_DIRS) {
-                if (REQUIRE_ALIGNED_APPROACH && hasIncoming) {
-                    double dot = normalizedDot(inDx, inDz, dir[0], dir[1]);
-                    if (dot < MIN_APPROACH_DOT) continue;
-                }
-
-                QuickBridgeRayInfo info = scanBridgeRayQuick(x, z, cur.surfaceY, dir[0], dir[1]);
-                if (!info.canLaunch) continue;
-
-                double dirScore = 0.0;
-
-                if (info.waterCrossing) dirScore += 80.0;
-                if (info.valleyCrossing) dirScore -= 20.0;
-
-                dirScore += info.firstObstacleDist * 7.0;
-                dirScore += info.landingDist * 2.0;
-
-                if (hasIncoming) {
-                    dirScore -= normalizedDot(inDx, inDz, dir[0], dir[1]) * 18.0;
-                }
-
-                dirs.add(new BridgeDirScore(dir[0], dir[1], dirScore, info));
-            }
-
-            if (dirs.isEmpty()) return out;
-
-            Collections.sort(dirs, new Comparator<BridgeDirScore>() {
-                @Override
-                public int compare(BridgeDirScore a, BridgeDirScore b) {
-                    return Double.compare(a.score, b.score);
-                }
-            });
-
-            int dirLimit = Math.min(8, dirs.size());
-            for (int i = 0; i < dirLimit; i++) {
-                BridgeDirScore d = dirs.get(i);
-                List<BridgeMove> moves = buildBridgeMovesFromQuickInfo(x, z, cur, curDir, d.dx, d.dz, d.info);
-
-                for (BridgeMove mv : moves) {
-                    out.add(mv);
-                    if (out.size() >= maxCandidates) break;
-                }
-
-                if (out.size() >= maxCandidates) break;
-            }
-
-            if (out.size() > 1) {
-                Collections.sort(out, new Comparator<BridgeMove>() {
-                    @Override
-                    public int compare(BridgeMove a, BridgeMove b) {
-                        return Double.compare(a.cost + a.turnCost, b.cost + b.turnCost);
-                    }
-                });
-
-                while (out.size() > maxCandidates) {
-                    out.remove(out.size() - 1);
-                }
-            }
-
-            return out;
-        }
-        private QuickBridgeRayInfo scanBridgeRayQuick(int x, int z, int baselineY, int dirX, int dirZ) {
-            final int minLen = Math.max(step * 2, BridgeFeasibility.MIN_BRIDGE_LEN_BLOCKS);
-            final int maxLen = Math.max(minLen, BridgeFeasibility.MAX_PROBE_LEN_BLOCKS);
-
-            final int configuredApproach = Math.max(1, BridgeFeasibility.BRIDGE_ROAD_APPROACH_MAX_BLOCKS);
-            final int maxLaunchSearch = Math.min(
-                    maxLen,
-                    Math.max(16, Math.min(48, minLen + configuredApproach * 2))
-            );
-
-            final int minWaterRun = Math.max(1, BridgeClearanceCheck.MIN_WATER_RUN_BLOCKS);
-            final int minGapRun = Math.max(1, BridgeClearanceCheck.MIN_MEANINGFUL_GAP_RUN);
-            final int maxLeadOut = Math.max(2, BridgeClearanceCheck.MAX_WATER_BRIDGE_LEAD_OUT_BLOCKS + 2);
-
-            int waterRun = 0;
-            int gapRun = 0;
-
-            boolean obstacleSeen = false;
-            boolean waterCrossing = false;
-            boolean valleyCrossing = false;
-
-            int firstObstacleDist = -1;
-            int dryAfterObstacle = 0;
-
-            int lastNX = Integer.MIN_VALUE;
-            int lastNZ = Integer.MIN_VALUE;
-
-            for (int len = step; len <= maxLen; len += step) {
-                int nx = snap(x + dirX * len, step);
-                int nz = snap(z + dirZ * len, step);
-
-                if (nx == x && nz == z) continue;
-                if (nx == lastNX && nz == lastNZ) continue;
-
-                lastNX = nx;
-                lastNZ = nz;
-
-                if (!baseXZChecks(nx, nz)) break;
-
-                // Before finding any obstacle: don't load new chunks — stop the probe.
-                // After finding water/valley: allow loading to locate the bridge landing.
-                TerrainSampler.Sample s = obstacleSeen
-                        ? sampler.sample(nx, nz)
-                        : sampler.sampleIfLoaded(nx, nz);
-                if (s == null) break;
-                if (sampler.isProtectedNoPaint(nx, nz)) break;
-
-                boolean water = s.isWater && !s.isOcean;
-                boolean land = !s.isWater && !s.isOcean;
-                boolean valley = land && isQuickValleyGap(baselineY, s);
-
-                if (water) {
-                    if (!obstacleSeen) firstObstacleDist = len;
-                    obstacleSeen = true;
-                    waterCrossing = true;
-                    waterRun++;
-                    gapRun = 0;
-                    dryAfterObstacle = 0;
-                    continue;
-                }
-
-                if (valley) {
-                    if (!obstacleSeen) firstObstacleDist = len;
-                    obstacleSeen = true;
-                    valleyCrossing = true;
-                    gapRun++;
-                    waterRun = 0;
-                    dryAfterObstacle = 0;
-                    continue;
-                }
-
-                if (!land) {
-                    if (obstacleSeen) {
-                        dryAfterObstacle++;
-                        if (dryAfterObstacle > maxLeadOut) break;
-                    }
-                    continue;
-                }
-
-                if (sampler.forbidden(s, TerrainSampler.Mode.PATHFINDING)) {
-                    if (obstacleSeen) {
-                        dryAfterObstacle++;
-                        if (dryAfterObstacle > maxLeadOut) break;
-                    }
-                    continue;
-                }
-
-                if (!obstacleSeen) {
-                    if (len > maxLaunchSearch) {
-                        break;
-                    }
-                    continue;
-                }
-
-                boolean goodWater = waterCrossing && waterRun >= minWaterRun;
-                boolean goodValley = valleyCrossing && gapRun >= minGapRun;
-
-                if ((goodWater || goodValley) && len >= minLen) {
-                    return new QuickBridgeRayInfo(
-                            true,
-                            goodWater,
-                            goodValley,
-                            firstObstacleDist < 0 ? len : firstObstacleDist,
-                            len,
-                            nx,
-                            nz
-                    );
-                }
-
-                dryAfterObstacle++;
-                if (dryAfterObstacle > maxLeadOut) {
-                    break;
-                }
-            }
-
-            return new QuickBridgeRayInfo(false, false, false, -1, -1, x, z);
-        }
-
-        private boolean isQuickValleyGap(int baselineY, TerrainSampler.Sample s) {
-            if (s == null) return false;
-            if (s.isWater || s.isOcean) return false;
-            if (!UltreiaConfig.VALLEY_BRIDGING.enabled) return false;
-
-            int drop = baselineY - s.surfaceY;
-            return drop >= Math.max(2, MIN_VALLEY_DEPTH);
-        }
-
-        private List<BridgeMove> buildBridgeMovesFromQuickInfo(int x,
-                                                               int z,
-                                                               TerrainSampler.Sample cur,
-                                                               int curDir,
-                                                               int dirX,
-                                                               int dirZ,
-                                                               QuickBridgeRayInfo info) {
-            ArrayList<BridgeMove> out = new ArrayList<BridgeMove>();
-            if (info == null || !info.canLaunch) return out;
-
-            int bridgeDir = nearestDirIndex(dirX, dirZ);
-
-            int[] landingOffsets = new int[] {0, step, -step};
-
-            for (int off : landingOffsets) {
-                int probeDist = info.landingDist + off;
-                if (probeDist <= 0) continue;
-
-                int nx = snap(x + dirX * probeDist, step);
-                int nz = snap(z + dirZ * probeDist, step);
-
-                if (nx == x && nz == z) continue;
-
-                if (!baseXZChecks(nx, nz)) {
-                    debugBridge("reject landing outside corridor start=(" + x + "," + z + ") dir=(" + dirX + "," + dirZ + ")"
-                            + " probeDist=" + probeDist + " landing=(" + nx + "," + nz + ")");
-                    continue;
-                }
-
-                TerrainSampler.Sample ns = sampler.sample(nx, nz);
-                if (ns == null) {
-                    debugBridge("reject landing null sample start=(" + x + "," + z + ") landing=(" + nx + "," + nz + ")");
-                    continue;
-                }
-                if (ns.isWater || ns.isOcean) {
-                    debugBridge("reject landing still water start=(" + x + "," + z + ") landing=(" + nx + "," + nz + ")"
-                            + " water=" + ns.isWater + " ocean=" + ns.isOcean);
-                    continue;
-                }
-                if (sampler.forbidden(ns, TerrainSampler.Mode.PATHFINDING)) {
-                    debugBridge("reject landing forbidden start=(" + x + "," + z + ") landing=(" + nx + "," + nz + ")"
-                            + " reason=" + sampler.describeForbidden(ns, TerrainSampler.Mode.PATHFINDING));
-                    continue;
-                }
-                if (sampler.isProtectedNoPaint(nx, nz)) {
-                    debugBridge("reject landing protected start=(" + x + "," + z + ") landing=(" + nx + "," + nz + ")");
-                    continue;
-                }
-
-                BlockPos startPos = new BlockPos(x, cur.surfaceY, z);
-                BlockPos endPos = new BlockPos(nx, ns.surfaceY, nz);
-
-                BridgeFeasibility.Result feasibility = BridgeFeasibility.tryCreate(sampler, startPos, endPos);
-                BridgeSpan span = feasibility.span;
-
-                if (span == null) {
-                    debugBridge("reject feasibility start=(" + x + "," + z + ") end=(" + nx + "," + nz + ") reason="
-                            + feasibility.reason);
-                    continue;
-                }
-
-                double cost = bridgeSpanCost(span);
-
-                if (info.waterCrossing) {
-                    cost += 40.0;
-                } else if (info.valleyCrossing) {
-                    cost -= 20.0;
-                }
-
-                double turn = turnCost(curDir, bridgeDir, step, UltreiaConfig.PATHFINDING.turnPenalty);
-
-                debugBridge("accept span start=(" + x + "," + cur.surfaceY + "," + z + ")"
-                        + " end=(" + nx + "," + ns.surfaceY + "," + nz + ")"
-                        + " len=" + span.lengthBlocks()
-                        + " cost=" + cost
-                        + " waterCrossing=" + info.waterCrossing
-                        + " valleyCrossing=" + info.valleyCrossing);
-
-                out.add(new BridgeMove(nx, nz, bridgeDir, cost, turn, span));
-            }
-
-            if (out.size() > 1) {
-                Collections.sort(out, new Comparator<BridgeMove>() {
-                    @Override
-                    public int compare(BridgeMove a, BridgeMove b) {
-                        return Double.compare(a.cost + a.turnCost, b.cost + b.turnCost);
-                    }
-                });
-
-                while (out.size() > 2) {
-                    out.remove(out.size() - 1);
-                }
-            }
-
-            return out;
-        }
-
-        private static final class QuickBridgeRayInfo {
-            final boolean canLaunch;
-            final boolean waterCrossing;
-            final boolean valleyCrossing;
-            final int firstObstacleDist;
-            final int landingDist;
-            final int landingX;
-            final int landingZ;
-
-            QuickBridgeRayInfo(boolean canLaunch,
-                               boolean waterCrossing,
-                               boolean valleyCrossing,
-                               int firstObstacleDist,
-                               int landingDist,
-                               int landingX,
-                               int landingZ) {
-                this.canLaunch = canLaunch;
-                this.waterCrossing = waterCrossing;
-                this.valleyCrossing = valleyCrossing;
-                this.firstObstacleDist = firstObstacleDist;
-                this.landingDist = landingDist;
-                this.landingX = landingX;
-                this.landingZ = landingZ;
-            }
-        }
-
-        private static final class BridgeDirScore {
-            final int dx;
-            final int dz;
-            final double score;
-            final QuickBridgeRayInfo info;
-
-            BridgeDirScore(int dx, int dz, double score, QuickBridgeRayInfo info) {
-                this.dx = dx;
-                this.dz = dz;
-                this.score = score;
-                this.info = info;
-            }
-        }
-
-        private double bridgeSpanCost(BridgeSpan span) {
-            double euclid = Math.sqrt(Pos2D.distSq(span.start.getX(), span.start.getZ(), span.end.getX(), span.end.getZ()));
-
-            double fixed = Math.max(0.0, BRIDGE_FIXED_COST);
-            double mult = Math.max(1.0, BRIDGE_LENGTH_COST_MULTIPLIER);
-            double valleyBonus = Math.max(0.0, BRIDGE_VALLEY_PREFERENCE_BONUS_PER_BLOCK);
-
-            int baseline = Math.max(
-                    sampler.sample(span.start.getX(), span.start.getZ()).surfaceY,
-                    sampler.sample(span.end.getX(), span.end.getZ()).surfaceY
-            );
-
-            int deepCells = 0;
-            int waterCells = 0;
-            int meaningfulCells = 0;
-            int sumDepth = 0;
-            int maxDepth = 0;
-            int longestWaterRun = 0;
-            int curWaterRun = 0;
-
-            int[] deckHalf = BridgeDeckProfile.of(span);
-
-            for (int i = 1; i < span.centerline.size() - 1; i++) {
-                BlockPos p = span.centerline.get(i);
-                TerrainSampler.Sample s = sampler.sample(p.getX(), p.getZ());
-                if (s == null) continue;
-
-                int terrainDepth = Math.max(0, baseline - s.surfaceY);
-                int deckY = HalfY.surfaceBlockY(deckHalf[i]);
-                int clearance = Math.max(0, deckY - s.surfaceY);
-
-                sumDepth += terrainDepth;
-                if (terrainDepth > maxDepth) maxDepth = terrainDepth;
-
-                boolean water = s.isWater && !s.isOcean;
-                if (water) {
-                    waterCells++;
-                    curWaterRun++;
-                    if (curWaterRun > longestWaterRun) longestWaterRun = curWaterRun;
-                } else {
-                    curWaterRun = 0;
-                }
-
-                if (terrainDepth >= 3) deepCells++;
-                if (clearance >= 3 || (water && clearance >= 1)) meaningfulCells++;
-            }
-
-            int interior = Math.max(1, span.centerline.size() - 2);
-            double avgDepth = (double) sumDepth / (double) interior;
-            double meaningfulPct = (100.0 * (double) meaningfulCells) / (double) interior;
-            double waterPct = (100.0 * (double) waterCells) / (double) interior;
-
-            boolean waterDominant = waterCells > 0 && waterCells >= deepCells && waterPct >= 30.0;
-
-            double cost = fixed + euclid * mult;
-
-            if (waterDominant) {
-                cost += waterBridgePreferencePenalty(longestWaterRun, waterPct, meaningfulPct, euclid, waterCells);
-            } else {
-                cost -= avgDepth * valleyBonus * 0.75;
-                cost -= Math.min(deepCells, 12) * 6.0;
-
-                if (maxDepth <= 1) cost += 220.0;
-                else if (maxDepth == 2) cost += 120.0;
-
-                if (avgDepth < 2.0) cost += 140.0;
-                else if (avgDepth < 3.0) cost += 70.0;
-
-                if (meaningfulPct < 50.0) cost += 180.0;
-                else if (meaningfulPct < 65.0) cost += 80.0;
-
-                if (deepCells <= 2) cost += 120.0;
-            }
-
-            if (waterCells <= 0 && deepCells <= 2) cost += 200.0;
-            int approachBlocks = Math.max(1, BRIDGE_APPROACH_RAMP_BLOCKS);
-            if (!BridgeApproachCheck.canConnectBridgeApproaches(sampler, span, approachBlocks + 2, roadType)) {
-                cost += 120.0;
-            }
-
-            return cost;
-        }
-
-        private double waterBridgePreferencePenalty(int longestWaterRun,
-                                                    double waterPct,
-                                                    double meaningfulPct,
-                                                    double euclid,
-                                                    int waterCells) {
-            double base = Math.max(0.0, WATER_BRIDGE_BASE_PENALTY);
-            double perBlock = Math.max(0.0, WATER_BRIDGE_LENGTH_PENALTY_PER_BLOCK);
-            // Progressive penalty: longer water crossings cost proportionally more,
-            // making A* strongly prefer narrow river crossings over wide lake crossings.
-            return base + waterCells * perBlock;
         }
 
         private boolean baseXZChecks(int nx, int nz) {
@@ -2326,10 +1715,6 @@ public final class AStarPathfinder {
         return new Session(world, start, goal, sampler);
     }
 
-    private static int snap(int v, int step) {
-        return Pos2D.snapDown(v, step);
-    }
-
     private static double heuristic(int x, int z, int gx, int gz) {
         return Math.sqrt(Pos2D.distSq(x, z, gx, gz));
     }
@@ -2372,45 +1757,6 @@ public final class AStarPathfinder {
         return p - STATE_COORD_BIAS;
     }
 
-    private static int nearestDirIndex(int dx, int dz) {
-        if (dx == 0 && dz == 0) return 0;
-
-        int best = 0;
-        double bestDot = -Double.MAX_VALUE;
-
-        for (int i = 0; i < Session.NEIGHBOR_DIRS.length; i++) {
-            int[] d = Session.NEIGHBOR_DIRS[i];
-            double dot = normalizedDot(dx, dz, d[0], d[1]);
-            if (dot > bestDot) {
-                bestDot = dot;
-                best = i;
-            }
-        }
-
-        return best;
-    }
-    private static double normalizedDot(int ax, int az, int bx, int bz) {
-        double al = Math.sqrt((double) ax * (double) ax + (double) az * (double) az);
-        double bl = Math.sqrt((double) bx * (double) bx + (double) bz * (double) bz);
-        if (al <= 0.0 || bl <= 0.0) return 1.0;
-        return ((double) ax * (double) bx + (double) az * (double) bz) / (al * bl);
-    }
-
-    /**
-     * Single turn-cost model shared by every kind of move — plain road steps, launching onto a fresh
-     * bridge, and snapping onto a reused one. Quadratic on turn angle: nearly free for gentle curves
-     * (≤45°), significant at 90°, prohibitive for reversals. Bridges used to be exempt from this (cost
-     * driven only by their own geometry, gated by a separate hard alignment cutoff), which let a bridge
-     * attach at an angle no ordinary road turn would ever be allowed to take.
-     */
-    private static double turnCost(int fromDir, int toDir, int step, double turnPenalty) {
-        if (fromDir == DIR_NONE || fromDir == toDir) return 0.0;
-        int[] fromD = Session.NEIGHBOR_DIRS[fromDir];
-        int[] toD = Session.NEIGHBOR_DIRS[toDir];
-        double dot = normalizedDot(fromD[0], fromD[1], toD[0], toD[1]);
-        double t = (1.0 - dot) * 0.5; // 0=straight, 0.5=90°, 1=reversal
-        return t * t * turnPenalty * step;
-    }
     public static String debugEndpoint(WorldServer world,
                                        TerrainView sampler,
                                        ProtectedAreas protectedAreas,

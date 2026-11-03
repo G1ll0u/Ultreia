@@ -35,9 +35,9 @@ public final class BridgeClearanceCheck {
     public static final int MAX_WATER_BRIDGE_LEAD_OUT_BLOCKS = 1;
     // Extra side clearance checked around bridge centerline during feasibility.
     private static final int SIDE_CLEARANCE_RADIUS = 1;
-    private static final int MEANINGFUL_GROUND_CLEARANCE_BLOCKS = 3;
+    static final int MEANINGFUL_GROUND_CLEARANCE_BLOCKS = 3;
     // Minimum water clearance required for a bridge cell to count as genuinely elevated above water.
-    private static final int MEANINGFUL_WATER_CLEARANCE_BLOCKS = 1;
+    static final int MEANINGFUL_WATER_CLEARANCE_BLOCKS = 1;
     // Minimum percentage of interior bridge cells that must have meaningful clearance.
     private static final int MIN_MEANINGFUL_CLEARANCE_PERCENT = 65;
     // Ignore this many cells near each bridge end when evaluating global meaningful clearance.

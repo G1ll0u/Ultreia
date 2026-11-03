@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Phases 0–7 done (in-game checks pending). Phase 8 in progress (8.1–8.2 done).
+**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Phases 0–7 done (in-game checks pending). Phase 8 in progress (8.1–8.3 done).
 
 ## Goal
 
@@ -240,12 +240,15 @@ Visible (each confirmed): manual paths merge into existing roads; same scan radi
 
 Steps: 8.1 `BridgeSite` (world reads of feasibility) + gorge bridge golden (done) · 8.2 `BridgeDeckProfile`,
 `BridgeFeasibility` split + rejection log, exit corridor into `BridgeApproachCheck` (done) · 8.3 bridge moves and cost out
-of A* · 8.4 `BridgeSegmentPainter` out of `RoadPainter` · 8.5 template side · 8.6 `CLAUDE.md` gatekeeper line.
+of A* (done) · 8.4 `BridgeSegmentPainter` out of `RoadPainter` · 8.5 template side · 8.6 `CLAUDE.md` gatekeeper line.
 Decided (user): the approach check stays an A* cost; the whole-path profile check is the walkability gate.
 Already done earlier: one deck profile (0.20), templates validated once per loaded instance.
 The forward-exit check was a subset of the exit-corridor check on the same cell: removed.
 8.2 outcome: rejection reason logged through A*'s capped `debugBridge` (user); `isBridgeColumnAcceptable` removed
 (repeated checks already made on the same cells, user). The exit corridor only looks past the end side (noted, unchanged).
+8.3 outcome: `bridge/BridgeMoveGenerator` (new and reused bridge moves) and `bridge/BridgeMoveCost`; A* keeps only
+the move application, bridge spacing and magnetism. `route/GridMoves` (directions, snap, turn cost) created early (user).
+Kept apart (user): the cost's own "mostly water" rule differs from feasibility's `waterDominant`.
 
 
 - `bridge/BridgeDeckProfile`: the only deck profile, fed by the span's effective crown (follows 0.20).
