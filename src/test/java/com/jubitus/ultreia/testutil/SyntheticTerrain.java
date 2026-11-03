@@ -35,10 +35,7 @@ public abstract class SyntheticTerrain extends TerrainSampler {
     @Override
     public int sampleLightIfLoaded(int x, int z) {
         Sample s = sample(x, z);
-        return (s.isOcean ? LIGHT_OCEAN_BIT : 0)
-                | (s.isWater ? LIGHT_WATER_BIT : 0)
-                | (s.surfaceY & LIGHT_SURFACE_MASK)
-                | (s.surfaceHardnessCategory << LIGHT_HARDNESS_SHIFT);
+        return packLight(s.surfaceY, s.isWater, s.isOcean, s.surfaceHardnessCategory);
     }
 
     @Override

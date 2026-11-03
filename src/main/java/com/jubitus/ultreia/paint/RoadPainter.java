@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.paint;
 
-import com.jubitus.ultreia.geom.RasterLine8;
-import com.jubitus.ultreia.geom.SupercoverLine;
+import com.jubitus.ultreia.geom.LineRaster;
+import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.roads.RoadJoins;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.bridge.BridgeSpan;
@@ -316,7 +316,7 @@ public final class RoadPainter {
                     }
                 }
 
-                ForcedBridgeRef forced = forcedByStartKey.get(xzKey(p.getX(), p.getZ()));
+                ForcedBridgeRef forced = forcedByStartKey.get(Pos2D.xzKey(p.getX(), p.getZ()));
                 if (forced != null && forced.startIdx == i) {
                     pendingBridge = forced.span;
                     pendingBridgeEndIdx = forced.endIdx;
@@ -370,7 +370,7 @@ public final class RoadPainter {
                             s, e);
                     continue;
                 }
-                forcedByStartKey.put(xzKey(span.start.getX(), span.start.getZ()), new ForcedBridgeRef(span, s, e));
+                forcedByStartKey.put(Pos2D.xzKey(span.start.getX(), span.start.getZ()), new ForcedBridgeRef(span, s, e));
             }
         }
 
@@ -438,7 +438,7 @@ public final class RoadPainter {
                 BlockPos near = roadIndex.findNearestRoad(p.getX(), p.getZ(), mergeRadius);
                 if (near == null) continue;
 
-                long nk = xzKey(near.getX(), near.getZ());
+                long nk = Pos2D.xzKey(near.getX(), near.getZ());
                 if (newlyPlaced.contains(nk)) continue;
 
                 // Skip road blocks inside any village/building footprint — they are internal paths
@@ -539,7 +539,7 @@ public final class RoadPainter {
                 BlockPos near = roadIndex.findNearestRoad(p.getX(), p.getZ(), overlapRadius);
                 if (near == null) continue;
 
-                long nk = xzKey(near.getX(), near.getZ());
+                long nk = Pos2D.xzKey(near.getX(), near.getZ());
                 if (newlyPlaced.contains(nk)) continue;
                 if (roadIndex.isBridgeXZ(near.getX(), near.getZ())) continue;
                 if (protectedAreas != null && protectedAreas.contains(near.getX(), near.getZ())) continue;
@@ -641,7 +641,7 @@ public final class RoadPainter {
                         int nx = x + dx, nz = z + dz;
                         if (!roadIndex.isRoadXZ(nx, nz)) continue;
                         if (roadIndex.isBridgeXZ(nx, nz)) continue;
-                        if (newlyPlaced.contains(xzKey(nx, nz))) continue;
+                        if (newlyPlaced.contains(Pos2D.xzKey(nx, nz))) continue;
                         return new BlockPos(nx, 0, nz);
                     }
                 }
@@ -656,9 +656,7 @@ public final class RoadPainter {
 
                 List<BlockPos> line;
                 try {
-                    line = UltreiaConfig.BRIDGE_GEOMETRY.useRaster8ForBridges
-                            ? RasterLine8.raster(a.getX(), a.getZ(), b.getX(), b.getZ(), 0)
-                            : SupercoverLine.raster(a.getX(), a.getZ(), b.getX(), b.getZ(), 0);
+                    line = LineRaster.forBridges(a.getX(), a.getZ(), b.getX(), b.getZ(), 0);
                 } catch (Throwable t) {
                     failed = true;
                     failReason = "densify failed on segment (" + a.getX() + "," + a.getZ() + ") -> (" + b.getX() + "," + b.getZ() + "): " + t.getMessage();
@@ -798,7 +796,7 @@ public final class RoadPainter {
         private void paintElbowFillsDirect() {
             if (elbowFillList == null) return;
             for (int[] ef : elbowFillList) {
-                long k = xzKey(ef[0], ef[1]);
+                long k = Pos2D.xzKey(ef[0], ef[1]);
                 if (!painted.contains(k)) {
                     paintSingle(ef[0], ef[1], ef[2]);
                     painted.add(k);
@@ -809,7 +807,7 @@ public final class RoadPainter {
         // Cells: [x, z, surfaceY, targetHalf] — targetHalf is interpolated between path end and road.
         private List<int[]> buildMergeConnectorList(int x0, int z0, int startHalf,
                                                     int x1, int z1, int endHalf) {
-            List<BlockPos> line = SupercoverLine.raster(x0, z0, x1, z1, 0);
+            List<BlockPos> line = LineRaster.supercover(x0, z0, x1, z1, 0);
             if (line == null) return null;
             int n = line.size();
             List<int[]> cells = new ArrayList<>();
@@ -843,8 +841,8 @@ public final class RoadPainter {
                 progress = false;
                 for (int pi = pending.size() - 1; pi >= 0; pi--) {
                     long k = pending.getLong(pi);
-                    int x = (int) (k >> 32);
-                    int z = (int) k;
+                    int x = Pos2D.xFromKey(k);
+                    int z = Pos2D.zFromKey(k);
                     int half = neighbourPlannedHalf(x, z);
                     if (half == Integer.MIN_VALUE) continue;
                     plannedHalfByXZ.put(k, half);
@@ -859,7 +857,7 @@ public final class RoadPainter {
         private int neighbourPlannedHalf(int x, int z) {
             int[][] n4 = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
             for (int[] d : n4) {
-                int h = plannedHalfByXZ.get(xzKey(x + d[0], z + d[1]));
+                int h = plannedHalfByXZ.get(Pos2D.xzKey(x + d[0], z + d[1]));
                 if (h != Integer.MIN_VALUE) return h;
             }
             return Integer.MIN_VALUE;
@@ -868,7 +866,7 @@ public final class RoadPainter {
         private void paintMergeConnectorDirect() {
             if (mergeConnectorList == null) return;
             for (int[] cell : mergeConnectorList) {
-                long k = xzKey(cell[0], cell[1]);
+                long k = Pos2D.xzKey(cell[0], cell[1]);
                 if (!painted.contains(k)) {
                     if (cell.length > 3) {
                         plannedHalfByXZ.put(k, cell[3]);
@@ -904,7 +902,7 @@ public final class RoadPainter {
                 int cx = centerXAt(idx);
                 int cz = centerZAt(idx);
 
-                core.add(xzKey(cx, cz));
+                core.add(Pos2D.xzKey(cx, cz));
 
                 if (idx == 0) {
                     int localR = baseR;
@@ -1050,7 +1048,7 @@ public final class RoadPainter {
                 if (!centerish) return;
             }
 
-            long k = xzKey(x, z);
+            long k = Pos2D.xzKey(x, z);
             planned.add(k);
 
             int priority = (int) Math.round(distSq * 1024.0) + Math.abs(idx);
@@ -1092,7 +1090,7 @@ public final class RoadPainter {
 
         private boolean isExistingRoadNotOurs(int x, int z) {
             if (roadIndex == null) return false;
-            long k = xzKey(x, z);
+            long k = Pos2D.xzKey(x, z);
             return roadIndex.isRoadXZ(x, z) && !newlyPlaced.contains(k);
         }
 
@@ -1132,7 +1130,7 @@ public final class RoadPainter {
                     new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap(n);
             coreIndexByXZ.defaultReturnValue(-1);
             for (int idx = 0; idx < n; idx++) {
-                coreIndexByXZ.put(xzKey(centerXAt(idx), centerZAt(idx)), idx);
+                coreIndexByXZ.put(Pos2D.xzKey(centerXAt(idx), centerZAt(idx)), idx);
             }
 
             int searchR = baseR + 2;
@@ -1141,15 +1139,15 @@ public final class RoadPainter {
             for (long k : planArr) {
                 if (core.contains(k)) continue; // centerline is never removed
 
-                int x = (int) (k >> 32);
-                int z = (int) k;
+                int x = Pos2D.xFromKey(k);
+                int z = Pos2D.zFromKey(k);
 
                 // Find the nearest centerline cell index within searchR.
                 double minD2 = Double.MAX_VALUE;
                 int bestIdx = -1;
                 for (int dcx = -searchR; dcx <= searchR; dcx++) {
                     for (int dcz = -searchR; dcz <= searchR; dcz++) {
-                        int idx = coreIndexByXZ.get(xzKey(x + dcx, z + dcz));
+                        int idx = coreIndexByXZ.get(Pos2D.xzKey(x + dcx, z + dcz));
                         if (idx < 0) continue;
                         double d2 = dcx * dcx + dcz * dcz;
                         if (d2 < minD2) { minD2 = d2; bestIdx = idx; }
@@ -1212,13 +1210,13 @@ public final class RoadPainter {
 
             while (!q.isEmpty()) {
                 long k = q.poll();
-                int x = (int) (k >> 32);
-                int z = (int) k;
+                int x = Pos2D.xFromKey(k);
+                int z = Pos2D.zFromKey(k);
 
-                long n0 = xzKey(x + 1, z);
-                long n1 = xzKey(x - 1, z);
-                long n2 = xzKey(x, z + 1);
-                long n3 = xzKey(x, z - 1);
+                long n0 = Pos2D.xzKey(x + 1, z);
+                long n1 = Pos2D.xzKey(x - 1, z);
+                long n2 = Pos2D.xzKey(x, z + 1);
+                long n3 = Pos2D.xzKey(x, z - 1);
 
                 if (plan.contains(n0) && keep.add(n0)) q.add(n0);
                 if (plan.contains(n1) && keep.add(n1)) q.add(n1);
@@ -1233,10 +1231,10 @@ public final class RoadPainter {
 
         private int neigh4Count(it.unimi.dsi.fastutil.longs.LongOpenHashSet set, int x, int z) {
             int hits = 0;
-            if (set.contains(xzKey(x + 1, z))) hits++;
-            if (set.contains(xzKey(x - 1, z))) hits++;
-            if (set.contains(xzKey(x, z + 1))) hits++;
-            if (set.contains(xzKey(x, z - 1))) hits++;
+            if (set.contains(Pos2D.xzKey(x + 1, z))) hits++;
+            if (set.contains(Pos2D.xzKey(x - 1, z))) hits++;
+            if (set.contains(Pos2D.xzKey(x, z + 1))) hits++;
+            if (set.contains(Pos2D.xzKey(x, z - 1))) hits++;
             return hits;
         }
 
@@ -1245,8 +1243,8 @@ public final class RoadPainter {
 
             long[] coreArr = core.toLongArray();
             for (long k : coreArr) {
-                int x = (int) (k >> 32);
-                int z = (int) k;
+                int x = Pos2D.xFromKey(k);
+                int z = Pos2D.zFromKey(k);
 
                 boolean existing = (roadIndex != null && roadIndex.isRoadXZ(x, z));
                 int n4 = neigh4Count(planned, x, z);
@@ -1259,8 +1257,8 @@ public final class RoadPainter {
 
             long[] planArr = planned.toLongArray();
             for (long k : planArr) {
-                int x = (int) (k >> 32);
-                int z = (int) k;
+                int x = Pos2D.xFromKey(k);
+                int z = Pos2D.zFromKey(k);
 
                 boolean existing = (roadIndex != null && roadIndex.isRoadXZ(x, z));
                 if (!existing) continue;
@@ -1326,7 +1324,7 @@ public final class RoadPainter {
                     if (s.isOcean || s.isWater) continue;
                     if (sampler.forbidden(s, TerrainSampler.Mode.PAINTING)) continue;
 
-                    long k = xzKey(x, z);
+                    long k = Pos2D.xzKey(x, z);
                     planned.add(k);
                     forcePaint.add(k);
                 }
@@ -1334,7 +1332,7 @@ public final class RoadPainter {
         }
 
         private void fillLineForced(int x0, int z0, int x1, int z1) {
-            java.util.List<BlockPos> line = SupercoverLine.raster(x0, z0, x1, z1, 0);
+            java.util.List<BlockPos> line = LineRaster.supercover(x0, z0, x1, z1, 0);
             if (line == null) return;
             for (BlockPos p : line) {
                 int x = p.getX();
@@ -1345,7 +1343,7 @@ public final class RoadPainter {
                 TerrainSampler.Sample s = sampler.sample(x, z);
                 if (s == null || sampler.forbiddenHard(s) || s.isOcean || s.isWater) continue;
                 if (sampler.forbidden(s, TerrainSampler.Mode.PAINTING)) continue;
-                long k = xzKey(x, z);
+                long k = Pos2D.xzKey(x, z);
                 planned.add(k);
                 forcePaint.add(k);
             }
@@ -1353,7 +1351,7 @@ public final class RoadPainter {
 
         private boolean shouldPaintCell(int x, int z) {
             if (isForcedBridgeCell(x, z) || isBridgeProtectedCell(x, z)) return false;
-            long k = xzKey(x, z);
+            long k = Pos2D.xzKey(x, z);
             return forcePaint.contains(k) || planned.contains(k);
         }
 
@@ -1383,7 +1381,7 @@ public final class RoadPainter {
                     continue;
                 }
 
-                long k = xzKey(xx, zz);
+                long k = Pos2D.xzKey(xx, zz);
                 if (!painted.add(k)) {
                     continue;
                 }
@@ -1521,7 +1519,7 @@ public final class RoadPainter {
             if (roadIndex != null && roadIndex.isBridgeVolumeXZ(x, z)) return;
             if (roadIndex != null && roadIndex.isBridgeXZ(x, z)) return;
 
-            long k = xzKey(x, z);
+            long k = Pos2D.xzKey(x, z);
             int targetHalf = plannedHalfByXZ.get(k);
             if (targetHalf == Integer.MIN_VALUE) {
                 targetHalf = BridgeGeometry.naturalSurfaceHalfY(surfaceY);
@@ -1633,7 +1631,7 @@ public final class RoadPainter {
 
             if (roadIndex != null) {
                 roadIndex.markRoad(x, z);
-                newlyPlaced.add(xzKey(x, z));
+                newlyPlaced.add(Pos2D.xzKey(x, z));
             }
 
             sampler.invalidateAround(x, z, 1);
@@ -1713,8 +1711,8 @@ public final class RoadPainter {
 
             for (it.unimi.dsi.fastutil.longs.LongIterator rit = newlyPlaced.iterator(); rit.hasNext(); ) {
                 long k = rit.nextLong();
-                int rx = keyX(k);
-                int rz = keyZ(k);
+                int rx = Pos2D.xFromKey(k);
+                int rz = Pos2D.zFromKey(k);
                 TerrainSampler.Sample s = sampler.sample(rx, rz);
                 if (s != null) roadSurfaceY.put(k, s.surfaceY);
             }
@@ -1741,11 +1739,11 @@ public final class RoadPainter {
                 int d = distMap.get(k);
                 if (d >= talusRadius) continue;
                 long nr = nearestRoad.get(k);
-                int cx = keyX(k);
-                int cz = keyZ(k);
+                int cx = Pos2D.xFromKey(k);
+                int cz = Pos2D.zFromKey(k);
                 long[] neighbors = {
-                    xzKey(cx + 1, cz), xzKey(cx - 1, cz),
-                    xzKey(cx, cz + 1), xzKey(cx, cz - 1)
+                    Pos2D.xzKey(cx + 1, cz), Pos2D.xzKey(cx - 1, cz),
+                    Pos2D.xzKey(cx, cz + 1), Pos2D.xzKey(cx, cz - 1)
                 };
                 for (long nk : neighbors) {
                     if (distMap.containsKey(nk)) continue;
@@ -1779,8 +1777,8 @@ public final class RoadPainter {
                 if (d <= 0) continue;                // road cell itself
                 if (newlyPlaced.contains(k)) continue;
 
-                int tx = keyX(k);
-                int tz = keyZ(k);
+                int tx = Pos2D.xFromKey(k);
+                int tz = Pos2D.zFromKey(k);
 
                 if (protectedAreas != null && protectedAreas.contains(tx, tz)) continue;
                 if (roadIndex != null && roadIndex.isRoadXZ(tx, tz)) continue;
@@ -1792,8 +1790,8 @@ public final class RoadPainter {
                 if (roadY == Integer.MIN_VALUE) continue;
                 if (columnHasAnyMillPath(new BlockPos(tx, roadY, tz))) continue;
 
-                int rx = keyX(nr);
-                int rz = keyZ(nr);
+                int rx = Pos2D.xFromKey(nr);
+                int rz = Pos2D.zFromKey(nr);
                 double lateralDist = Math.sqrt((double)(tx - rx) * (tx - rx) + (double)(tz - rz) * (tz - rz));
 
                 Earthworks.applyTalusAt(world, sampler, tx, tz, roadY,
@@ -1808,8 +1806,6 @@ public final class RoadPainter {
             return true;
         }
 
-        private static int keyX(long k) { return (int) (k >> 32); }
-        private static int keyZ(long k) { return (int) k; }
 
         private int[] buildGradeProfile() {
             int n = path.size();
@@ -1856,9 +1852,6 @@ public final class RoadPainter {
             return Blocks.DIRT.getDefaultState();
         }
 
-        private static long xzKey(int x, int z) {
-            return (((long) x) << 32) ^ (z & 0xffffffffL);
-        }
 
         private MillPathPalette.Kind pickKindAveraged(int x, int z) {
             final int R = 2;
@@ -2016,7 +2009,7 @@ public final class RoadPainter {
                 int naturalHalf = BridgeGeometry.naturalSurfaceHalfY(s.surfaceY);
                 half = stepHalfToward(half, naturalHalf, maxHalfStep);
 
-                long k = xzKey(x, z);
+                long k = Pos2D.xzKey(x, z);
                 planned.add(k);
                 forcePaint.add(k);
                 core.add(k);
@@ -2127,7 +2120,7 @@ public final class RoadPainter {
             for (int o = -half; o <= half; o++) {
                 int x = cx + perp.dx * o;
                 int z = cz + perp.dz * o;
-                bridgeProtected.add(xzKey(x, z));
+                bridgeProtected.add(Pos2D.xzKey(x, z));
             }
         }
 
@@ -2145,19 +2138,19 @@ public final class RoadPainter {
                 int c1x = ax + stepX;
                 int c1z = az;
                 if (isBetween2D(c1x, c1z, ax, az, bx, bz)) {
-                    bridgeProtected.add(xzKey(c1x, c1z));
+                    bridgeProtected.add(Pos2D.xzKey(c1x, c1z));
                 }
 
                 int c2x = ax;
                 int c2z = az + stepZ;
                 if (isBetween2D(c2x, c2z, ax, az, bx, bz)) {
-                    bridgeProtected.add(xzKey(c2x, c2z));
+                    bridgeProtected.add(Pos2D.xzKey(c2x, c2z));
                 }
             }
         }
 
         private boolean isBridgeProtectedCell(int x, int z) {
-            return bridgeProtected.contains(xzKey(x, z));
+            return bridgeProtected.contains(Pos2D.xzKey(x, z));
         }
 
         private boolean isBridgeJoinIndex(int idx) {

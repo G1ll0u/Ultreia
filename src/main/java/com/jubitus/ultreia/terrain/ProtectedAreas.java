@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.terrain;
 
+import com.jubitus.ultreia.geom.Pos2D;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import java.util.ArrayList;
@@ -46,7 +47,7 @@ public final class ProtectedAreas {
 
         for (int cxk = cminX; cxk <= cmaxX; cxk++) {
             for (int czk = cminZ; czk <= cmaxZ; czk++) {
-                long k = chunkKey(cxk, czk);
+                long k = Pos2D.xzKey(cxk, czk);
                 List<Zone> list = byChunk.get(k);
                 if (list == null) {
                     list = new ArrayList<>(4);
@@ -59,7 +60,7 @@ public final class ProtectedAreas {
 
     // Keep existing call sites working: contains() means "noPaint" only.
     public boolean contains(int x, int z) {
-        List<Zone> list = byChunk.get(chunkKey(x >> 4, z >> 4));
+        List<Zone> list = byChunk.get(Pos2D.xzKey(x >> 4, z >> 4));
         if (list == null) return false;
         for (Zone zz : list) {
             if (zz.noPaint && zz.contains(x, z)) return true;
@@ -68,7 +69,7 @@ public final class ProtectedAreas {
     }
 
     public int penaltyAt(int x, int z) {
-        List<Zone> list = byChunk.get(chunkKey(x >> 4, z >> 4));
+        List<Zone> list = byChunk.get(Pos2D.xzKey(x >> 4, z >> 4));
         if (list == null) return 0;
         int best = 0;
         for (Zone zz : list) {
@@ -77,7 +78,4 @@ public final class ProtectedAreas {
         return best;
     }
 
-    private static long chunkKey(int cx, int cz) {
-        return (((long) cx) << 32) ^ (cz & 0xffffffffL);
-    }
 }

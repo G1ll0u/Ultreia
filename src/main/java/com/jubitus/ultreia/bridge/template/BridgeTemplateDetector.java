@@ -41,6 +41,42 @@ public final class BridgeTemplateDetector {
             this.centerline = centerline;
             this.deckBlocks = deckBlocks;
         }
+
+        /** Position in the deck's frame (forward, lateral, height above deck), or null if off the grid. */
+        @Nullable
+        public LocalCoord toLocal(BlockPos pos) {
+            BlockPos origin = centerline.get(0);
+
+            int relX = pos.getX() - origin.getX();
+            int relZ = pos.getZ() - origin.getZ();
+
+            Integer forward = project(relX, relZ, dir.dx, dir.dz);
+            Integer lateral = project(relX, relZ, perp.dx, perp.dz);
+
+            if (forward == null || lateral == null) return null;
+            return new LocalCoord(forward.intValue(), lateral.intValue(), pos.getY() - deckY);
+        }
+
+        @Nullable
+        private static Integer project(int relX, int relZ, int bx, int bz) {
+            int den = bx * bx + bz * bz;
+            int num = relX * bx + relZ * bz;
+            if (den == 0) return null;
+            if ((num % den) != 0) return null;
+            return Integer.valueOf(num / den);
+        }
+    }
+
+    public static final class LocalCoord {
+        public final int forward;
+        public final int lateral;
+        public final int relY;
+
+        LocalCoord(int forward, int lateral, int relY) {
+            this.forward = forward;
+            this.lateral = lateral;
+            this.relY = relY;
+        }
     }
 
     private BridgeTemplateDetector() {

@@ -41,7 +41,7 @@ class GeomTest {
     @Test
     void rasterLine8IsEightConnectedAndExact() {
         for (int[] l : LINES) {
-            List<BlockPos> cells = RasterLine8.raster(l[0], l[1], l[2], l[3], 0);
+            List<BlockPos> cells = LineRaster.eight(l[0], l[1], l[2], l[3], 0);
             assertEnds(cells, l);
             assertEquals(Math.max(Math.abs(l[2] - l[0]), Math.abs(l[3] - l[1])) + 1, cells.size());
             for (int i = 1; i < cells.size(); i++) {
@@ -53,9 +53,9 @@ class GeomTest {
     }
 
     @Test
-    void supercoverIsFourConnected() {
+    void supercoverStepsAreAdjacent() {
         for (int[] l : LINES) {
-            List<BlockPos> cells = SupercoverLine.raster(l[0], l[1], l[2], l[3], 0);
+            List<BlockPos> cells = LineRaster.supercover(l[0], l[1], l[2], l[3], 0);
             assertEnds(cells, l);
             for (int i = 1; i < cells.size(); i++) {
                 int dx = Math.abs(cells.get(i).getX() - cells.get(i - 1).getX());
@@ -70,8 +70,8 @@ class GeomTest {
         StringBuilder sb = new StringBuilder();
         for (int[] l : LINES) {
             sb.append("line ").append(l[0]).append(',').append(l[1]).append(" -> ").append(l[2]).append(',').append(l[3]).append('\n');
-            sb.append("  r8 ").append(fmt(RasterLine8.raster(l[0], l[1], l[2], l[3], 0))).append('\n');
-            sb.append("  sc ").append(fmt(SupercoverLine.raster(l[0], l[1], l[2], l[3], 0))).append('\n');
+            sb.append("  r8 ").append(fmt(LineRaster.eight(l[0], l[1], l[2], l[3], 0))).append('\n');
+            sb.append("  sc ").append(fmt(LineRaster.supercover(l[0], l[1], l[2], l[3], 0))).append('\n');
         }
         Golden.check("geom_rasters", sb.toString());
     }

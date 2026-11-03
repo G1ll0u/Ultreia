@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.roads;
 
+import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.MillPresence;
 import com.jubitus.ultreia.block.UltreiaBlocks;
 import com.jubitus.ultreia.chunk.ChunkManager;
@@ -64,7 +65,7 @@ public class RoadIndex extends WorldSavedData {
     // --- Road presence ---
 
     public boolean isRoadXZ(int x, int z) {
-        ChunkData cd = chunkData.get(chunkKey(x >> 4, z >> 4));
+        ChunkData cd = chunkData.get(Pos2D.xzKey(x >> 4, z >> 4));
         if (cd == null) return false;
         int idx = bitIndex(x, z);
         return (cd.road[idx >>> 6] & (1L << (idx & 63))) != 0L;
@@ -107,7 +108,7 @@ public class RoadIndex extends WorldSavedData {
     }
 
     public boolean isBridgeVolumeXZ(int x, int z) {
-        ChunkData cd = chunkData.get(chunkKey(x >> 4, z >> 4));
+        ChunkData cd = chunkData.get(Pos2D.xzKey(x >> 4, z >> 4));
         if (cd == null || cd.volume == null) return false;
         int idx = bitIndex(x, z);
         return (cd.volume[idx >>> 6] & (1L << (idx & 63))) != 0L;
@@ -116,7 +117,7 @@ public class RoadIndex extends WorldSavedData {
     // --- Bridge deck ---
 
     public boolean isBridgeXZ(int x, int z) {
-        ChunkData cd = chunkData.get(chunkKey(x >> 4, z >> 4));
+        ChunkData cd = chunkData.get(Pos2D.xzKey(x >> 4, z >> 4));
         if (cd == null || cd.bridge == null) return false;
         int idx = bitIndex(x, z);
         return (cd.bridge[idx >>> 6] & (1L << (idx & 63))) != 0L;
@@ -149,7 +150,7 @@ public class RoadIndex extends WorldSavedData {
 
     /** Returns the stored Y for this XZ, or -1 if not set. */
     public int getRoadY(int x, int z) {
-        ChunkData cd = chunkData.get(chunkKey(x >> 4, z >> 4));
+        ChunkData cd = chunkData.get(Pos2D.xzKey(x >> 4, z >> 4));
         if (cd == null || cd.yArr == null) return -1;
         int raw = cd.yArr[bitIndex(x, z)] & 0xFF;
         return raw == 0 ? -1 : (raw - 1); // 0 = unset; stored as (Y+1) so Y=0 is valid
@@ -210,7 +211,7 @@ public class RoadIndex extends WorldSavedData {
 
         for (int cx = cminX; cx <= cmaxX; cx++) {
             for (int cz = cminZ; cz <= cmaxZ; cz++) {
-                long ck = chunkKey(cx, cz);
+                long ck = Pos2D.xzKey(cx, cz);
                 if (!scannedChunks.contains(ck) && scanChunk(world, cx, cz)) scannedChunks.add(ck);
             }
         }
@@ -441,7 +442,7 @@ public class RoadIndex extends WorldSavedData {
     // --- Helpers ---
 
     private ChunkData getOrCreateChunk(int cx, int cz) {
-        long k = chunkKey(cx, cz);
+        long k = Pos2D.xzKey(cx, cz);
         ChunkData cd = chunkData.get(k);
         if (cd == null) {
             cd = new ChunkData();
@@ -454,7 +455,4 @@ public class RoadIndex extends WorldSavedData {
         return ((z & 15) << 4) | (x & 15);
     }
 
-    private static long chunkKey(int cx, int cz) {
-        return (((long) cx) << 32) ^ (cz & 0xffffffffL);
-    }
 }

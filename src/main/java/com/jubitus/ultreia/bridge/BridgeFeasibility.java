@@ -1,8 +1,8 @@
 package com.jubitus.ultreia.bridge;
 
+import com.jubitus.ultreia.geom.LineRaster;
+import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.terrain.TerrainView;
-import com.jubitus.ultreia.geom.RasterLine8;
-import com.jubitus.ultreia.geom.SupercoverLine;
 import com.jubitus.ultreia.bridge.template.BridgeTemplate;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateSelector;
 
@@ -91,9 +91,7 @@ public final class BridgeFeasibility {
         if (isTooNearSettlement(world, start, true)) return fail("start too near settlement");
         if (isTooNearSettlement(world, end, true)) return fail("end too near settlement");
 
-        List<BlockPos> rawLine = UltreiaConfig.BRIDGE_GEOMETRY.useRaster8ForBridges
-                ? RasterLine8.raster(start.getX(), start.getZ(), end.getX(), end.getZ(), 0)
-                : SupercoverLine.raster(start.getX(), start.getZ(), end.getX(), end.getZ(), 0);
+        List<BlockPos> rawLine = LineRaster.forBridges(start.getX(), start.getZ(), end.getX(), end.getZ(), 0);
 
         if (rawLine == null || rawLine.size() < 2) return fail("raw bridge line too short");
 
@@ -396,7 +394,7 @@ public final class BridgeFeasibility {
         }
 
         int roadHitIdx = -1;
-        int roadHitDistSq = Integer.MAX_VALUE;
+        double roadHitDistSq = Double.MAX_VALUE;
 
         int scanFrom = Math.max(1, rawLine.size() - 1 - (roadSearch + minApproach + 4));
 
@@ -407,7 +405,7 @@ public final class BridgeFeasibility {
                 continue;
             }
 
-            int d2 = distSq2D(p.getX(), p.getZ(), targetRoad.getX(), targetRoad.getZ());
+            double d2 = Pos2D.distSq(p.getX(), p.getZ(), targetRoad.getX(), targetRoad.getZ());
             if (d2 < roadHitDistSq) {
                 roadHitDistSq = d2;
                 roadHitIdx = i;
@@ -423,7 +421,7 @@ public final class BridgeFeasibility {
         int searchEnd = Math.max(searchStart, roadHitIdx - minApproach);
 
         int bestIdx = -1;
-        int bestScore = Integer.MAX_VALUE;
+        double bestScore = Double.MAX_VALUE;
 
         for (int i = searchEnd; i >= searchStart; i--) {
             BlockPos p = rawLine.get(i);
@@ -432,13 +430,13 @@ public final class BridgeFeasibility {
             if (sampler.isExistingRoadXZ(p.getX(), p.getZ())) continue;
             if (!sampler.isNaturalLandEndpoint(p.getX(), p.getZ())) continue;
 
-            int d2Road = distSq2D(p.getX(), p.getZ(), targetRoad.getX(), targetRoad.getZ());
+            double d2Road = Pos2D.distSq(p.getX(), p.getZ(), targetRoad.getX(), targetRoad.getZ());
             if (d2Road < minApproach * minApproach) continue;
 
             TerrainSampler.Sample s = sampler.sample(p.getX(), p.getZ());
             if (s == null) continue;
 
-            int score = d2Road + (roadHitIdx - i) * 6;
+            double score = d2Road + (roadHitIdx - i) * 6;
             if (score < bestScore) {
                 bestScore = score;
                 bestIdx = i;
@@ -701,9 +699,4 @@ public final class BridgeFeasibility {
         return a.getX() == b.getX() && a.getZ() == b.getZ();
     }
 
-    private static int distSq2D(int x1, int z1, int x2, int z2) {
-        int dx = x1 - x2;
-        int dz = z1 - z2;
-        return dx * dx + dz * dz;
-    }
 }

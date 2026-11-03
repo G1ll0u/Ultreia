@@ -1,12 +1,11 @@
 package com.jubitus.ultreia.bridge.template;
 
+import com.jubitus.ultreia.geom.LineRaster;
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.GroundRules;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.bridge.BridgeSpan;
-import com.jubitus.ultreia.geom.RasterLine8;
-import com.jubitus.ultreia.geom.SupercoverLine;
 import com.jubitus.ultreia.mill.MillPathPalette;
 import com.jubitus.ultreia.geom.Pos2D;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -593,7 +592,7 @@ public final class BridgeTemplateBridgeBuilder {
             return dedupXZ(out);
         }
 
-        List<BlockPos> thin = RasterLine8.raster(
+        List<BlockPos> thin = LineRaster.eight(
                 start.getX(), start.getZ(),
                 end.getX(), end.getZ(),
                 0

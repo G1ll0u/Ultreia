@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.api;
 
+import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.roads.RoadIndex;
 import com.jubitus.ultreia.roads.RoadNavigator;
@@ -248,11 +249,11 @@ public final class MPBRoadAPI {
         for (RoadSegment seg : network.allSegments()) {
             if (seg == null) continue;
             if (seg.fromVillage != null) {
-                long key = RoadWaypoint.packXZ(seg.fromVillage.getX(), seg.fromVillage.getZ());
+                long key = Pos2D.xzKey(seg.fromVillage.getX(), seg.fromVillage.getZ());
                 if (seen.add(key)) result.add(seg.fromVillage);
             }
             if (seg.toVillage != null) {
-                long key = RoadWaypoint.packXZ(seg.toVillage.getX(), seg.toVillage.getZ());
+                long key = Pos2D.xzKey(seg.toVillage.getX(), seg.toVillage.getZ());
                 if (seen.add(key)) result.add(seg.toVillage);
             }
         }

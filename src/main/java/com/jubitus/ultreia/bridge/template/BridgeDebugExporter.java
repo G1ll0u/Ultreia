@@ -83,17 +83,6 @@ public final class BridgeDebugExporter {
         }
     }
 
-    private static final class LocalCoord {
-        final int forward;
-        final int lateral;
-        final int relY;
-
-        LocalCoord(int forward, int lateral, int relY) {
-            this.forward = forward;
-            this.lateral = lateral;
-            this.relY = relY;
-        }
-    }
 
     private BridgeDebugExporter() {
     }
@@ -214,7 +203,7 @@ public final class BridgeDebugExporter {
                 IBlockState st = world.getBlockState(next);
                 if (st == null || st.getMaterial() == Material.AIR) continue;
 
-                LocalCoord lc = toLocal(deck, next);
+                BridgeTemplateDetector.LocalCoord lc = deck.toLocal(next);
                 if (lc == null) continue;
                 if (lc.forward < -1 || lc.forward > deck.centerline.size()) continue;
                 if (Math.abs(lc.lateral) > maxLateral) continue;
@@ -311,26 +300,4 @@ public final class BridgeDebugExporter {
         return id.contains("plank") || id.contains("bridge") || id.contains("stonebrick") || id.contains("cobble");
     }
 
-    @Nullable
-    private static LocalCoord toLocal(BridgeTemplateDetector.DetectedDeck deck, BlockPos pos) {
-        BlockPos origin = deck.centerline.get(0);
-
-        int relX = pos.getX() - origin.getX();
-        int relZ = pos.getZ() - origin.getZ();
-
-        Integer forward = project(relX, relZ, deck.dir.dx, deck.dir.dz);
-        Integer lateral = project(relX, relZ, deck.perp.dx, deck.perp.dz);
-
-        if (forward == null || lateral == null) return null;
-        return new LocalCoord(forward.intValue(), lateral.intValue(), pos.getY() - deck.deckY);
-    }
-
-    @Nullable
-    private static Integer project(int relX, int relZ, int bx, int bz) {
-        int den = bx * bx + bz * bz;
-        int num = relX * bx + relZ * bz;
-        if (den == 0) return null;
-        if ((num % den) != 0) return null;
-        return Integer.valueOf(num / den);
-    }
 }

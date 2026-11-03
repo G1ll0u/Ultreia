@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.route;
 
+import com.jubitus.ultreia.geom.Pos2D;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import net.minecraft.util.math.BlockPos;
 
@@ -18,20 +19,13 @@ public final class VillageGateTracker {
 
     public void markUsed(BlockPos gate) {
         if (gate == null) return;
-        long k = xzKey(gate);
+        long k = Pos2D.xzKey(gate.getX(), gate.getZ());
         usageByXZ.put(k, usageByXZ.get(k) + 1);
     }
 
     /** Cost penalty added per existing connection through this gate. */
     public double usagePenalty(int x, int z) {
-        return usageByXZ.get(xzKey(x, z)) * 80.0;
+        return usageByXZ.get(Pos2D.xzKey(x, z)) * 80.0;
     }
 
-    private static long xzKey(BlockPos pos) {
-        return xzKey(pos.getX(), pos.getZ());
-    }
-
-    private static long xzKey(int x, int z) {
-        return ((long) x) << 32 | (z & 0xFFFFFFFFL);
-    }
 }

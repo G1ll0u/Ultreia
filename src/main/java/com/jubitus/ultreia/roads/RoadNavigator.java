@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.roads;
 
+import com.jubitus.ultreia.geom.Pos2D;
 import javax.annotation.Nullable;
 import java.util.*;
 
@@ -180,7 +181,7 @@ public final class RoadNavigator {
         List<RoadWaypoint> currentLeg = legs.get(legs.size() - 1);
         RoadWaypoint legEnd = currentLeg.get(currentLeg.size() - 1);
         RoadWaypoint partStart = part.get(0);
-        if (distSq(legEnd.x, legEnd.z, partStart.x, partStart.z) > LEG_BREAK_DIST * LEG_BREAK_DIST) {
+        if (Pos2D.distSq(legEnd.x, legEnd.z, partStart.x, partStart.z) > LEG_BREAK_DIST * LEG_BREAK_DIST) {
             legs.add(new ArrayList<>(part));
             return;
         }
@@ -297,8 +298,8 @@ public final class RoadNavigator {
         if (to != null) return extractSubpath(seg, from, to);
 
         // Determine direction: pick the end farther from from
-        int toStart = distSq(seg.startX(), seg.startZ(), from.x, from.z);
-        int toEnd   = distSq(seg.endX(), seg.endZ(), from.x, from.z);
+        double toStart = Pos2D.distSq(seg.startX(), seg.startZ(), from.x, from.z);
+        double toEnd   = Pos2D.distSq(seg.endX(), seg.endZ(), from.x, from.z);
         boolean forward = toEnd >= toStart;
 
         List<RoadWaypoint> result = new ArrayList<>();
@@ -346,17 +347,17 @@ public final class RoadNavigator {
         if (nextSeg != null && !nextSeg.waypoints.isEmpty()) {
             // Use next-segment proximity to decide direction so that early-merge
             // mid-segment entries go toward the correct end.
-            int segStartToNext = Math.min(
-                    distSq(seg.startX(), seg.startZ(), nextSeg.startX(), nextSeg.startZ()),
-                    distSq(seg.startX(), seg.startZ(), nextSeg.endX(), nextSeg.endZ()));
-            int segEndToNext = Math.min(
-                    distSq(seg.endX(), seg.endZ(), nextSeg.startX(), nextSeg.startZ()),
-                    distSq(seg.endX(), seg.endZ(), nextSeg.endX(), nextSeg.endZ()));
+            double segStartToNext = Math.min(
+                    Pos2D.distSq(seg.startX(), seg.startZ(), nextSeg.startX(), nextSeg.startZ()),
+                    Pos2D.distSq(seg.startX(), seg.startZ(), nextSeg.endX(), nextSeg.endZ()));
+            double segEndToNext = Math.min(
+                    Pos2D.distSq(seg.endX(), seg.endZ(), nextSeg.startX(), nextSeg.startZ()),
+                    Pos2D.distSq(seg.endX(), seg.endZ(), nextSeg.endX(), nextSeg.endZ()));
             forward = segEndToNext < segStartToNext;
         } else if (prevEnd != null) {
             // No next segment: go away from where we came.
-            int toStart = distSq(seg.startX(), seg.startZ(), prevEnd.x, prevEnd.z);
-            int toEnd   = distSq(seg.endX(), seg.endZ(), prevEnd.x, prevEnd.z);
+            double toStart = Pos2D.distSq(seg.startX(), seg.startZ(), prevEnd.x, prevEnd.z);
+            double toEnd   = Pos2D.distSq(seg.endX(), seg.endZ(), prevEnd.x, prevEnd.z);
             forward = toEnd >= toStart;
         } else {
             forward = true;
@@ -383,8 +384,4 @@ public final class RoadNavigator {
         return best;
     }
 
-    private static int distSq(int x1, int z1, int x2, int z2) {
-        int dx = x1 - x2, dz = z1 - z2;
-        return dx * dx + dz * dz;
-    }
 }

@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.planner;
 
+import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.mill.MillVillageIndex;
@@ -28,15 +29,11 @@ public final class NetworkPlanner {
         }
 
         public String key() {
-            String k1 = a.getX() + "," + a.getZ();
-            String k2 = b.getX() + "," + b.getZ();
-            return (k1.compareTo(k2) <= 0) ? (k1 + "->" + k2) : (k2 + "->" + k1);
+            return edgeKey(a, b);
         }
 
         public double distSq() {
-            long dx = (long) a.getX() - (long) b.getX();
-            long dz = (long) a.getZ() - (long) b.getZ();
-            return (double) dx * dx + (double) dz * dz;
+            return Pos2D.distSq(a, b);
         }
     }
 
@@ -152,7 +149,7 @@ public final class NetworkPlanner {
                 for (int j = 0; j < nodes.size(); j++) {
                     if (visited.contains(j)) continue;
                     BlockPos b = nodes.get(j);
-                    if (distSq2D(a, b) > maxDistSq) continue;
+                    if (Pos2D.distSq(a, b) > maxDistSq) continue;
                     double eff = effDistSq(a, b, sizes);
                     if (eff < best) { best = eff; bestFrom = i; bestTo = j; }
                 }
@@ -183,7 +180,7 @@ public final class NetworkPlanner {
                 BlockPos u = nodes.get(i);
                 BlockPos v = nodes.get(j);
 
-                double realD2 = distSq2D(u, v);
+                double realD2 = Pos2D.distSq(u, v);
                 if (realD2 > maxDistSq) continue;
 
                 double effD2 = effDistSq(u, v, sizes);
@@ -193,7 +190,7 @@ public final class NetworkPlanner {
                 for (int k = 0; k < n; k++) {
                     if (k == i || k == j) continue;
                     BlockPos w = nodes.get(k);
-                    if (distSq2D(u, w) < effD2 && distSq2D(v, w) < effD2) {
+                    if (Pos2D.distSq(u, w) < effD2 && Pos2D.distSq(v, w) < effD2) {
                         inRng = false;
                         break;
                     }
@@ -247,10 +244,10 @@ public final class NetworkPlanner {
         for (BlockPos n : nodes) {
             List<BlockPos> others = new ArrayList<>(nodes);
             others.remove(n);
-            others.sort(Comparator.comparingDouble(o -> distSq2D(n, o)));
+            others.sort(Comparator.comparingDouble(o -> Pos2D.distSq(n, o)));
             int added = 0;
             for (BlockPos o : others) {
-                if (distSq2D(n, o) > maxDistSq) break;
+                if (Pos2D.distSq(n, o) > maxDistSq) break;
                 Edge e = new Edge(n, o);
                 out.put(e.key(), e);
                 if (++added >= k) break;
@@ -265,7 +262,7 @@ public final class NetworkPlanner {
     /** Effective squared distance — hub-hub pairs get a discount to survive RNG pruning. */
     private static double effDistSq(BlockPos a, BlockPos b,
                                      Map<BlockPos, VillageClassifier.VillageSize> sizes) {
-        double d2 = distSq2D(a, b);
+        double d2 = Pos2D.distSq(a, b);
         if (sizes.get(a) == VillageClassifier.VillageSize.HUB
                 && sizes.get(b) == VillageClassifier.VillageSize.HUB) {
             double scale = 1.0 - UltreiaConfig.NETWORK.hubConnectionBonus;
@@ -279,17 +276,12 @@ public final class NetworkPlanner {
         BlockPos best = null;
         double bestD  = Double.POSITIVE_INFINITY;
         for (BlockPos t : to) {
-            double d = distSq2D(from, t);
+            double d = Pos2D.distSq(from, t);
             if (d <= maxDistSq && d < bestD) { bestD = d; best = t; }
         }
         return best;
     }
 
-    private static double distSq2D(BlockPos a, BlockPos b) {
-        long dx = (long) a.getX() - (long) b.getX();
-        long dz = (long) a.getZ() - (long) b.getZ();
-        return (double) dx * dx + (double) dz * dz;
-    }
 
     private static String edgeKey(BlockPos a, BlockPos b) {
         String k1 = a.getX() + "," + a.getZ();
@@ -326,7 +318,7 @@ public final class NetworkPlanner {
                 BlockPos node = end;
                 while (parent.get(node) != null) {
                     BlockPos prev = parent.get(node);
-                    len += Math.sqrt(distSq2D(prev, node));
+                    len += Math.sqrt(Pos2D.distSq(prev, node));
                     node = prev;
                 }
                 return len;

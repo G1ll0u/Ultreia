@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.map;
 
+import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.net.NetworkHandler;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
@@ -84,8 +85,8 @@ public final class MapScreen extends GuiScreen {
         int roads = 0, bridges = 0;
         for (PacketOpenMapGui.SegmentData s : segments) {
             if (s.isBridge) bridges++; else roads++;
-            if (s.fromX != PacketOpenMapGui.ABSENT) villageKeys.add(packXZ(s.fromX, s.fromZ));
-            if (s.toX   != PacketOpenMapGui.ABSENT) villageKeys.add(packXZ(s.toX,   s.toZ));
+            if (s.fromX != PacketOpenMapGui.ABSENT) villageKeys.add(Pos2D.xzKey(s.fromX, s.fromZ));
+            if (s.toX   != PacketOpenMapGui.ABSENT) villageKeys.add(Pos2D.xzKey(s.toX,   s.toZ));
         }
         this.roadCount   = roads;
         this.bridgeCount = bridges;
@@ -407,8 +408,8 @@ public final class MapScreen extends GuiScreen {
 
     private void drawVillages() {
         for (long key : villageKeys) {
-            int vx = (int)(key >> 32);
-            int vz = (int)(key & 0xFFFFFFFFL);
+            int vx = Pos2D.xFromKey(key);
+            int vz = Pos2D.zFromKey(key);
             int sx = (int)worldToScreenX(vx);
             int sy = (int)worldToScreenZ(vz);
             if (sx < -6 || sx > width + 6 || sy < -6 || sy > height - PANEL_H + 6) continue;
@@ -730,7 +731,4 @@ public final class MapScreen extends GuiScreen {
         return null;
     }
 
-    private static long packXZ(int x, int z) {
-        return ((long) x << 32) | (z & 0xFFFFFFFFL);
-    }
 }

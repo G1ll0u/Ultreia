@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.route;
 
+import com.jubitus.ultreia.geom.LineRaster;
 import com.jubitus.ultreia.terrain.TerrainView;
-import com.jubitus.ultreia.geom.SupercoverLine;
 import com.jubitus.ultreia.bridge.BridgeFeasibility;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.bridge.BridgeSpan;
@@ -161,13 +161,6 @@ public final class AStarPathfinder {
         private int goalY = 0;
 
         private static final int[][] NEIGHBOR_DIRS = new int[][]{
-                { 1, 0}, {-1, 0}, {0, 1}, {0, -1},
-                { 1, 1}, { 1,-1}, {-1, 1}, {-1,-1},
-                { 2, 1}, { 2,-1}, {-2, 1}, {-2,-1},
-                { 1, 2}, { 1,-2}, {-1, 2}, {-1,-2}
-        };
-
-        private static final int[][] BRIDGE_DIRS = new int[][]{
                 { 1, 0}, {-1, 0}, {0, 1}, {0, -1},
                 { 1, 1}, { 1,-1}, {-1, 1}, {-1,-1},
                 { 2, 1}, { 2,-1}, {-2, 1}, {-2,-1},
@@ -403,7 +396,7 @@ public final class AStarPathfinder {
 
                     updateBestApprox(ck, cur.x, cur.z);
 
-                    if (distSq(cur.x, cur.z, gx, gz) <= (double) step * (double) step) {
+                    if (Pos2D.distSq(cur.x, cur.z, gx, gz) <= (double) step * (double) step) {
                         foundState = ck;
                         reconstructing = true;
                         recCur = ck;
@@ -428,13 +421,13 @@ public final class AStarPathfinder {
                     // Road-snap termination for LONE_TRAIL: stop as soon as we are adjacent to
                     // an existing road, so the path grafts onto the network rather than continuing
                     // all the way to the destination village.
-                    if (snapRoadIndex != null && distSq(cur.x, cur.z, sx, sz) >= snapMinDistSq) {
+                    if (snapRoadIndex != null && Pos2D.distSq(cur.x, cur.z, sx, sz) >= snapMinDistSq) {
                         BlockPos nearRoad = snapRoadIndex.findNearestRoad(cur.x, cur.z, snapRadius);
                         if (nearRoad != null
                                 && !snapRoadIndex.isBridgeXZ(nearRoad.getX(), nearRoad.getZ())
                                 // The road block itself must also be far from the start so we don't
                                 // snap back onto internal building paths of the departure structure.
-                                && distSq(nearRoad.getX(), nearRoad.getZ(), sx, sz) >= snapMinDistSq) {
+                                && Pos2D.distSq(nearRoad.getX(), nearRoad.getZ(), sx, sz) >= snapMinDistSq) {
                             Ultreia.LOGGER.info(
                                     "[Ultreia A*] Road-snap: ({},{}) snapped to road at ({},{})",
                                     cur.x, cur.z, nearRoad.getX(), nearRoad.getZ());
@@ -851,11 +844,11 @@ public final class AStarPathfinder {
                 // Light sample: surfaceY, water/ocean, and hardness category.
                 int lv = sampler.sampleLightIfLoaded(cx, cz);
                 if (lv == TerrainSampler.LIGHT_NOT_LOADED) break;
-                boolean sWater = (lv & TerrainSampler.LIGHT_WATER_BIT)  != 0;
-                boolean sOcean = (lv & TerrainSampler.LIGHT_OCEAN_BIT) != 0;
+                boolean sWater = TerrainSampler.lightIsWater(lv);
+                boolean sOcean = TerrainSampler.lightIsOcean(lv);
                 if (sWater || sOcean) break;
-                int sSurfaceY = lv & TerrainSampler.LIGHT_SURFACE_MASK;
-                int hardnessCat = (lv >> TerrainSampler.LIGHT_HARDNESS_SHIFT) & TerrainSampler.LIGHT_HARDNESS_MASK;
+                int sSurfaceY = TerrainSampler.lightSurfaceY(lv);
+                int hardnessCat = TerrainSampler.lightHardness(lv);
                 if (hardnessCat > maxHardnessCat) maxHardnessCat = hardnessCat;
 
                 int projectedRoadY = nextY + stepDy * (i - 1);
@@ -951,9 +944,9 @@ public final class AStarPathfinder {
                 int lz = (int) Math.round((double) z + pz * (double) off);
                 int lv = sampler.sampleLightIfLoaded(lx, lz);
                 if (lv != TerrainSampler.LIGHT_NOT_LOADED
-                        && (lv & TerrainSampler.LIGHT_WATER_BIT) == 0
-                        && (lv & TerrainSampler.LIGHT_OCEAN_BIT) == 0) {
-                    int sy = lv & TerrainSampler.LIGHT_SURFACE_MASK;
+                        && !TerrainSampler.lightIsWater(lv)
+                        && !TerrainSampler.lightIsOcean(lv)) {
+                    int sy = TerrainSampler.lightSurfaceY(lv);
                     leftWall = Math.max(leftWall, sy - roadY);
                 }
 
@@ -961,9 +954,9 @@ public final class AStarPathfinder {
                 int rz = (int) Math.round((double) z - pz * (double) off);
                 int rv = sampler.sampleLightIfLoaded(rx, rz);
                 if (rv != TerrainSampler.LIGHT_NOT_LOADED
-                        && (rv & TerrainSampler.LIGHT_WATER_BIT) == 0
-                        && (rv & TerrainSampler.LIGHT_OCEAN_BIT) == 0) {
-                    int sy = rv & TerrainSampler.LIGHT_SURFACE_MASK;
+                        && !TerrainSampler.lightIsWater(rv)
+                        && !TerrainSampler.lightIsOcean(rv)) {
+                    int sy = TerrainSampler.lightSurfaceY(rv);
                     rightWall = Math.max(rightWall, sy - roadY);
                 }
             }
@@ -1079,7 +1072,7 @@ public final class AStarPathfinder {
             List<BridgeMove> out = new ArrayList<>();
 
             for (RoadNetwork.BridgeCrossing crossing : crossings) {
-                double distToStartSq = distSq(cur.x, cur.z, crossing.startX, crossing.startZ);
+                double distToStartSq = Pos2D.distSq(cur.x, cur.z, crossing.startX, crossing.startZ);
                 if (distToStartSq > snapTolSq) {
                     if (debug) {
                         Ultreia.LOGGER.info(
@@ -1147,7 +1140,7 @@ public final class AStarPathfinder {
             if (cur.smallWater) return true;
 
             int valleyDrop = UltreiaConfig.VALLEY_BRIDGING.enabled
-                    ? Math.max(4, UltreiaConfig.VALLEY_BRIDGING.minValleyDepth)
+                    ? Math.max(2, UltreiaConfig.VALLEY_BRIDGING.minValleyDepth)
                     : Integer.MAX_VALUE;
 
             for (int[] d : NEIGHBOR_DIRS) {
@@ -1195,7 +1188,7 @@ public final class AStarPathfinder {
 
             ArrayList<BridgeDirScore> dirs = new ArrayList<BridgeDirScore>();
 
-            for (int[] dir : BRIDGE_DIRS) {
+            for (int[] dir : NEIGHBOR_DIRS) {
                 if (UltreiaConfig.BRIDGE_AWARE_PATHFINDING.requireAlignedApproach && hasIncoming) {
                     double dot = normalizedDot(inDx, inDz, dir[0], dir[1]);
                     if (dot < UltreiaConfig.BRIDGE_AWARE_PATHFINDING.minApproachDot) continue;
@@ -1518,7 +1511,7 @@ public final class AStarPathfinder {
         }
 
         private double bridgeSpanCost(BridgeSpan span) {
-            double euclid = Math.sqrt(distSq(span.start.getX(), span.start.getZ(), span.end.getX(), span.end.getZ()));
+            double euclid = Math.sqrt(Pos2D.distSq(span.start.getX(), span.start.getZ(), span.end.getX(), span.end.getZ()));
 
             double fixed = Math.max(0.0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeFixedCost);
             double mult = Math.max(1.0, UltreiaConfig.BRIDGE_AWARE_PATHFINDING.bridgeLengthCostMultiplier);
@@ -1847,13 +1840,7 @@ public final class AStarPathfinder {
                 int nx = x + dir[0] * step;
                 int nz = z + dir[1] * step;
 
-                TerrainSampler.Sample ns = sampler.sample(nx, nz);
-                if (ns == null) continue;
-                if (sampler.forbidden(ns, TerrainSampler.Mode.PATHFINDING)) continue;
-                if (ns.isOcean || ns.isWater) continue;
-                if (sampler.isProtectedNoPaint(nx, nz)) continue;
-
-                free++;
+                if (isOpenCell(nx, nz, sampler)) free++;
             }
 
             return free;
@@ -1906,7 +1893,7 @@ public final class AStarPathfinder {
         }
 
         private SegmentWalkability segmentWalkability(int x0, int z0, int x1, int z1) {
-            List<BlockPos> line = SupercoverLine.raster(x0, z0, x1, z1, 0);
+            List<BlockPos> line = LineRaster.supercover(x0, z0, x1, z1, 0);
             if (line == null || line.size() < 2) {
                 return new SegmentWalkability(true, false, 0, 0, 0.0, 0, 0, 0);
             }
@@ -1952,9 +1939,9 @@ public final class AStarPathfinder {
                         pIsWater  = fs.isWater;
                         pIsOcean  = fs.isOcean;
                     } else {
-                        pSurfaceY = lv & TerrainSampler.LIGHT_SURFACE_MASK;
-                        pIsWater  = (lv & TerrainSampler.LIGHT_WATER_BIT)  != 0;
-                        pIsOcean  = (lv & TerrainSampler.LIGHT_OCEAN_BIT) != 0;
+                        pSurfaceY = TerrainSampler.lightSurfaceY(lv);
+                        pIsWater  = TerrainSampler.lightIsWater(lv);
+                        pIsOcean  = TerrainSampler.lightIsOcean(lv);
                     }
                 } else {
                     // Last point — use full sample (= grid node, already cached).
@@ -2242,7 +2229,7 @@ public final class AStarPathfinder {
         private static double nearestCrossingStartDist(int x, int z, List<RoadNetwork.BridgeCrossing> crossings) {
             double best = Double.POSITIVE_INFINITY;
             for (RoadNetwork.BridgeCrossing c : crossings) {
-                double d = Math.sqrt(distSq(x, z, c.startX, c.startZ));
+                double d = Math.sqrt(Pos2D.distSq(x, z, c.startX, c.startZ));
                 if (d < best) best = d;
             }
             return best;
@@ -2261,9 +2248,6 @@ public final class AStarPathfinder {
         return Math.sqrt(Pos2D.distSq(x, z, gx, gz));
     }
 
-    private static double distSq(int x1, int z1, int x2, int z2) {
-        return Pos2D.distSq(x1, z1, x2, z2);
-    }
 
     private static final int STATE_DIR_BITS = 5;
     private static final int STATE_COORD_BITS = 26;
@@ -2380,6 +2364,15 @@ public final class AStarPathfinder {
                 + " blocked{r1=" + blocked1 + ",r2=" + blocked2 + "}";
     }
 
+    /** Dry, allowed, unprotected land a road could pass through. */
+    private static boolean isOpenCell(int x, int z, TerrainView sampler) {
+        TerrainSampler.Sample s = sampler.sample(x, z);
+        if (s == null) return false;
+        if (sampler.forbidden(s, TerrainSampler.Mode.PATHFINDING)) return false;
+        if (s.isWater || s.isOcean) return false;
+        return !sampler.isProtectedNoPaint(x, z);
+    }
+
     private static int countFreeNeighbors(int x, int z, int step, TerrainView sampler, int ring) {
         int free = 0;
 
@@ -2391,13 +2384,7 @@ public final class AStarPathfinder {
                 int xx = x + dx * step;
                 int zz = z + dz * step;
 
-                TerrainSampler.Sample s = sampler.sample(xx, zz);
-                if (s == null) continue;
-                if (sampler.forbidden(s, TerrainSampler.Mode.PATHFINDING)) continue;
-                if (s.isWater || s.isOcean) continue;
-                if (sampler.isProtectedNoPaint(xx, zz)) continue;
-
-                free++;
+                if (isOpenCell(xx, zz, sampler)) free++;
             }
         }
 
@@ -2415,14 +2402,7 @@ public final class AStarPathfinder {
                 int xx = x + dx * step;
                 int zz = z + dz * step;
 
-                TerrainSampler.Sample s = sampler.sample(xx, zz);
-                if (s == null) {
-                    blocked++;
-                    continue;
-                }
-                if (sampler.forbidden(s, TerrainSampler.Mode.PATHFINDING) || s.isWater || s.isOcean || sampler.isProtectedNoPaint(xx, zz)) {
-                    blocked++;
-                }
+                if (!isOpenCell(xx, zz, sampler)) blocked++;
             }
         }
 

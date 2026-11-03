@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.chunk;
 
+import com.jubitus.ultreia.geom.Pos2D;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.UltreiaConfig;
@@ -30,7 +31,7 @@ public final class ChunkManager {
     public boolean ensureLoaded(WorldServer world, int x, int z) {
         int cx = x >> 4;
         int cz = z >> 4;
-        long k = key(cx, cz);
+        long k = Pos2D.xzKey(cx, cz);
         ChunkProviderServer cps = (ChunkProviderServer) world.getChunkProvider();
 
         // Already loaded by us or by someone else (Millénaire, players, etc.)
@@ -91,8 +92,8 @@ public final class ChunkManager {
         // Queue our chunks for unload
         int ownedQueued = 0;
         for (long k : ours) {
-            int cx = (int)(k >> 32);
-            int cz = (int)k;
+            int cx = Pos2D.xFromKey(k);
+            int cz = Pos2D.zFromKey(k);
             Chunk ch = cps.getLoadedChunk(cx, cz);
             if (ch == null) continue;
             if (isWatchedByPlayers(world, cx, cz)) continue;
@@ -148,7 +149,7 @@ public final class ChunkManager {
         int queued = 0;
         try {
             for (Chunk c : cps.getLoadedChunks()) {
-                if (ours.contains(key(c.x, c.z))) continue; // still owned (shouldn't happen after unforce loop)
+                if (ours.contains(Pos2D.xzKey(c.x, c.z))) continue; // still owned (shouldn't happen after unforce loop)
                 if (isWatchedByPlayers(world, c.x, c.z)) continue;
                 if (isForcedByOthers(forced, new ChunkPos(c.x, c.z))) continue;
                 cps.queueUnload(c);
@@ -206,7 +207,4 @@ public final class ChunkManager {
         }
     }
 
-    private static long key(int cx, int cz) {
-        return (((long) cx) << 32) ^ (cz & 0xffffffffL);
-    }
 }

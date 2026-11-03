@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.roads;
 
+import com.jubitus.ultreia.geom.Pos2D;
+
 /** A single point in the road network with its world position and type. */
 public final class RoadWaypoint {
 
@@ -16,12 +18,8 @@ public final class RoadWaypoint {
         this.isBridge = isBridge;
     }
 
-    public static long packXZ(int x, int z) {
-        return (((long) x) << 32) ^ (z & 0xFFFFFFFFL);
-    }
-
     public long xzKey() {
-        return packXZ(x, z);
+        return Pos2D.xzKey(x, z);
     }
 
     @Override

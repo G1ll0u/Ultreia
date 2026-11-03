@@ -24,6 +24,10 @@ public final class Pos2D {
         return (double) dx * (double) dx + (double) dz * (double) dz;
     }
 
+    public static double distSq(BlockPos a, BlockPos b) {
+        return distSq(a.getX(), a.getZ(), b.getX(), b.getZ());
+    }
+
     public static int snapDown(int value, int step) {
         return Math.floorDiv(value, step) * step;
     }

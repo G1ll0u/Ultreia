@@ -1,13 +1,12 @@
 package com.jubitus.ultreia.route;
 
+import com.jubitus.ultreia.geom.LineRaster;
 import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.paint.RoadHeightProfile;
 
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.bridge.BridgeSpan;
-import com.jubitus.ultreia.geom.RasterLine8;
-import com.jubitus.ultreia.geom.SupercoverLine;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.ArrayList;
@@ -67,9 +66,7 @@ public final class PathProfileCheck {
             BlockPos a = coarse.get(i - 1);
             BlockPos b = coarse.get(i);
 
-            List<BlockPos> line = UltreiaConfig.BRIDGE_GEOMETRY.useRaster8ForBridges
-                    ? RasterLine8.raster(a.getX(), a.getZ(), b.getX(), b.getZ(), 0)
-                    : SupercoverLine.raster(a.getX(), a.getZ(), b.getX(), b.getZ(), 0);
+            List<BlockPos> line = LineRaster.forBridges(a.getX(), a.getZ(), b.getX(), b.getZ(), 0);
 
             if (line == null || line.isEmpty()) {
                 continue;

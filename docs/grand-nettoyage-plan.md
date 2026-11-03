@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-03)**: phases 0–3 done (in-game checks pending). Next: phase 4.
+**Status (2026-11-03)**: phases 0–4 done (in-game checks pending). Next: phase 5.
 
 ## Goal
 
@@ -178,12 +178,15 @@ mixin classes and `mixins.ultreia.json` unchanged. Visible: none.
   MST + RNG topology (`NetworkPlanner.connect`, extracted from `build`), bundled template JSON round-trip.
 - Snapshots in `src/test/resources/golden/`; rewritten only with `ULTREIA_UPDATE_GOLDEN=1` for an approved change.
 
-### Phase 4 — Shared small helpers — status: not started
+### Phase 4 — Shared small helpers — status: done
 
-Identical copies merged (no behaviour change): xz key ×13 and 2D distance ×10 → `geom/Pos2D`; raster ternary ×4 →
-`LineRaster.forBridges()`; edge key ×2; identical direction tables; free-neighbour test ×3; light-sample unpacking ×3;
-"player only" check ×6 in commands; template `toLocal/project` ×2. Diverging copies (valley test `max(2,…)` vs
-`max(4,…)`, Millénaire path column windows) are listed and asked.
+Merged, no behaviour change: xz key (9 copies) and 2D distance → `geom/Pos2D`; `RasterLine8` + `SupercoverLine` →
+`geom/LineRaster` (`eight`, `supercover`, `forBridges`); edge key in `NetworkPlanner`; A* `BRIDGE_DIRS` (= `NEIGHBOR_DIRS`)
+and open-cell test; light-sample pack/unpack → `TerrainSampler.packLight`/`light*`; template `toLocal`/`project` →
+`BridgeTemplateDetector.DetectedDeck`. Decided with the user: both valley tests use `max(2, minValleyDepth)` (was 4 in
+`isNearWaterOrValleyEdge`; same at default 6); int squared distances (`RoadNavigator`, `BridgeFeasibility`) now `double`
+(int overflowed beyond ~46 000 blocks). Moved: "player only" check ×6 → phase 11; Millénaire path column windows → phase 6.
+Kept apart: the two `(lateral, relY)` keys in `BridgeTemplateBridgeBuilder` (not xz); A* free-neighbour counts (16 vs 8 cells).
 
 ### Phase 5 — Config cut — status: not started
 
@@ -244,7 +247,7 @@ inside `paintSingle` becomes an explicit argument. Debug switch for earthworks/t
 - `MillVillageIndex` (950) → `MillSettlements` (~400), `MillBuildings` (~400); `mill/Villages` is the only door
   for code outside `mill/` (checks `MillPresence`, vanilla types only).
 - `MapScreen` (760) → `MapScreen` (~230), `MapView`, `MapRenderer` (~330), `MapExporter`.
-- Commands: one usage text, `create`/`update` share one sequence; player text through the lang file (keys listed).
+- Commands: one usage text, one "player only" check, `create`/`update` share one sequence; player text through the lang file (keys listed).
 - README fixed (wrong commands, missing ones).
 
 ### Phase 12 — Wrap-up — status: not started

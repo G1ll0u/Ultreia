@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.terrain;
 
+import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.chunk.ChunkManager;
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.mill.MillPathPalette;
@@ -52,6 +53,19 @@ public class TerrainSampler implements TerrainView {
     public static final int LIGHT_OCEAN_BIT     = 1 << 10;
     public static final int LIGHT_HARDNESS_SHIFT = 11;
     public static final int LIGHT_HARDNESS_MASK  = 0x3;
+
+    public static int packLight(int surfaceY, boolean water, boolean ocean, int hardnessCategory) {
+        return (ocean ? LIGHT_OCEAN_BIT : 0) | (water ? LIGHT_WATER_BIT : 0)
+                | (surfaceY & LIGHT_SURFACE_MASK) | (hardnessCategory << LIGHT_HARDNESS_SHIFT);
+    }
+
+    public static int lightSurfaceY(int light) { return light & LIGHT_SURFACE_MASK; }
+
+    public static boolean lightIsWater(int light) { return (light & LIGHT_WATER_BIT) != 0; }
+
+    public static boolean lightIsOcean(int light) { return (light & LIGHT_OCEAN_BIT) != 0; }
+
+    public static int lightHardness(int light) { return (light >> LIGHT_HARDNESS_SHIFT) & LIGHT_HARDNESS_MASK; }
 
     public enum BlockedDetail {
         NONE,
@@ -157,7 +171,7 @@ public class TerrainSampler implements TerrainView {
     /** Cached manhattan distance to nearest road, or Integer.MAX_VALUE if none within maxRadius. */
     public int nearestRoadDistManhattan(int x, int z, int maxRadius, int scanStep) {
         if (roadIndex == null) return Integer.MAX_VALUE;
-        long k = key(x, z);
+        long k = Pos2D.xzKey(x, z);
         int cached = roadDistCache.get(k);
         if (cached != Integer.MIN_VALUE) return cached;
         int dist = roadIndex.approxNearestRoadDistManhattan(x, z, maxRadius, scanStep);
@@ -174,7 +188,7 @@ public class TerrainSampler implements TerrainView {
     public void invalidateAround(int x, int z, int r) {
         for (int dx = -r; dx <= r; dx++) {
             for (int dz = -r; dz <= r; dz++) {
-                long k = key(x + dx, z + dz);
+                long k = Pos2D.xzKey(x + dx, z + dz);
                 cache.remove(k);
                 lightCache.remove(k);
                 roadDistCache.remove(k);
@@ -183,7 +197,7 @@ public class TerrainSampler implements TerrainView {
     }
 
     public Sample sample(int x, int z) {
-        long k = key(x, z);
+        long k = Pos2D.xzKey(x, z);
         Sample cached = cache.get(k);
         if (cached != null) return cached;
 
@@ -401,7 +415,7 @@ public class TerrainSampler implements TerrainView {
 
     @Nullable
     public Sample sampleIfLoaded(int x, int z) {
-        long k = key(x, z);
+        long k = Pos2D.xzKey(x, z);
         Sample cached = cache.get(k);
         if (cached != null) return cached;
         ChunkProviderServer cps = (ChunkProviderServer) world.getChunkProvider();
@@ -415,15 +429,12 @@ public class TerrainSampler implements TerrainView {
      * Use this for lateral wall probes and lookahead penalties to avoid polluting the full cache.
      */
     public int sampleLightIfLoaded(int x, int z) {
-        long k = key(x, z);
+        long k = Pos2D.xzKey(x, z);
 
         // Promote from full cache if available (free).
         Sample full = cache.get(k);
         if (full != null) {
-            return (full.isOcean ? LIGHT_OCEAN_BIT : 0)
-                    | (full.isWater ? LIGHT_WATER_BIT : 0)
-                    | (full.surfaceY & LIGHT_SURFACE_MASK)
-                    | (full.surfaceHardnessCategory << LIGHT_HARDNESS_SHIFT);
+            return packLight(full.surfaceY, full.isWater, full.isOcean, full.surfaceHardnessCategory);
         }
 
         // Check light cache.
@@ -476,8 +487,7 @@ public class TerrainSampler implements TerrainView {
             } catch (Throwable ignored) {}
         }
 
-        int packed = (isOcean ? LIGHT_OCEAN_BIT : 0) | (isWater ? LIGHT_WATER_BIT : 0) | (y & LIGHT_SURFACE_MASK)
-                | (hardnessCat << LIGHT_HARDNESS_SHIFT);
+        int packed = packLight(y, isWater, isOcean, hardnessCat);
         if (lightCache.size() >= MAX_LIGHT_CACHE) lightCache.clear();
         lightCache.put(k, packed);
         return packed;
@@ -552,7 +562,7 @@ public class TerrainSampler implements TerrainView {
                 int maxR = Math.max(1, UltreiaConfig.PATHFINDING.parallelRoadAvoidRadius);
                 int step = Math.max(1, UltreiaConfig.PATHFINDING.parallelRoadAvoidScanStep);
 
-                long kk = key(s.x, s.z);
+                long kk = Pos2D.xzKey(s.x, s.z);
                 int dist = roadDistCache.get(kk);
 
                 if (dist == Integer.MIN_VALUE) {
@@ -921,9 +931,6 @@ public class TerrainSampler implements TerrainView {
         return GroundRules.isRoadReplaceableGround(st);
     }
 
-    private static long key(int x, int z) {
-        return (((long) x) << 32) ^ (z & 0xffffffffL);
-    }
 
     private static boolean isIceBlock(IBlockState st) {
         if (st == null) return false;

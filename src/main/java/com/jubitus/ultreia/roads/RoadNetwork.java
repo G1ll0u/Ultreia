@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.roads;
 
+import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.planner.LogicalEdge;
 import com.jubitus.ultreia.planner.NetworkPlanData;
 import com.jubitus.ultreia.route.RoadType;
@@ -405,7 +406,7 @@ public final class RoadNetwork extends WorldSavedData {
 
     private void indexSegment(RoadSegment seg) {
         for (RoadWaypoint wp : seg.waypoints) {
-            long ck = chunkKey(wp.x >> 4, wp.z >> 4);
+            long ck = Pos2D.xzKey(wp.x >> 4, wp.z >> 4);
             IntArrayList ids = chunkIndex.get(ck);
             if (ids == null) {
                 ids = new IntArrayList(4);
@@ -424,7 +425,7 @@ public final class RoadNetwork extends WorldSavedData {
 
         for (int cx = cminX; cx <= cmaxX; cx++) {
             for (int cz = cminZ; cz <= cmaxZ; cz++) {
-                IntArrayList ids = chunkIndex.get(chunkKey(cx, cz));
+                IntArrayList ids = chunkIndex.get(Pos2D.xzKey(cx, cz));
                 if (ids == null) continue;
                 for (int i = 0; i < ids.size(); i++) {
                     int sid = ids.getInt(i);
@@ -438,7 +439,4 @@ public final class RoadNetwork extends WorldSavedData {
         return result;
     }
 
-    private static long chunkKey(int cx, int cz) {
-        return (((long) cx) << 32) ^ (cz & 0xFFFFFFFFL);
-    }
 }
