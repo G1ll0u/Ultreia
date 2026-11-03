@@ -63,12 +63,12 @@ Packages under `src/main/java/com/jubitus/ultreia/`. This map is provisional unt
 ## Cross-cutting invariants
 
 - **Walkability.** Every elevation step between adjacent road or bridge blocks is ≤ 0.5 blocks (half-slab). Players must never be forced to jump — roads, earthwork ramps and bridge decks alike. Verify it whenever touching terrain-painting or bridge-deck code.
-- **Bridge realism.** A bridge exists only with real clearance below (valley, river, gorge); never over near-flat terrain at near-ground level. Both ends connect smoothly to the approach road — no floating starts, no abrupt drops. `BridgeFeasibility` → `BridgeApproachCheck` → `PathProfileCheck` is the only gatekeeper for bridge placement.
+- **Bridge realism.** A bridge exists only with real clearance below (valley, river, gorge); never over near-flat terrain at near-ground level. Both ends connect smoothly to the approach road — no floating starts, no abrupt drops. `BridgeFeasibility` is the only gate for placing a bridge (it runs `BridgeClearanceCheck` and the exit corridor); the approach walk in `BridgeApproachCheck` is only an A* cost, and `PathProfileCheck` rejects any found path, bridges included, that is not walkable end to end. Never add another bridge gate elsewhere.
 - **Procedural debug visibility.** Every non-trivial decision in generation, pathfinding or painting has a debug log path gated behind a boolean in the `Debug` config category (one switch per subsystem, not one per decision). It must never log per tick or per block.
 - **Async safety.** World mutations happen only on the server thread, inside the tick budget (`GenerationManager.onServerTick`); never from another thread.
 - **Chunks.** Always go through `chunk/ChunkManager` (force-load before touching, bounded count, per-edge lifecycle, unload pressure); never load chunks directly.
 - **Never paint** inside `terrain/ProtectedAreas` (building footprints) or over existing Millénaire path blocks.
-- **Bridge moves are part of A\*** — the pathfinder emits bridge nodes that `RoadPainter` later materialises; do not add a post-pass that invents bridges.
+- **Bridge moves are part of A\*** — `bridge/BridgeMoveGenerator` offers them during the search and `bridge/BridgeSegmentPainter` builds them while the road is painted; do not add a post-pass that invents bridges.
 - **Millénaire is optional.** Nothing outside `mill/` and `mixin/` may require it at class-load time; use `MillPresence`. The late mixin loader queues the mixins only when Millénaire is present; detect it with `getResource()`, never `Class.forName()` (it triggers `MixinTargetAlreadyLoadedException`).
 - **Mixin targets are Millénaire internals**: any change to a mixin means re-checking the target's obfuscated names.
 - **Road types** (`RoadType`: village main vs lone trail) change A* costs, width and earthworks; any new road behaviour must say which types it applies to.

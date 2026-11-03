@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-03)**: phases 0–5 done (in-game checks pending). Phases 0–7 done (in-game checks pending). Phase 8 in progress (8.1–8.5 done).
+**Status (2026-11-03)**: phases 0–8 done (in-game checks pending). Next: phase 9.
 
 ## Goal
 
@@ -236,11 +236,11 @@ Both sources now get the endpoint debug lines; an empty A* path fails the edge i
 `instanceof` checks. One "nearest valid ground point" (A*'s `nearestValidGrid` vs job `findAnchor`: asked).
 Visible (each confirmed): manual paths merge into existing roads; same scan radius for both.
 
-### Phase 8 — Bridges — status: in progress
+### Phase 8 — Bridges — status: done (in-game check pending)
 
 Steps: 8.1 `BridgeSite` (world reads of feasibility) + gorge bridge golden (done) · 8.2 `BridgeDeckProfile`,
 `BridgeFeasibility` split + rejection log, exit corridor into `BridgeApproachCheck` (done) · 8.3 bridge moves and cost out
-of A* (done) · 8.4 `BridgeSegmentPainter` out of `RoadPainter` (done) · 8.5 template side (done) · 8.6 `CLAUDE.md` gatekeeper line.
+of A* (done) · 8.4 `BridgeSegmentPainter` out of `RoadPainter` (done) · 8.5 template side (done) · 8.6 `CLAUDE.md` gatekeeper line (done).
 Decided (user): the approach check stays an A* cost; the whole-path profile check is the walkability gate.
 Already done earlier: one deck profile (0.20), templates validated once per loaded instance.
 The forward-exit check was a subset of the exit-corridor check on the same cell: removed.
@@ -264,7 +264,7 @@ one "may a bridge replace this block" rule (3 copies, same effect); `dryRun` rem
 - Template side: `BridgeTemplateBridgeBuilder` → `BridgeDeckPlacer`, `BridgeStructurePlacer`, `BridgeCellRules`;
   `BridgeLocalFrame` absorbs `BridgeTemplateDirection` and the importer's direction parsing; templates validated
   once at load (not at every bridge). JSON classes (`BridgeTemplate`, `BlockStateRef`, `BridgeTemplateIO`) keep their format.
-- Fix `CLAUDE.md`: the approach check is a gate or a cost (decide with the user), the "only gatekeeper" line rewritten.
+- Fix `CLAUDE.md`: the approach check is a cost (user), the "only gatekeeper" line rewritten (done, with the bridge-moves line).
 
 ### Phase 9 — A* split — status: not started
 
@@ -294,7 +294,7 @@ inside `paintSingle` becomes an explicit argument. Debug switch for earthworks/t
 ### Phase 12 — Wrap-up — status: not started
 
 Root `CLAUDE.md` code map and authorities written, package `CLAUDE.md` files written, invariants re-checked
-(mixin-plugin line, gatekeeper line, Millénaire-allowed packages become `mill/` and `mixin/`), memory cleaned, plan archived.
+(mixin-plugin line, Millénaire-allowed packages become `mill/` and `mixin/`), memory cleaned, plan archived.
 
 ## Considered and left out
 
