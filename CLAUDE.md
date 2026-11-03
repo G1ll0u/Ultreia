@@ -11,18 +11,18 @@
 ./gradlew runClient / runServer
 ```
 
-The shell's default JDK (Java 25) works as is; never use java-27-temurin. There is no `src/test` yet.
+There is no `src/test` yet.
 
 ## How we work
 
 General rules are in `~/.claude/CLAUDE.md`, rules shared by all mods in `/home/user/IdeaProjects/CLAUDE.md`. Ultreïa specifics:
 
 - **For procedural bugs**, build the diagnostic (debug trace) before the fix.
-- **`// INVARIANT:` comments** are actively maintained and trustworthy.
-- **Travellers** (`/home/user/IdeaProjects/Travellers`) is a sibling mod: Ultreïa may be edited and built here, never deployed.
-- **Code style**: split tangled classes, but before adding a class check whether an existing one already owns the concern. Refactor fearlessly: the mod is unreleased alpha, so backwards compatibility and legacy code are not worth preserving. Comment tunable constants only. Ignore unused imports. Prefer FastUtil (`it.unimi.dsi.fastutil`) collections in generation hot paths.
+- **`// INVARIANT:` comments** must stay true: fix or delete one whenever you change the code it guards.
+- **Travellers** (`/home/user/IdeaProjects/Travellers`) reads `api/MPBRoadAPI` by reflection: never rename a public method there or change its signature (Travellers would break with no compile error).
+- **Code style**: split tangled classes, but before adding a class check whether an existing one already owns the concern. Refactor freely, but saved worlds must still load: add new save keys, keep reading the old ones. Comment tunable constants only. Ignore unused imports. Prefer FastUtil (`it.unimi.dsi.fastutil`) collections in generation hot paths.
 - **Config fields** are for what a player or server admin would plausibly tune; purely internal tuning stays a named constant in code. A bugfix never gets an on/off toggle. Debug logging (see invariants) is the only exception.
-- **README** (if any) is for players: no class names, update only for player-visible changes.
+- **README** is for players: no class names, update only for player-visible changes.
 
 ## Documentation rules
 
