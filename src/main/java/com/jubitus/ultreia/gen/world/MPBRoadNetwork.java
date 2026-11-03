@@ -1,6 +1,7 @@
 package com.jubitus.ultreia.gen.world;
 
-import com.jubitus.ultreia.gen.MPBWorldData;
+import com.jubitus.ultreia.planner.LogicalEdge;
+import com.jubitus.ultreia.planner.NetworkPlanData;
 import com.jubitus.ultreia.gen.RoadType;
 import com.jubitus.ultreia.gen.bridge.BridgeGeometry;
 import com.jubitus.ultreia.gen.bridge.BridgeSpan;
@@ -87,7 +88,7 @@ public final class MPBRoadNetwork extends WorldSavedData {
             data = new MPBRoadNetwork();
             storage.setData(NAME, data);
         }
-        if (data.legacyPending) data.inferLegacySegments(MPBWorldData.get(world));
+        if (data.legacyPending) data.inferLegacySegments(NetworkPlanData.get(world));
         return data;
     }
 
@@ -357,7 +358,7 @@ public final class MPBRoadNetwork extends WorldSavedData {
      * the same village pair as each segment's from/to, so a segment matches its edge by endpoints
      * (either order). No match (manual paths, missing data) means a village road.
      */
-    private void inferLegacySegments(MPBWorldData worldData) {
+    private void inferLegacySegments(NetworkPlanData worldData) {
         legacyPending = false;
         List<LogicalEdge> edges = worldData.getLogicalNetwork();
         for (int i = 0; i < segments.size(); i++) {

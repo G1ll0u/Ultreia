@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.world;
+package com.jubitus.ultreia.planner;
 
 /** A logical road edge in the planned network (pre-pathfinding). Used for entity navigation. */
 public final class LogicalEdge {

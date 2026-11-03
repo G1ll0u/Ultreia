@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.job;
 
-import com.jubitus.ultreia.gen.PathNetworkBuilder;
+import com.jubitus.ultreia.planner.NetworkPlanner;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.math.BlockPos;
@@ -74,7 +74,7 @@ public class JobCheckpoint extends WorldSavedData {
         return edges;
     }
 
-    public void save(List<PathNetworkBuilder.Edge> edgeList, int idx, int built, int skipped, int failed, boolean force, boolean dryRun) {
+    public void save(List<NetworkPlanner.Edge> edgeList, int idx, int built, int skipped, int failed, boolean force, boolean dryRun) {
         this.active = true;
         this.edgeIndex = idx;
         this.built = built;
@@ -83,7 +83,7 @@ public class JobCheckpoint extends WorldSavedData {
         this.force = force;
         this.dryRun = dryRun;
         this.edges.clear();
-        for (PathNetworkBuilder.Edge e : edgeList) {
+        for (NetworkPlanner.Edge e : edgeList) {
             this.edges.add(new BlockPos[]{e.a, e.b});
         }
         markDirty();

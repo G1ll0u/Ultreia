@@ -1,15 +1,14 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.planner;
 
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.gen.mill.MillVillageIndex;
-import com.jubitus.ultreia.gen.world.LogicalEdge;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
 
 import java.util.*;
 
-public final class PathNetworkBuilder {
+public final class NetworkPlanner {
 
     // -------------------------------------------------------------------------
     // Public types
@@ -52,7 +51,7 @@ public final class PathNetworkBuilder {
         }
     }
 
-    private PathNetworkBuilder() {}
+    private NetworkPlanner() {}
 
     // -------------------------------------------------------------------------
     // Entry point
@@ -362,6 +361,6 @@ public final class PathNetworkBuilder {
         for (Edge e : edges) {
             logical.add(new LogicalEdge(e.a.getX(), e.a.getZ(), e.b.getX(), e.b.getZ(), e.isLoneTrail));
         }
-        MPBWorldData.get(world).setLogicalNetwork(logical);
+        NetworkPlanData.get(world).setLogicalNetwork(logical);
     }
 }

@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.network;
 
-import com.jubitus.ultreia.gen.PathNetworkBuilder;
-import com.jubitus.ultreia.gen.VillageClassifier;
+import com.jubitus.ultreia.planner.NetworkPlanner;
+import com.jubitus.ultreia.planner.VillageClassifier;
 import com.jubitus.ultreia.gen.mill.MillVillageIndex;
 import com.jubitus.ultreia.integration.MillIntegration;
 import io.netty.buffer.ByteBuf;
@@ -35,7 +35,7 @@ public final class PacketRequestPreview implements IMessage {
             world.addScheduledTask(() -> {
                 List<BlockPos> nodes = MillIntegration.getAllNodePositions(world);
 
-                PathNetworkBuilder.NetworkResult result = PathNetworkBuilder.build(world, nodes);
+                NetworkPlanner.NetworkResult result = NetworkPlanner.build(world, nodes);
 
                 List<PacketNetworkPreview.NodeData> nodeData = buildNodeData(world, nodes, result.villageSizes);
                 List<PacketNetworkPreview.EdgeData> edgeData = buildEdgeData(world, nodes, result.edges);
@@ -80,10 +80,10 @@ public final class PacketRequestPreview implements IMessage {
         private static List<PacketNetworkPreview.EdgeData> buildEdgeData(
                 WorldServer world,
                 List<BlockPos> nodes,
-                List<PathNetworkBuilder.Edge> edges) {
+                List<NetworkPlanner.Edge> edges) {
 
             List<PacketNetworkPreview.EdgeData> out = new ArrayList<>(edges.size());
-            for (PathNetworkBuilder.Edge e : edges) {
+            for (NetworkPlanner.Edge e : edges) {
                 out.add(new PacketNetworkPreview.EdgeData(
                         e.a.getX(), e.a.getZ(), e.b.getX(), e.b.getZ(), e.isLoneTrail));
             }

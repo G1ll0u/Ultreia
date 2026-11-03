@@ -4,8 +4,8 @@ import com.jubitus.ultreia.gen.AStarPathfinder;
 import com.jubitus.ultreia.gen.MPBChunkManager;
 import com.jubitus.ultreia.gen.MPBEndpointResolver;
 import com.jubitus.ultreia.gen.MPBProtectedAreas;
-import com.jubitus.ultreia.gen.MPBWorldData;
-import com.jubitus.ultreia.gen.PathNetworkBuilder;
+import com.jubitus.ultreia.planner.NetworkPlanData;
+import com.jubitus.ultreia.planner.NetworkPlanner;
 import com.jubitus.ultreia.gen.RoadPainter;
 import com.jubitus.ultreia.gen.RoadType;
 import com.jubitus.ultreia.gen.TerrainSampler;
@@ -42,21 +42,21 @@ public final class VillageNetworkJob implements TickedJob {
     private final boolean force;
     private final boolean dryRun;
 
-    private final MPBWorldData saved;
+    private final NetworkPlanData saved;
     private final JobCheckpoint checkpoint;
     private final TerrainSampler sampler;
     private final MPBProtectedAreas protectedAreas;
 
     private final List<BlockPos> nodes;
     private final VillageGateTracker gateTracker = new VillageGateTracker();
-    private final List<PathNetworkBuilder.Edge> edges;
+    private final List<NetworkPlanner.Edge> edges;
 
     private final AStarPathfinder astar = new AStarPathfinder();
 
     private int edgeIndex = 0;
     private int built = 0, skipped = 0, failed = 0;
 
-    private PathNetworkBuilder.Edge curEdge;
+    private NetworkPlanner.Edge curEdge;
     private AStarPathfinder.Session curSession;
     private RoadPainter.Session curPainter;
     @Nullable private BlockPos curFromVillage;
@@ -89,7 +89,7 @@ public final class VillageNetworkJob implements TickedJob {
 
         MillIntegration.logNodeSummary(world);
         this.nodes = MillIntegration.getAllNodePositions(world);
-        this.saved = MPBWorldData.get(world);
+        this.saved = NetworkPlanData.get(world);
         this.checkpoint = JobCheckpoint.get(world);
 
         this.roadIndex = MPBRoadIndexData.get(world);
@@ -107,7 +107,7 @@ public final class VillageNetworkJob implements TickedJob {
             return;
         }
 
-        this.edges = PathNetworkBuilder.build(world, nodes).edges;
+        this.edges = NetworkPlanner.build(world, nodes).edges;
         msg("Edges planned: " + edges.size());
         Ultreia.LOGGER.info("Async generation: nodes={}, edges={}", nodes.size(), edges.size());
 
@@ -136,7 +136,7 @@ public final class VillageNetworkJob implements TickedJob {
 
         MillIntegration.logNodeSummary(world);
         this.nodes = MillIntegration.getAllNodePositions(world);
-        this.saved = MPBWorldData.get(world);
+        this.saved = NetworkPlanData.get(world);
         this.checkpoint = cp;
 
         this.roadIndex = MPBRoadIndexData.get(world);
@@ -151,7 +151,7 @@ public final class VillageNetworkJob implements TickedJob {
         List<BlockPos[]> stored = cp.getEdges();
         this.edges = new ArrayList<>(stored.size());
         for (BlockPos[] pair : stored) {
-            this.edges.add(new PathNetworkBuilder.Edge(pair[0], pair[1]));
+            this.edges.add(new NetworkPlanner.Edge(pair[0], pair[1]));
         }
 
         if (this.edges.isEmpty()) {
@@ -196,7 +196,7 @@ public final class VillageNetworkJob implements TickedJob {
                     return;
                 }
 
-                PathNetworkBuilder.Edge e = edges.get(edgeIndex);
+                NetworkPlanner.Edge e = edges.get(edgeIndex);
                 String key = e.key();
 
                 if (!force && saved.isBuilt(key)) {

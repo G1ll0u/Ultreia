@@ -1,6 +1,5 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.planner;
 
-import com.jubitus.ultreia.gen.world.LogicalEdge;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagIntArray;
 import net.minecraft.nbt.NBTTagList;
@@ -17,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class MPBWorldData extends WorldSavedData {
+public class NetworkPlanData extends WorldSavedData {
 
     private static final String NAME            = "ultreia_data";
     private static final String TAG_EDGES       = "edges";
@@ -29,18 +28,18 @@ public class MPBWorldData extends WorldSavedData {
     private final Map<String, Integer> populations  = new HashMap<>();
     private final List<LogicalEdge>    logicalNetwork = new ArrayList<>();
 
-    public MPBWorldData() { super(NAME); }
-    public MPBWorldData(String name) { super(name); }
+    public NetworkPlanData() { super(NAME); }
+    public NetworkPlanData(String name) { super(name); }
 
     // -------------------------------------------------------------------------
     // Access
     // -------------------------------------------------------------------------
 
-    public static MPBWorldData get(World world) {
+    public static NetworkPlanData get(World world) {
         MapStorage storage = world.getPerWorldStorage();
-        MPBWorldData data = (MPBWorldData) storage.getOrLoadData(MPBWorldData.class, NAME);
+        NetworkPlanData data = (NetworkPlanData) storage.getOrLoadData(NetworkPlanData.class, NAME);
         if (data == null) {
-            data = new MPBWorldData();
+            data = new NetworkPlanData();
             storage.setData(NAME, data);
         }
         return data;

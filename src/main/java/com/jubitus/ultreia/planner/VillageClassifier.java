@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen;
+package com.jubitus.ultreia.planner;
 
 import com.jubitus.ultreia.MillPresence;
 import com.jubitus.ultreia.config.MPBConfig;
@@ -21,10 +21,10 @@ public final class VillageClassifier {
 
     /**
      * Returns population for a village center. Tries live villager count first;
-     * falls back to the last known value stored in MPBWorldData. Returns 0 if unknown.
+     * falls back to the last known value stored in NetworkPlanData. Returns 0 if unknown.
      */
     public static int getPopulation(World world, BlockPos center) {
-        MPBWorldData wd = MPBWorldData.get(world);
+        NetworkPlanData wd = NetworkPlanData.get(world);
 
         if (MillPresence.isPresent()) {
             try {
