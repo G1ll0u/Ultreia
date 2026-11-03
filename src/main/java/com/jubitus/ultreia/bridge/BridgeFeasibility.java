@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.bridge;
 
-import com.jubitus.ultreia.gen.bridge.RasterLine8;
-import com.jubitus.ultreia.gen.bridge.SupercoverLine;
+import com.jubitus.ultreia.geom.RasterLine8;
+import com.jubitus.ultreia.geom.SupercoverLine;
 import com.jubitus.ultreia.bridge.template.BridgeTemplate;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateSelector;
 

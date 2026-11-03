@@ -1,10 +1,10 @@
-package com.jubitus.ultreia.gen.util;
+package com.jubitus.ultreia.geom;
 
 import net.minecraft.util.math.BlockPos;
 
-public final class MPBPos2D {
+public final class Pos2D {
 
-    private MPBPos2D() {}
+    private Pos2D() {}
 
     public static long xzKey(int x, int z) {
         return (((long) x) << 32) ^ (z & 0xffffffffL);

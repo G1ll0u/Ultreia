@@ -5,8 +5,8 @@ import com.jubitus.ultreia.paint.RoadHeightProfile;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.bridge.BridgeSpan;
-import com.jubitus.ultreia.gen.bridge.RasterLine8;
-import com.jubitus.ultreia.gen.bridge.SupercoverLine;
+import com.jubitus.ultreia.geom.RasterLine8;
+import com.jubitus.ultreia.geom.SupercoverLine;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.ArrayList;

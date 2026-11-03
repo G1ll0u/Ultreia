@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.route;
 
+import com.jubitus.ultreia.geom.SupercoverLine;
 import com.jubitus.ultreia.bridge.BridgeFeasibility;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.bridge.BridgeSpan;
@@ -7,10 +8,9 @@ import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.bridge.*;
 import com.jubitus.ultreia.bridge.BridgeApproachCheck;
 import com.jubitus.ultreia.paint.RoadHeightSolver;
-import com.jubitus.ultreia.gen.util.MPBPos2D;
+import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.roads.RoadIndex;
 import com.jubitus.ultreia.roads.RoadNetwork;
 import com.jubitus.ultreia.roads.RoadSegment;
@@ -2253,15 +2253,15 @@ public final class AStarPathfinder {
     }
 
     private static int snap(int v, int step) {
-        return MPBPos2D.snapDown(v, step);
+        return Pos2D.snapDown(v, step);
     }
 
     private static double heuristic(int x, int z, int gx, int gz) {
-        return Math.sqrt(MPBPos2D.distSq(x, z, gx, gz));
+        return Math.sqrt(Pos2D.distSq(x, z, gx, gz));
     }
 
     private static double distSq(int x1, int z1, int x2, int z2) {
-        return MPBPos2D.distSq(x1, z1, x2, z2);
+        return Pos2D.distSq(x1, z1, x2, z2);
     }
 
     private static final int STATE_DIR_BITS = 5;

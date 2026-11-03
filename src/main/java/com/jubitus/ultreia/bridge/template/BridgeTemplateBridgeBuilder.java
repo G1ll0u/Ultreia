@@ -5,10 +5,10 @@ import com.jubitus.ultreia.terrain.GroundRules;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.bridge.BridgeSpan;
-import com.jubitus.ultreia.gen.bridge.RasterLine8;
-import com.jubitus.ultreia.gen.bridge.SupercoverLine;
+import com.jubitus.ultreia.geom.RasterLine8;
+import com.jubitus.ultreia.geom.SupercoverLine;
 import com.jubitus.ultreia.mill.MillPathPalette;
-import com.jubitus.ultreia.gen.util.MPBPos2D;
+import com.jubitus.ultreia.geom.Pos2D;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.block.Block;
@@ -158,7 +158,7 @@ public final class BridgeTemplateBridgeBuilder {
             List<BridgeTemplate.SupportSeed> sliceSeeds = seedsBySlice.get(slice);
             for (BridgeTemplate.SupportSeed s : sliceSeeds) {
                 BlockPos wp = transform(span.centerline, deckHalfY, i, s.lateral, s.relY);
-                long xz = MPBPos2D.xzKey(wp.getX(), wp.getZ());
+                long xz = Pos2D.xzKey(wp.getX(), wp.getZ());
                 IBlockState state = BridgeBlockStateRotation.rotateForPlacement(
                         s.state.toState(),
                         placeCtx
@@ -175,8 +175,8 @@ public final class BridgeTemplateBridgeBuilder {
                 ? Math.max(1, template.maxSupportDepth)
                 : Math.max(8, MPBConfig.BRIDGES.maxSupportDepth);
         for (long xz : supportStarts.keySet()) {
-            int x = MPBPos2D.xFromKey(xz);
-            int z = MPBPos2D.zFromKey(xz);
+            int x = Pos2D.xFromKey(xz);
+            int z = Pos2D.zFromKey(xz);
             SupportStart ss = supportStarts.get(xz);
             extendSupport(world, x, ss.y, z, ss.state, maxSupportDepth, dryRun);
         }
@@ -305,7 +305,7 @@ public final class BridgeTemplateBridgeBuilder {
                                       TerrainSampler sampler,
                                       LongOpenHashSet deckXZ,
                                       boolean enforceUnderBridgeRoadClearance) {
-        long k = MPBPos2D.xzKey(x, z);
+        long k = Pos2D.xzKey(x, z);
         deckXZ.add(k);
 
         if (dryRun) return;

@@ -1,5 +1,7 @@
 package com.jubitus.ultreia.paint;
 
+import com.jubitus.ultreia.geom.RasterLine8;
+import com.jubitus.ultreia.geom.SupercoverLine;
 import com.jubitus.ultreia.roads.RoadJoins;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.bridge.BridgeSpan;
@@ -9,7 +11,6 @@ import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.bridge.*;
 import com.jubitus.ultreia.bridge.template.BridgeBuildService;
 import com.jubitus.ultreia.bridge.template.BridgeTemplate;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;

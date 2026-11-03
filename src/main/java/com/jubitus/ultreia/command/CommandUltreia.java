@@ -7,7 +7,7 @@ import com.jubitus.ultreia.job.ManualPathSelection;
 import com.jubitus.ultreia.job.VillageNetworkJob;
 import com.jubitus.jubiconfig.network.MsgOpenConfigGui;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;
-import com.jubitus.ultreia.gen.util.MPBPos2D;
+import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.roads.RoadNetwork;
 import com.jubitus.ultreia.roads.RoadSegment;
 import com.jubitus.ultreia.roads.RoadWaypoint;
@@ -128,7 +128,7 @@ public final class CommandUltreia extends CommandBase {
                 sender.sendMessage(new TextComponentString("Ultreïa: pos2 is not set. Use /ultreia pos2"));
                 return;
             }
-            if (MPBPos2D.sameXZ(state.pos1, state.pos2)) {
+            if (Pos2D.sameXZ(state.pos1, state.pos2)) {
                 sender.sendMessage(new TextComponentString("Ultreïa: pos1 and pos2 are the same."));
                 return;
             }

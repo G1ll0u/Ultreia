@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.bridge;
+package com.jubitus.ultreia.geom;
 
 import net.minecraft.util.math.BlockPos;
 

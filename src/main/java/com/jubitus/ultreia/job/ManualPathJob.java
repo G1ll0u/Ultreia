@@ -10,7 +10,7 @@ import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.route.PathResult;
 import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;
-import com.jubitus.ultreia.gen.util.MPBPos2D;
+import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.roads.RoadIndex;
 import com.jubitus.ultreia.roads.RoadNetwork;
 import net.minecraft.command.ICommandSender;
@@ -122,7 +122,7 @@ public final class ManualPathJob implements TickedJob {
                     return;
                 }
 
-                if (MPBPos2D.sameXZ(resolvedStart, resolvedGoal)) {
+                if (Pos2D.sameXZ(resolvedStart, resolvedGoal)) {
                     msg("Manual path skipped: start and end resolve to the same anchor.");
                     done = true;
                     return;
