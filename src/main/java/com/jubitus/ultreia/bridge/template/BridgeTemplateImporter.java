@@ -2,7 +2,7 @@ package com.jubitus.ultreia.bridge.template;
 
 import com.jubitus.ultreia.paint.HeadroomClearer;
 import com.jubitus.ultreia.config.UltreiaConfig;
-import com.jubitus.ultreia.terrain.GroundRules;
+import com.jubitus.ultreia.terrain.BlockRules;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.mill.MillPathPalette;
 import net.minecraft.block.Block;
@@ -142,7 +142,7 @@ public final class BridgeTemplateImporter {
         if (world.getTileEntity(pos) != null) return false;
         if (b == Blocks.BEDROCK || b == Blocks.BARRIER) return false;
 
-        if (isImportReplaceable(world, pos, st)) {
+        if (BlockRules.isBridgeReplaceable(world, pos, st)) {
             world.setBlockState(pos, Blocks.AIR.getDefaultState(), 2);
             return true;
         }
@@ -150,24 +150,4 @@ public final class BridgeTemplateImporter {
         return false;
     }
 
-    private static boolean isImportReplaceable(WorldServer world, BlockPos pos, IBlockState st) {
-        if (st == null) return true;
-
-        Material m = st.getMaterial();
-        Block b = st.getBlock();
-
-        if (m == Material.AIR) return true;
-        if (m == Material.PLANTS || m == Material.VINE) return true;
-        if (m.isReplaceable()) return true;
-        if (m == Material.WATER || m == Material.ICE) return true;
-        if (b == Blocks.SNOW_LAYER || b == Blocks.WATERLILY) return true;
-        if (b.isLeaves(st, world, pos) || m == Material.LEAVES) return true;
-        if (MillPathPalette.isMillPath(b)) return true;
-
-        if (UltreiaConfig.PAINTING.clearTrees && HeadroomClearer.CLEAR_TREE_TRUNKS) {
-            if (b.isWood(world, pos) || m == Material.WOOD) return true;
-        }
-
-        return GroundRules.isRoadReplaceableGround(st);
-    }
 }

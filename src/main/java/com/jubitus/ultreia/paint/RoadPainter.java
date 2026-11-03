@@ -6,7 +6,7 @@ import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.roads.RoadJoins;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.bridge.BridgeSpan;
-import com.jubitus.ultreia.terrain.GroundRules;
+import com.jubitus.ultreia.terrain.BlockRules;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.route.RoadType;
@@ -1107,7 +1107,7 @@ public final class RoadPainter {
             if (!earthworks) {
                 BlockPos top = new BlockPos(x, s.surfaceY, z);
                 IBlockState g = world.getBlockState(top);
-                if (!isNaturalGround(g) && !MillPathPalette.isMillPath(g.getBlock())) return;
+                if (!BlockRules.isRoadReplaceableGround(g)) return;
             }
 
             boolean centerish = distSq <= 0.26;
@@ -1690,7 +1690,7 @@ public final class RoadPainter {
                 HeadroomClearer.clearRoadColumn(world, placePos, 3, false, true);
             }
 
-            if (UltreiaConfig.PAINTING.clearTrees && HeadroomClearer.CLEAR_TREE_TRUNKS) {
+            if (BlockRules.treesClearable()) {
                 net.minecraft.util.math.BlockPos dtRootPos =
                         HeadroomClearer.clearTreesAbove(world, placePos, 4, false);
                 // If a whole DT tree was removed, paint a road block at the rootydirt position
@@ -1714,7 +1714,7 @@ public final class RoadPainter {
         // INVARIANT: a road block never floats: at most one block is filled under it, else the cell is skipped.
         private boolean hasSupportWithinOneBlock(BlockPos supportTop) {
             IBlockState ground = world.getBlockState(supportTop);
-            if (isNaturalGround(ground) || MillPathPalette.isMillPath(ground.getBlock())) return true;
+            if (BlockRules.isRoadReplaceableGround(ground)) return true;
             Material m = ground.getMaterial();
             if (m == Material.WATER) return true; // small streams are paved over
             if (m == Material.LAVA || !m.isReplaceable()) return false;
@@ -2263,10 +2263,6 @@ public final class RoadPainter {
             return new Session(world, Collections.<BlockPos>emptyList(), forcedBridges, sampler, protectedAreas, roadIndex, dryRun, allowEarlyMerge);
         }
         return new Session(world, coarsePath, forcedBridges, sampler, protectedAreas, roadIndex, dryRun, allowEarlyMerge);
-    }
-
-    private static boolean isNaturalGround(IBlockState st) {
-        return GroundRules.isRoadReplaceableGround(st);
     }
 
 }

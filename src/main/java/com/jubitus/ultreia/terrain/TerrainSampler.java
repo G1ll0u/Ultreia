@@ -1,6 +1,5 @@
 package com.jubitus.ultreia.terrain;
 
-import com.jubitus.ultreia.paint.HeadroomClearer;
 import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.chunk.ChunkManager;
 import com.jubitus.ultreia.config.UltreiaConfig;
@@ -278,15 +277,15 @@ public class TerrainSampler implements TerrainView {
 
             if (m == Material.AIR) continue;
 
-            if (isWaterLike(st)) {
+            if (BlockRules.isWaterLike(st)) {
                 isWater = true;
                 break;
             }
 
-            if (isWaterSurfaceDecoration(st)) {
+            if (BlockRules.isWaterSurfaceDecoration(st)) {
                 BlockPos below = pos.down();
                 IBlockState belowSt = world.getBlockState(below);
-                if (isWaterLike(belowSt)) {
+                if (BlockRules.isWaterLike(belowSt)) {
                     isWater = true;
                     y = below.getY();
                     break;
@@ -294,7 +293,7 @@ public class TerrainSampler implements TerrainView {
                 continue;
             }
 
-            if (isSkippableTop(st, pos)) continue;
+            if (BlockRules.isSoftClearable(world, pos, st)) continue;
 
             break;
         }
@@ -332,16 +331,16 @@ public class TerrainSampler implements TerrainView {
                 IBlockState ground = world.getBlockState(pos2);
 
                 // Mill path blocks are valid painting surfaces (we paint onto/alongside them).
-                boolean paintable = isNaturalGround(ground) || MillPathPalette.isMillPath(ground.getBlock());
+                boolean paintable = BlockRules.isRoadReplaceableGround(ground);
                 boolean walkable = ground.getMaterial().isSolid() && ground.getMaterial() != Material.LEAVES;
 
                 BlockPos.MutableBlockPos up1 = new BlockPos.MutableBlockPos(x, surfaceY + 1, z);
                 BlockPos.MutableBlockPos up2 = new BlockPos.MutableBlockPos(x, surfaceY + 2, z);
 
-                boolean headroomPath = isClearableOrAir(world.getBlockState(up1), up1, Mode.PATHFINDING)
-                        && isClearableOrAir(world.getBlockState(up2), up2, Mode.PATHFINDING);
-                boolean headroomPaint = isClearableOrAir(world.getBlockState(up1), up1, Mode.PAINTING)
-                        && isClearableOrAir(world.getBlockState(up2), up2, Mode.PAINTING);
+                boolean headroom = BlockRules.isClearableOrAir(world, up1, world.getBlockState(up1))
+                        && BlockRules.isClearableOrAir(world, up2, world.getBlockState(up2));
+                boolean headroomPath = headroom;
+                boolean headroomPaint = headroom;
 
                 boolean manmade = hasManmadeNearby(x, surfaceY, z);
                 boolean tile = hasTileEntityNearby(x, surfaceY, z);
@@ -395,7 +394,7 @@ public class TerrainSampler implements TerrainView {
         if (!isWater) {
             BlockPos.MutableBlockPos fp = new BlockPos.MutableBlockPos(x, surfaceY, z);
             IBlockState fst = world.getBlockState(fp);
-            hasFarmland = GroundRules.isFarmland(fst);
+            hasFarmland = BlockRules.isFarmland(fst);
             try {
                 float h = fst.getBlockHardness(world, fp);
                 surfaceHardnessCategory = hardnessCategoryFromFloat(h);
@@ -496,13 +495,13 @@ public class TerrainSampler implements TerrainView {
             IBlockState st = world.getBlockState(pos);
             Material m = st.getMaterial();
             if (m == Material.AIR) continue;
-            if (isWaterLike(st)) { isWater = true; break; }
-            if (isWaterSurfaceDecoration(st)) {
+            if (BlockRules.isWaterLike(st)) { isWater = true; break; }
+            if (BlockRules.isWaterSurfaceDecoration(st)) {
                 IBlockState below = world.getBlockState(pos.down());
-                if (isWaterLike(below)) { isWater = true; y = y - 1; break; }
+                if (BlockRules.isWaterLike(below)) { isWater = true; y = y - 1; break; }
                 continue;
             }
-            if (isSkippableTop(st, pos)) continue;
+            if (BlockRules.isSoftClearable(world, pos, st)) continue;
             break;
         }
         if (y < 1) y = 1;
@@ -554,7 +553,7 @@ public class TerrainSampler implements TerrainView {
 
         BlockPos top = new BlockPos(x, s.surfaceY, z);
         IBlockState st = world.getBlockState(top);
-        return GroundRules.isRoadReplaceableGround(st) || MillPathPalette.isMillPath(st.getBlock());
+        return BlockRules.isRoadReplaceableGround(st);
     }
 
     private Sample cachePut(long k, Sample out) {
@@ -673,47 +672,7 @@ public class TerrainSampler implements TerrainView {
         if (b.isLeaves(st, world, pos)) return false;
         // Mill/Ultreia path blocks are road infrastructure, not obstacles to paint around.
         if (MillPathPalette.isMillPath(b)) return false;
-        return !isNaturalGround(st);
-    }
-
-    private boolean isSkippableTop(IBlockState st, BlockPos pos) {
-        Material m = st.getMaterial();
-        Block b = st.getBlock();
-        // Lava is "replaceable" in vanilla: stop on it so the column reads as lava, not as the pool floor.
-        if (m == Material.LAVA) return false;
-
-        if (TreeCompat.isTreeFoliageLike(world, pos, st)) return true;
-        if (m.isReplaceable()) return true;
-        if (b.isReplaceable(world, pos)) return true;
-        if (b == Blocks.SNOW_LAYER) return true;
-        if (isWaterSurfaceDecoration(st)) return true;
-
-        if (UltreiaConfig.PAINTING.clearTrees && HeadroomClearer.CLEAR_TREE_TRUNKS) {
-            if (TreeCompat.isTreeWoodLike(world, pos, st)) return true;
-            if (isLikelyTreeWood(st, pos)) return true;
-        }
-
-        return false;
-    }
-
-    private static boolean isWaterSurfaceDecoration(IBlockState st) {
-        if (st == null) return false;
-
-        Block b = st.getBlock();
-        if (b == Blocks.WATERLILY) return true;
-
-        Material m = st.getMaterial();
-        if (m == Material.PLANTS || m == Material.VINE) {
-            ResourceLocation id = b.getRegistryName();
-            if (id != null) {
-                String s = id.toString().toLowerCase(Locale.ROOT);
-                if (s.contains("lilypad") || s.contains("lily_pad") || s.contains("waterlily") || s.contains("water_lily")) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return !BlockRules.isRoadReplaceableGround(st);
     }
 
     /**
@@ -798,7 +757,7 @@ public class TerrainSampler implements TerrainView {
             return (r > 0) ? r : 1;
         }
         if (TreeCompat.isDynamicTreesTrunkShell(st)) return 4; // Trunk shell = thick trunk
-        if (isLikelyTreeWood(st, pos) || st.getBlock().isWood(world, pos) || st.getMaterial() == Material.WOOD) {
+        if (BlockRules.isTreeWood(world, pos, st)) {
             return 9; // Vanilla/unknown tree
         }
         return 0;
@@ -819,27 +778,6 @@ public class TerrainSampler implements TerrainView {
         return 1.0;
     }
 
-    private boolean isLikelyTreeWood(IBlockState st, BlockPos pos) {
-        Block b = st.getBlock();
-        if (!(b.isWood(world, pos) || st.getMaterial() == Material.WOOD)) return false;
-
-        int leaves = 0;
-        BlockPos.MutableBlockPos q = new BlockPos.MutableBlockPos();
-        for (int dx = -2; dx <= 2; dx++) {
-            for (int dz = -2; dz <= 2; dz++) {
-                for (int dy = 0; dy <= 3; dy++) {
-                    q.setPos(pos.getX() + dx, pos.getY() + dy, pos.getZ() + dz);
-                    IBlockState st2 = world.getBlockState(q);
-                    if (st2.getBlock().isLeaves(st2, world, q) || st2.getMaterial() == Material.LEAVES) {
-                        leaves++;
-                        if (leaves >= 3) return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
     private boolean isSmallWaterPatch(int x, int surfaceY, int z) {
         int r = Math.max(1, SMALL_WATER_SCAN_RADIUS);
         int maxCells = Math.max(0, SMALL_WATER_MAX_CELLS);
@@ -853,32 +791,13 @@ public class TerrainSampler implements TerrainView {
 
                 if (!world.isBlockLoaded(p)) continue;
                 IBlockState st = world.getBlockState(p);
-                if (isWaterLike(st)) {
+                if (BlockRules.isWaterLike(st)) {
                     water++;
                     if (water > maxCells) return false;
                 }
             }
         }
         return water > 0 && water <= maxCells;
-    }
-
-    private boolean isClearableOrAir(IBlockState st, BlockPos pos, Mode mode) {
-        Material m = st.getMaterial();
-        Block b = st.getBlock();
-        if (m == Material.AIR) return true;
-        if (m == Material.LAVA) return false;
-
-        if (TreeCompat.isTreeFoliageLike(world, pos, st)) return true;
-        if (m.isReplaceable()) return true;
-        if (b.isReplaceable(world, pos)) return true;
-        if (b == Blocks.SNOW_LAYER) return true;
-
-        if (UltreiaConfig.PAINTING.clearTrees && HeadroomClearer.CLEAR_TREE_TRUNKS) {
-            if (TreeCompat.isTreeWoodLike(world, pos, st)) return true;
-            if (isLikelyTreeWood(st, pos)) return true;
-        }
-
-        return false;
     }
 
     private boolean columnHasMillPath(int x, int surfaceY, int z) {
@@ -935,15 +854,15 @@ public class TerrainSampler implements TerrainView {
             Material m = st.getMaterial();
 
             if (m == Material.AIR) continue;
-            if (isWaterLike(st)) return true;
+            if (BlockRules.isWaterLike(st)) return true;
 
-            if (isWaterSurfaceDecoration(st)) {
+            if (BlockRules.isWaterSurfaceDecoration(st)) {
                 BlockPos below = p.down();
-                if (isWaterLike(world.getBlockState(below))) return true;
+                if (BlockRules.isWaterLike(world.getBlockState(below))) return true;
                 continue;
             }
 
-            if (isSkippableTop(st, p)) continue;
+            if (BlockRules.isSoftClearable(world, p, st)) continue;
 
             break;
         }
@@ -954,33 +873,17 @@ public class TerrainSampler implements TerrainView {
             p.setPos(x, yy, z);
 
             IBlockState st = world.getBlockState(p);
-            if (isWaterLike(st)) return true;
+            if (BlockRules.isWaterLike(st)) return true;
 
-            if (isWaterSurfaceDecoration(st)) {
+            if (BlockRules.isWaterSurfaceDecoration(st)) {
                 BlockPos below = p.down();
-                if (isWaterLike(world.getBlockState(below))) return true;
+                if (BlockRules.isWaterLike(world.getBlockState(below))) return true;
             }
         }
 
         return false;
     }
 
-    private static boolean isNaturalGround(IBlockState st) {
-        return GroundRules.isRoadReplaceableGround(st);
-    }
-
-
-    private static boolean isIceBlock(IBlockState st) {
-        if (st == null) return false;
-        Block b = st.getBlock();
-        return b == Blocks.ICE || b == Blocks.PACKED_ICE || b == Blocks.FROSTED_ICE || st.getMaterial() == Material.ICE;
-    }
-
-    private static boolean isWaterLike(IBlockState st) {
-        if (st == null) return false;
-        Material m = st.getMaterial();
-        return m == Material.WATER || isIceBlock(st);
-    }
     private boolean isInBuildingNoPaintZone(int x, int z) {
         return protectedAreas != null && protectedAreas.contains(x, z);
     }
@@ -1020,15 +923,10 @@ public class TerrainSampler implements TerrainView {
                     if (m == Material.PLANTS || m == Material.VINE) continue;
                     if (m == Material.WATER) continue;
 
-                    if (GroundRules.isRoadReplaceableGround(st)) continue;
-                    if (MillPathPalette.isMillPath(st.getBlock())) continue;
+                    if (BlockRules.isRoadReplaceableGround(st)) continue;
 
-                    // Ignore natural trees (we can clear them).
-                    if (UltreiaConfig.PAINTING.clearTrees && HeadroomClearer.CLEAR_TREE_TRUNKS) {
-                        if (isLikelyTreeWood(st, p) || st.getBlock().isWood(world, p) || st.getMaterial() == Material.WOOD) {
-                            continue;
-                        }
-                    }
+                    // Ignore tree trunks (we can clear them); planks and fences count as building.
+                    if (BlockRules.treesClearable() && BlockRules.isTreeWood(world, p, st)) continue;
 
                     hits++;
                     if (hits >= 3) return true;

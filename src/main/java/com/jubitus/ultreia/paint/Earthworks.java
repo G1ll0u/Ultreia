@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.paint;
 
-import com.jubitus.ultreia.terrain.GroundRules;
+import com.jubitus.ultreia.terrain.BlockRules;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.mill.MillPathPalette;
 import net.minecraft.block.Block;
@@ -79,10 +79,7 @@ public final class Earthworks {
             IBlockState st = world.getBlockState(p);
             Material m = st.getMaterial();
 
-            if (m == Material.AIR) continue;
-            if (m.isReplaceable()) continue;
-            if (m == Material.PLANTS || m == Material.VINE) continue;
-            if (st.getBlock().isLeaves(st, world, p) || m == Material.LEAVES) continue;
+            if (BlockRules.isLooseCover(world, p, st)) continue;
 
             return false;
         }
@@ -106,7 +103,7 @@ public final class Earthworks {
             if (m == Material.AIR) continue;
             if (m == Material.WATER) return false;
             if (world.getTileEntity(p) != null) return false;
-            if (wouldCauseWaterFlow(world, p)) return false;
+            if (BlockRules.wouldCauseWaterFlow(world, p)) return false;
 
             float hardness;
             try {
@@ -129,7 +126,7 @@ public final class Earthworks {
         IBlockState topSt = world.getBlockState(top);
         Material tm = topSt.getMaterial();
 
-        if (tm == Material.AIR || tm.isReplaceable() || tm == Material.PLANTS || tm == Material.VINE || topSt.getBlock().isLeaves(topSt, world, top)) {
+        if (BlockRules.isLooseCover(world, top, topSt)) {
             world.setBlockState(top, Blocks.DIRT.getDefaultState(), 2);
             return true;
         }
@@ -139,16 +136,6 @@ public final class Earthworks {
         }
 
         return true;
-    }
-
-    private static boolean wouldCauseWaterFlow(WorldServer world, BlockPos pos) {
-        BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
-        for (EnumFacing f : EnumFacing.values()) {
-            p.setPos(pos.getX() + f.getXOffset(), pos.getY() + f.getYOffset(), pos.getZ() + f.getZOffset());
-            IBlockState n = world.getBlockState(p);
-            if (n != null && n.getMaterial() == Material.WATER) return true;
-        }
-        return false;
     }
 
     // -----------------------------------------------------------------------
@@ -225,7 +212,7 @@ public final class Earthworks {
             if (m == Material.AIR) continue;
             if (m == Material.WATER) return false;
             if (world.getTileEntity(p) != null) return false;
-            if (wouldCauseWaterFlow(world, p)) return false;
+            if (BlockRules.wouldCauseWaterFlow(world, p)) return false;
             try {
                 if (st.getBlockHardness(world, p) < 0.0f) return false;
             } catch (Throwable t) {
@@ -246,8 +233,7 @@ public final class Earthworks {
             BlockPos p = new BlockPos(x, y, z);
             IBlockState st = world.getBlockState(p);
             Material m = st.getMaterial();
-            if (m == Material.AIR || m.isReplaceable() || m == Material.PLANTS || m == Material.VINE
-                    || st.getBlock().isLeaves(st, world, p) || m == Material.LEAVES) continue;
+            if (BlockRules.isLooseCover(world, p, st)) continue;
             return false;
         }
         for (int y = fromY + 1; y < toY; y++) {

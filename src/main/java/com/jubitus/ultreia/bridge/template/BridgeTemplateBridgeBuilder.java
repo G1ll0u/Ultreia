@@ -5,7 +5,7 @@ import com.jubitus.ultreia.bridge.BridgeFeasibility;
 import com.jubitus.ultreia.paint.HeadroomClearer;
 import com.jubitus.ultreia.geom.LineRaster;
 import com.jubitus.ultreia.config.UltreiaConfig;
-import com.jubitus.ultreia.terrain.GroundRules;
+import com.jubitus.ultreia.terrain.BlockRules;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.bridge.BridgeSpan;
@@ -337,7 +337,7 @@ public final class BridgeTemplateBridgeBuilder {
         IBlockState st = world.getBlockState(pos);
         if (st == null) return true;
         if (world.getTileEntity(pos) != null) return false;
-        if (isReplaceableForBridge(world, pos, st)) {
+        if (BlockRules.isBridgeReplaceable(world, pos, st)) {
             world.setBlockState(pos, Blocks.AIR.getDefaultState(), 2);
             return true;
         }
@@ -364,33 +364,12 @@ public final class BridgeTemplateBridgeBuilder {
         if (world.getTileEntity(pos) != null) return false;
         if (b == Blocks.BEDROCK || b == Blocks.BARRIER) return false;
 
-        if (isReplaceableForBridge(world, pos, st)) {
+        if (BlockRules.isBridgeReplaceable(world, pos, st)) {
             world.setBlockState(pos, Blocks.AIR.getDefaultState(), 2);
             return true;
         }
 
         return false;
-    }
-
-    private static boolean isReplaceableForBridge(World world, BlockPos pos, IBlockState st) {
-        if (st == null) return true;
-
-        Material m = st.getMaterial();
-        Block b = st.getBlock();
-
-        if (m == Material.AIR) return true;
-        if (m == Material.WATER || m == Material.ICE) return true;
-        if (m == Material.PLANTS || m == Material.VINE) return true;
-        if (m.isReplaceable()) return true;
-        if (b == Blocks.WATERLILY || b == Blocks.SNOW_LAYER) return true;
-        if (b.isLeaves(st, world, pos) || m == Material.LEAVES) return true;
-        if (MillPathPalette.isMillPath(b)) return true;
-
-        if (UltreiaConfig.PAINTING.clearTrees && HeadroomClearer.CLEAR_TREE_TRUNKS) {
-            if (b.isWood(world, pos) || m == Material.WOOD) return true;
-        }
-
-        return GroundRules.isRoadReplaceableGround(st);
     }
 
     private static void extendSupport(WorldServer world,
@@ -416,7 +395,8 @@ public final class BridgeTemplateBridgeBuilder {
             if (world.getTileEntity(p) != null) break;
 
             // Tree/vegetation: replace with support and keep descending to actual ground
-            if (isTreeBlock(world, p, st)) {
+            if (BlockRules.isFoliage(world, p, st)
+                    || (BlockRules.treesClearable() && BlockRules.isTreeWood(world, p, st))) {
                 world.setBlockState(p, state, 3);
                 continue;
             }
@@ -439,15 +419,6 @@ public final class BridgeTemplateBridgeBuilder {
         if (st == null) return true;
         Material m = st.getMaterial();
         return m.isSolid() && m != Material.WATER && m != Material.ICE;
-    }
-
-    private static boolean isTreeBlock(World world, BlockPos pos, IBlockState st) {
-        if (st == null) return false;
-        Block b = st.getBlock();
-        Material m = st.getMaterial();
-        if (b.isLeaves(st, world, pos) || m == Material.LEAVES) return true;
-        if (b.isWood(world, pos) || m == Material.WOOD) return true;
-        return false;
     }
 
     private static boolean hasRoadUnderDeckTooClose(WorldServer world, int x, int z, int deckBlockY) {
@@ -483,24 +454,7 @@ public final class BridgeTemplateBridgeBuilder {
             if (m == Material.AIR) continue;
             if (world.getTileEntity(p) != null) continue;
 
-            if (m == Material.PLANTS || m == Material.VINE || m.isReplaceable() || st.getBlock() == Blocks.SNOW_LAYER) {
-                world.setBlockState(p, Blocks.AIR.getDefaultState(), 2);
-                continue;
-            }
-
-            if (st.getBlock().isLeaves(st, world, p) || m == Material.LEAVES) {
-                world.setBlockState(p, Blocks.AIR.getDefaultState(), 2);
-                continue;
-            }
-
-            if (UltreiaConfig.PAINTING.clearTrees && HeadroomClearer.CLEAR_TREE_TRUNKS) {
-                if (st.getBlock().isWood(world, p) || m == Material.WOOD) {
-                    world.setBlockState(p, Blocks.AIR.getDefaultState(), 2);
-                    continue;
-                }
-            }
-
-            if (GroundRules.isRoadReplaceableGround(st)) {
+            if (BlockRules.isBridgeWalkClearable(world, p, st)) {
                 world.setBlockState(p, Blocks.AIR.getDefaultState(), 2);
             }
         }

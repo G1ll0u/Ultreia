@@ -186,45 +186,6 @@ public final class TreeCompat {
         return 1; // DT branch but radius unknown → assume smallest
     }
 
-    public static boolean isTreeWoodLike(World world, BlockPos pos, IBlockState st) {
-        if (st == null) return false;
-
-        if (isDynamicTreesBranch(st) || isDynamicTreesTrunkShell(st)) return true;
-
-        Block b = st.getBlock();
-        Material m = st.getMaterial();
-
-        if (b.isWood(world, pos)) return true;
-        // Modded logs that do not extend BlockLog; planks, fences and doors share Material.WOOD but are built.
-        if (m == Material.WOOD) {
-            ResourceLocation id = b.getRegistryName();
-            return id != null && id.getPath().toLowerCase().contains("log");
-        }
-
-        return false;
-    }
-
-    public static boolean isTreeFoliageLike(World world, BlockPos pos, IBlockState st) {
-        if (st == null) return false;
-
-        Block b = st.getBlock();
-        Material m = st.getMaterial();
-
-        if (b.isLeaves(st, world, pos)) return true;
-        if (m == Material.LEAVES) return true;
-        if (m == Material.PLANTS || m == Material.VINE) return true;
-
-        ResourceLocation id = b.getRegistryName();
-        if (id != null) {
-            String s = id.toString().toLowerCase();
-            if (s.contains("dynamictrees") && (s.contains("leaves") || s.contains("leaf"))) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     /**
      * Removes an entire DynamicTrees tree by flood-filling from any branch block.
      *

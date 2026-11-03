@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.paint;
 
-import com.jubitus.ultreia.terrain.GroundRules;
+import com.jubitus.ultreia.terrain.BlockRules;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.mill.MillPathPalette;
@@ -17,8 +17,6 @@ import net.minecraft.world.World;
 
 public final class HeadroomClearer {
 
-    // Also clear trunk/log blocks when they look like a tree (mod compatible).
-    public static final boolean CLEAR_TREE_TRUNKS = true;
     // When a DynamicTrees trunk with radius >= dtWholeTreeRemovalThreshold is encountered while clearing the...
     private static final boolean DT_REMOVE_WHOLE_TREE = true;
     // DynamicTrees branch radius at or above which the entire tree is removed when it intersects the road...
@@ -41,14 +39,14 @@ public final class HeadroomClearer {
             if (hasTile(world, p) && !TreeCompat.isDynamicTreesBlock(st)) continue;
             if (isAlwaysKeep(st)) continue;
 
-            if (wouldCauseWaterFlow(world, p)) continue;
+            if (BlockRules.wouldCauseWaterFlow(world, p)) continue;
 
-            if (isSoftClearable(world, p, st)) {
+            if (BlockRules.isSoftClearable(world, p, st)) {
                 clearWithPairIfNeeded(world, p, st);
                 continue;
             }
 
-            if (allowSolidNaturalCut && isNaturalSolid(st)) {
+            if (allowSolidNaturalCut && BlockRules.isNaturalSolid(st)) {
                 setAir(world, p);
             }
         }
@@ -68,14 +66,14 @@ public final class HeadroomClearer {
             if (hasTile(world, p) && !TreeCompat.isDynamicTreesBlock(st)) continue;
             if (isAlwaysKeep(st)) continue;
 
-            if (wouldCauseWaterFlow(world, p)) continue;
+            if (BlockRules.wouldCauseWaterFlow(world, p)) continue;
 
-            if (isSoftClearable(world, p, st)) {
+            if (BlockRules.isSoftClearable(world, p, st)) {
                 clearWithPairIfNeeded(world, p, st);
                 continue;
             }
 
-            if (allowSolidNaturalCut && isNaturalSolid(st)) {
+            if (allowSolidNaturalCut && BlockRules.isNaturalSolid(st)) {
                 setAir(world, p);
             }
         }
@@ -105,12 +103,12 @@ public final class HeadroomClearer {
             p.setPos(base.getX(), y, base.getZ());
             IBlockState st = world.getBlockState(p);
             if (st.getMaterial() == Material.AIR) break;
-            boolean isWood = TreeCompat.isTreeWoodLike(world, p, st);
-            boolean isFoliage = !isWood && TreeCompat.isTreeFoliageLike(world, p, st);
+            boolean isWood = BlockRules.isTreeWood(world, p, st);
+            boolean isFoliage = !isWood && BlockRules.isFoliage(world, p, st);
             if (!isWood && !isFoliage) break;
             if (hasTile(world, p)) continue;
             if (isAlwaysKeep(st)) break;
-            if (wouldCauseWaterFlow(world, p)) continue;
+            if (BlockRules.wouldCauseWaterFlow(world, p)) continue;
 
             if (isWood && TreeCompat.isDynamicTreesBranch(st)) {
                 int radius = TreeCompat.getDTBranchRadius(st);
@@ -153,41 +151,6 @@ public final class HeadroomClearer {
         return shellPos;
     }
 
-    public static boolean isSoftClearable(World world, BlockPos pos, IBlockState st) {
-        Material m = st.getMaterial();
-        Block b = st.getBlock();
-
-        if (m == Material.AIR) return false;
-        if (m == Material.LAVA) return false;
-        if (b == Blocks.SNOW_LAYER) return true;
-        if (m.isReplaceable()) return true;
-        if (b.isReplaceable(world, pos)) return true;
-        if (TreeCompat.isTreeFoliageLike(world, pos, st)) return true;
-
-        if (UltreiaConfig.PAINTING.clearTrees && CLEAR_TREE_TRUNKS) {
-            if (TreeCompat.isTreeWoodLike(world, pos, st)) return true;
-        }
-
-        return false;
-    }
-
-    public static boolean isNaturalSolid(IBlockState st) {
-        if (st == null) return false;
-
-        if (MillPathPalette.isMillPath(st.getBlock())) return false;
-
-        if (TreeCompat.isDynamicTreesBlock(st)) {
-            return UltreiaConfig.PAINTING.clearTrees && CLEAR_TREE_TRUNKS;
-        }
-
-        Material m = st.getMaterial();
-        if (!m.isSolid()) return false;
-        if (m == Material.LEAVES) return false;
-        if (m == Material.WOOD) return false;
-
-        return GroundRules.isRoadReplaceableGround(st);
-    }
-
     private static void clearWithPairIfNeeded(World world, BlockPos pos, IBlockState st) {
         Block b = st.getBlock();
 
@@ -197,13 +160,13 @@ public final class HeadroomClearer {
             try {
                 BlockDoublePlant.EnumBlockHalf half = st.getValue(BlockDoublePlant.HALF);
                 if (half == BlockDoublePlant.EnumBlockHalf.UPPER) {
-                    if (!wouldCauseWaterFlow(world, pos) && !wouldCauseWaterFlow(world, pos.down())) {
+                    if (!BlockRules.wouldCauseWaterFlow(world, pos) && !BlockRules.wouldCauseWaterFlow(world, pos.down())) {
                         setAir(world, pos);
                         setAir(world, pos.down());
                     }
                     return;
                 } else {
-                    if (!wouldCauseWaterFlow(world, pos) && !wouldCauseWaterFlow(world, pos.up())) {
+                    if (!BlockRules.wouldCauseWaterFlow(world, pos) && !BlockRules.wouldCauseWaterFlow(world, pos.up())) {
                         setAir(world, pos);
                         setAir(world, pos.up());
                     }
@@ -213,12 +176,12 @@ public final class HeadroomClearer {
             }
         }
 
-        if (wouldCauseWaterFlow(world, pos)) return;
+        if (BlockRules.wouldCauseWaterFlow(world, pos)) return;
         setAir(world, pos);
     }
 
     private static void setAir(World world, BlockPos pos) {
-        if (wouldCauseWaterFlow(world, pos)) return;
+        if (BlockRules.wouldCauseWaterFlow(world, pos)) return;
         world.setBlockState(pos, Blocks.AIR.getDefaultState(), 3);
     }
 
@@ -230,15 +193,5 @@ public final class HeadroomClearer {
     private static boolean isAlwaysKeep(IBlockState st) {
         Block b = st.getBlock();
         return b == Blocks.BEDROCK || b == Blocks.BARRIER;
-    }
-
-    private static boolean wouldCauseWaterFlow(World world, BlockPos pos) {
-        BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
-        for (EnumFacing f : EnumFacing.values()) {
-            p.setPos(pos.getX() + f.getXOffset(), pos.getY() + f.getYOffset(), pos.getZ() + f.getZOffset());
-            IBlockState n = world.getBlockState(p);
-            if (n != null && n.getMaterial() == Material.WATER) return true;
-        }
-        return false;
     }
 }

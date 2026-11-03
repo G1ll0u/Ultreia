@@ -10,7 +10,7 @@ import com.jubitus.ultreia.bridge.template.BridgeTemplate;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateSelector;
 
 import com.jubitus.ultreia.config.UltreiaConfig;
-import com.jubitus.ultreia.terrain.GroundRules;
+import com.jubitus.ultreia.terrain.BlockRules;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.mill.MillPathPalette;
 import com.jubitus.ultreia.mill.MillVillageIndex;
@@ -533,13 +533,13 @@ public final class BridgeFeasibility {
 
         BlockPos top = new BlockPos(sample.x, sample.surfaceY, sample.z);
         IBlockState ground = world.getBlockState(top);
-        if (!isNaturalGroundOnly(ground)) return false;
+        if (!BlockRules.isNaturalGroundOnly(ground)) return false;
 
         IBlockState up1 = world.getBlockState(top.up());
         IBlockState up2 = world.getBlockState(top.up(2));
 
-        if (!isBridgeClearable(world, top.up(), up1, true)) return false;
-        if (!isBridgeClearable(world, top.up(2), up2, true)) return false;
+        if (!BlockRules.isBridgeClearable(world, top.up(), up1, true)) return false;
+        if (!BlockRules.isBridgeClearable(world, top.up(2), up2, true)) return false;
 
         return true;
     }
@@ -560,7 +560,7 @@ public final class BridgeFeasibility {
             if (st.getMaterial() == Material.AIR) continue;
             if (world.getTileEntity(p) != null) return false;
 
-            if (isBridgeClearable(world, p, st, allowDeckSlabAtEndpoint)) continue;
+            if (BlockRules.isBridgeClearable(world, p, st, allowDeckSlabAtEndpoint)) continue;
             return false;
         }
 
@@ -632,32 +632,10 @@ public final class BridgeFeasibility {
 
             BlockPos top = new BlockPos(x, sample.surfaceY, z);
             IBlockState ground = world.getBlockState(top);
-            return isNaturalGroundOnly(ground);
+            return BlockRules.isNaturalGroundOnly(ground);
         }
 
         return sample.surfaceY <= deckSurfaceY;
-    }
-
-    private static boolean isBridgeClearable(WorldServer world,
-                                             BlockPos pos,
-                                             IBlockState st,
-                                             boolean allowTopSlab) {
-        Material m = st.getMaterial();
-        Block b = st.getBlock();
-
-        if (m == Material.AIR) return true;
-        if (m == Material.PLANTS || m == Material.VINE) return true;
-        if (m.isReplaceable()) return true;
-        if (b == Blocks.SNOW_LAYER) return true;
-        if (b.isLeaves(st, world, pos) || m == Material.LEAVES) return true;
-
-        if (UltreiaConfig.PAINTING.clearTrees && HeadroomClearer.CLEAR_TREE_TRUNKS) {
-            if (b.isWood(world, pos) || m == Material.WOOD) return true;
-        }
-
-        if (allowTopSlab && b == Blocks.WOODEN_SLAB) return true;
-
-        return false;
     }
 
     private static boolean isTooNearSettlement(WorldServer world, BlockPos pos, boolean endpoint) {
@@ -736,23 +714,12 @@ public final class BridgeFeasibility {
             if (dy > maxDy + 1) return false;
 
             BlockPos top = new BlockPos(x, sample.surfaceY, z);
-            if (!isNaturalOrRoad(world.getBlockState(top))) return false;
+            if (!BlockRules.isRoadReplaceableGround(world.getBlockState(top))) return false;
 
             prev = sample;
         }
 
         return true;
-    }
-
-    private static boolean isNaturalOrRoad(IBlockState state) {
-        if (state == null) return false;
-        return GroundRules.isRoadReplaceableGround(state) || MillPathPalette.isMillPath(state.getBlock());
-    }
-
-    private static boolean isNaturalGroundOnly(IBlockState state) {
-        if (state == null) return false;
-        if (MillPathPalette.isMillPath(state.getBlock())) return false;
-        return GroundRules.isRoadReplaceableGround(state);
     }
 
     private static boolean sameXZ(BlockPos a, BlockPos b) {
