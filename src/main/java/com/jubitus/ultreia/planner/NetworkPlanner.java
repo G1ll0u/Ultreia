@@ -60,9 +60,6 @@ public final class NetworkPlanner {
     public static NetworkResult build(WorldServer world, List<BlockPos> nodes) {
         if (nodes.size() < 2) return new NetworkResult(Collections.emptyList(), Collections.emptyMap());
 
-        int maxDist = UltreiaConfig.NETWORK.maxEdgeDistance;
-        double maxDistSq = (double) maxDist * (double) maxDist;
-
         // 1. Classify nodes
         List<BlockPos> villages = new ArrayList<>();
         List<BlockPos> lone     = new ArrayList<>();
@@ -91,6 +88,20 @@ public final class NetworkPlanner {
                     nodes.size(), villages.size(), hubs, medium, villages.size() - hubs - medium, lone.size());
         }
 
+        List<Edge> result = connect(villages, lone, sizes);
+
+        // 5. Persist logical network in world data for entity navigation
+        persistLogicalNetwork(world, result);
+
+        return new NetworkResult(result, sizes);
+    }
+
+    /** Steps 2-4 of {@link #build}: pure topology, no world access. */
+    static List<Edge> connect(List<BlockPos> villages, List<BlockPos> lone,
+                              Map<BlockPos, VillageClassifier.VillageSize> sizes) {
+        int maxDist = UltreiaConfig.NETWORK.maxEdgeDistance;
+        double maxDistSq = (double) maxDist * (double) maxDist;
+
         LinkedHashMap<String, Edge> edgesMap = new LinkedHashMap<>();
         List<Edge> committed = new ArrayList<>(); // ordered for crossing checks
 
@@ -118,12 +129,7 @@ public final class NetworkPlanner {
             if (e.distSq() <= maxDistSq) edgesMap.put(e.key(), e);
         }
 
-        List<Edge> result = new ArrayList<>(edgesMap.values());
-
-        // 5. Persist logical network in world data for entity navigation
-        persistLogicalNetwork(world, result);
-
-        return new NetworkResult(result, sizes);
+        return new ArrayList<>(edgesMap.values());
     }
 
     // -------------------------------------------------------------------------
