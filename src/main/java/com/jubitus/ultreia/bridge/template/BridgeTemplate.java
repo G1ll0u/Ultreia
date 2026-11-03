@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.bridge.template;
+package com.jubitus.ultreia.bridge.template;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +12,7 @@ public final class BridgeTemplate {
     public int deckWidth = 3;
     public int segmentLength;
     public String canonicalForward = "south";
-    public MPBBlockStateRef deckSlab;
+    public BlockStateRef deckSlab;
     public List<BlockEntry> blocks = new ArrayList<BlockEntry>();
     public List<SupportSeed> supportSeeds = new ArrayList<SupportSeed>();
     public int minLateral;
@@ -41,12 +41,12 @@ public final class BridgeTemplate {
         public int forward;
         public int lateral;
         public int relY;
-        public MPBBlockStateRef state;
+        public BlockStateRef state;
 
         public BlockEntry() {
         }
 
-        public BlockEntry(int forward, int lateral, int relY, MPBBlockStateRef state) {
+        public BlockEntry(int forward, int lateral, int relY, BlockStateRef state) {
             this.forward = forward;
             this.lateral = lateral;
             this.relY = relY;
@@ -58,12 +58,12 @@ public final class BridgeTemplate {
         public int forward;
         public int lateral;
         public int relY;
-        public MPBBlockStateRef state;
+        public BlockStateRef state;
 
         public SupportSeed() {
         }
 
-        public SupportSeed(int forward, int lateral, int relY, MPBBlockStateRef state) {
+        public SupportSeed(int forward, int lateral, int relY, BlockStateRef state) {
             this.forward = forward;
             this.lateral = lateral;
             this.relY = relY;

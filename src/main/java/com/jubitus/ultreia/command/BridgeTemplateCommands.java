@@ -1,9 +1,14 @@
 package com.jubitus.ultreia.command;
 
+import com.jubitus.ultreia.bridge.template.BridgeDebugExporter;
+import com.jubitus.ultreia.bridge.template.BridgeTemplate;
+import com.jubitus.ultreia.bridge.template.BridgeTemplateAnalyzer;
+import com.jubitus.ultreia.bridge.template.BridgeTemplateImporter;
+import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;
+import com.jubitus.ultreia.bridge.template.BridgeTemplateValidator;
 import com.jubitus.jubiconfig.JubiConfig;
 
 import com.jubitus.ultreia.Tags;
-import com.jubitus.ultreia.gen.bridge.template.*;
 import net.minecraft.command.CommandException;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.player.EntityPlayerMP;

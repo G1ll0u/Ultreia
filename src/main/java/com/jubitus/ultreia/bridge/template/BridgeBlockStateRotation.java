@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.bridge.template;
+package com.jubitus.ultreia.bridge.template;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockRailBase;

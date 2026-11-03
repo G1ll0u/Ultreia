@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.bridge;
 
-import com.jubitus.ultreia.gen.bridge.template.BridgeTemplate;
+import com.jubitus.ultreia.bridge.template.BridgeTemplate;
 import net.minecraft.util.math.BlockPos;
 
 import javax.annotation.Nullable;

@@ -9,7 +9,7 @@ import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.route.PathResult;
 import com.jubitus.ultreia.bridge.BridgeSpan;
-import com.jubitus.ultreia.gen.bridge.template.BridgeTemplateRegistry;
+import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.ultreia.gen.util.MPBPos2D;
 import com.jubitus.ultreia.gen.world.MPBRoadIndexData;
 import com.jubitus.ultreia.gen.world.MPBRoadNetwork;

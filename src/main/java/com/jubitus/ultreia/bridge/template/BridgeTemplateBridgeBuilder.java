@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.bridge.template;
+package com.jubitus.ultreia.bridge.template;
 
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.terrain.GroundRules;

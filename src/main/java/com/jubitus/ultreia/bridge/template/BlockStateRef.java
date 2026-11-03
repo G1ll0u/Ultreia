@@ -1,26 +1,26 @@
-package com.jubitus.ultreia.gen.bridge.template;
+package com.jubitus.ultreia.bridge.template;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.init.Blocks;
 import net.minecraft.util.ResourceLocation;
 
-public final class MPBBlockStateRef {
+public final class BlockStateRef {
 
     public String block;
     public int meta;
 
-    public MPBBlockStateRef() {
+    public BlockStateRef() {
     }
 
-    public MPBBlockStateRef(String block, int meta) {
+    public BlockStateRef(String block, int meta) {
         this.block = block;
         this.meta = meta;
     }
 
-    public static MPBBlockStateRef of(IBlockState state) {
+    public static BlockStateRef of(IBlockState state) {
         if (state == null) {
-            return new MPBBlockStateRef("minecraft:air", 0);
+            return new BlockStateRef("minecraft:air", 0);
         }
 
         Block b = state.getBlock();
@@ -33,7 +33,7 @@ public final class MPBBlockStateRef {
         } catch (Throwable ignored) {
         }
 
-        return new MPBBlockStateRef(name, meta);
+        return new BlockStateRef(name, meta);
     }
 
     public IBlockState toState() {

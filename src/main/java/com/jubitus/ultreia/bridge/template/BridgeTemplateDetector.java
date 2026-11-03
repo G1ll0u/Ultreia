@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.bridge.template;
+package com.jubitus.ultreia.bridge.template;
 
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import net.minecraft.block.Block;
@@ -24,14 +24,14 @@ public final class BridgeTemplateDetector {
         public final BridgeGeometry.Dir2 dir;
         public final BridgeGeometry.Dir2 perp;
         public final int deckY;
-        public final MPBBlockStateRef deckSlab;
+        public final BlockStateRef deckSlab;
         public final List<BlockPos> centerline;
         public final List<BlockPos> deckBlocks;
 
         public DetectedDeck(BridgeGeometry.Dir2 dir,
                             BridgeGeometry.Dir2 perp,
                             int deckY,
-                            MPBBlockStateRef deckSlab,
+                            BlockStateRef deckSlab,
                             List<BlockPos> centerline,
                             List<BlockPos> deckBlocks) {
             this.dir = dir;
@@ -50,7 +50,7 @@ public final class BridgeTemplateDetector {
     public static DetectedDeck findNearestMatchingDeck(World world,
                                                        BlockPos origin,
                                                        int radius,
-                                                       @Nullable MPBBlockStateRef requiredDeckSlab,
+                                                       @Nullable BlockStateRef requiredDeckSlab,
                                                        boolean tolerant) {
         DetectedDeck best = null;
         double bestDistSq = Double.MAX_VALUE;
@@ -89,7 +89,7 @@ public final class BridgeTemplateDetector {
         IBlockState seedState = world.getBlockState(seed);
         if (!isTemplateDeckSlab(seedState)) return null;
 
-        MPBBlockStateRef slabRef = MPBBlockStateRef.of(seedState);
+        BlockStateRef slabRef = BlockStateRef.of(seedState);
 
         DetectedDeck best = null;
         int bestLen = -1;
@@ -136,7 +136,7 @@ public final class BridgeTemplateDetector {
     private static boolean stripeMatches(World world,
                                          BlockPos center,
                                          BridgeGeometry.Dir2 perp,
-                                         MPBBlockStateRef slabRef,
+                                         BlockStateRef slabRef,
                                          boolean tolerant) {
         int matches = 0;
         boolean centerMatches = false;
@@ -161,7 +161,7 @@ public final class BridgeTemplateDetector {
     private static boolean widthIsExactly3(World world,
                                            List<BlockPos> centers,
                                            BridgeGeometry.Dir2 perp,
-                                           MPBBlockStateRef slabRef) {
+                                           BlockStateRef slabRef) {
         for (BlockPos c : centers) {
             IBlockState left2 = world.getBlockState(c.add(-perp.dx * 2, 0, -perp.dz * 2));
             IBlockState right2 = world.getBlockState(c.add(perp.dx * 2, 0, perp.dz * 2));

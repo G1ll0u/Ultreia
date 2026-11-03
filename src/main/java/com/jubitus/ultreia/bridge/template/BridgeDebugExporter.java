@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.bridge.template;
+package com.jubitus.ultreia.bridge.template;
 
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.terrain.GroundRules;
@@ -73,9 +73,9 @@ public final class BridgeDebugExporter {
         int dx;
         int dy;
         int dz;
-        MPBBlockStateRef state;
+        BlockStateRef state;
 
-        DebugBlock(int dx, int dy, int dz, MPBBlockStateRef state) {
+        DebugBlock(int dx, int dy, int dz, BlockStateRef state) {
             this.dx = dx;
             this.dy = dy;
             this.dz = dz;
@@ -100,7 +100,7 @@ public final class BridgeDebugExporter {
 
     public static ExportResult exportNearestBridge(WorldServer world, BlockPos origin) {
         BridgeTemplate active = BridgeTemplateRegistry.getDefaultTemplate();
-        MPBBlockStateRef required = active != null ? active.deckSlab : null;
+        BlockStateRef required = active != null ? active.deckSlab : null;
 
         BridgeTemplateDetector.DetectedDeck deck = BridgeTemplateDetector.findNearestMatchingDeck(
                 world,
@@ -138,7 +138,7 @@ public final class BridgeDebugExporter {
                         p.getX() - out.originX,
                         p.getY() - out.originY,
                         p.getZ() - out.originZ,
-                        MPBBlockStateRef.of(st)
+                        BlockStateRef.of(st)
                 ));
             }
         } else {
@@ -163,7 +163,7 @@ public final class BridgeDebugExporter {
                         p.getX() - out.originX,
                         p.getY() - out.originY,
                         p.getZ() - out.originZ,
-                        MPBBlockStateRef.of(st)
+                        BlockStateRef.of(st)
                 ));
             }
         }

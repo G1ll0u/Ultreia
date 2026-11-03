@@ -3,7 +3,7 @@ package com.jubitus.ultreia;
 import com.jubitus.jubiconfig.JubiConfig;
 import com.jubitus.ultreia.command.CommandUltreia;
 import com.jubitus.ultreia.config.MPBConfig;
-import com.jubitus.ultreia.gen.bridge.template.BridgeDefaultTemplates;
+import com.jubitus.ultreia.bridge.template.BridgeDefaultTemplates;
 import com.jubitus.ultreia.job.GenerationManager;
 import com.jubitus.ultreia.gen.world.MPBChunkLoadingCallback;
 import com.jubitus.ultreia.network.MPBNetworkHandler;

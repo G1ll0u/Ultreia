@@ -1,4 +1,4 @@
-package com.jubitus.ultreia.gen.bridge.template;
+package com.jubitus.ultreia.bridge.template;
 
 import com.jubitus.ultreia.config.MPBConfig;
 import net.minecraft.block.state.IBlockState;
@@ -120,7 +120,7 @@ public final class BridgeTemplateAnalyzer {
                     lc.forward,
                     lc.lateral,
                     lc.relY,
-                    MPBBlockStateRef.of(st)
+                    BlockStateRef.of(st)
             );
             entries.add(be);
 

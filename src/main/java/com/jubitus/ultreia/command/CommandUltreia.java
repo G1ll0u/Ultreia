@@ -7,7 +7,7 @@ import com.jubitus.ultreia.job.ManualPathSelection;
 import com.jubitus.ultreia.job.VillageNetworkJob;
 import com.jubitus.jubiconfig.network.MsgOpenConfigGui;
 import com.jubitus.ultreia.gen.*;
-import com.jubitus.ultreia.gen.bridge.template.BridgeTemplateRegistry;
+import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.ultreia.gen.util.MPBPos2D;
 import com.jubitus.ultreia.gen.world.MPBRoadNetwork;
 import com.jubitus.ultreia.gen.world.RoadSegment;

@@ -2,8 +2,8 @@ package com.jubitus.ultreia.bridge;
 
 import com.jubitus.ultreia.gen.bridge.RasterLine8;
 import com.jubitus.ultreia.gen.bridge.SupercoverLine;
-import com.jubitus.ultreia.gen.bridge.template.BridgeTemplate;
-import com.jubitus.ultreia.gen.bridge.template.BridgeTemplateSelector;
+import com.jubitus.ultreia.bridge.template.BridgeTemplate;
+import com.jubitus.ultreia.bridge.template.BridgeTemplateSelector;
 
 import com.jubitus.ultreia.config.MPBConfig;
 import com.jubitus.ultreia.terrain.GroundRules;
