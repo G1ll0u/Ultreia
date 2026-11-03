@@ -74,6 +74,8 @@ public class TerrainSampler implements TerrainView {
     private static final int EXTRA_PAINTING_GUARD_RADIUS = 1;
     // Cost added when entering an XZ column that belongs to an existing bridge volume (deck + supports + lateral...
     private static final double EXISTING_BRIDGE_VOLUME_AVOIDANCE_COST = 700.0;
+    // Blocks scanned down a neighbouring column when looking for nearby water.
+    private static final int NEAR_WATER_SCAN_DEPTH = 16;
 
     public enum Mode { PATHFINDING, PAINTING }
     public enum ForbiddenReason { NONE, OCEAN, BLACKLIST, WATER, BLOCKED }
@@ -264,42 +266,9 @@ public class TerrainSampler implements TerrainView {
                     || (biomeId != null && biomeId.getPath().contains("ocean"));
         }
 
-        int topY = world.getHeight(pos).getY() - 1;
-        if (topY < 1) topY = 1;
-
-        boolean isWater = false;
-        int y = topY;
-
-        for (int i = 0; i < 256 && y > 1; i++, y--) {
-            pos.setPos(x, y, z);
-            IBlockState st = world.getBlockState(pos);
-            Material m = st.getMaterial();
-
-            if (m == Material.AIR) continue;
-
-            if (BlockRules.isWaterLike(st)) {
-                isWater = true;
-                break;
-            }
-
-            if (BlockRules.isWaterSurfaceDecoration(st)) {
-                BlockPos below = pos.down();
-                IBlockState belowSt = world.getBlockState(below);
-                if (BlockRules.isWaterLike(belowSt)) {
-                    isWater = true;
-                    y = below.getY();
-                    break;
-                }
-                continue;
-            }
-
-            if (BlockRules.isSoftClearable(world, pos, st)) continue;
-
-            break;
-        }
-
-        if (y < 1) y = 1;
-        int surfaceY = y;
+        int column = ColumnSurface.scan(world, pos, x, z);
+        boolean isWater = ColumnSurface.isWater(column);
+        int surfaceY = ColumnSurface.y(column);
 
         boolean inNoPaint = isInBuildingNoPaintZone(x, z);
         boolean hasMillPathCol = (!isWater) && columnHasMillPath(x, surfaceY, z);
@@ -482,29 +451,11 @@ public class TerrainSampler implements TerrainView {
         ChunkProviderServer cps = (ChunkProviderServer) world.getChunkProvider();
         if (cps.getLoadedChunk(x >> 4, z >> 4) == null) return LIGHT_NOT_LOADED;
 
-        // Quick surface scan: top-down, skip air/replaceable/snow/foliage — no paint sub-checks.
+        // Surface only: no paint sub-checks.
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(x, 0, z);
-        int topY = world.getHeight(pos).getY() - 1;
-        if (topY < 1) topY = 1;
-
-        boolean isWater = false;
-        int y = topY;
-
-        for (int i = 0; i < 256 && y > 1; i++, y--) {
-            pos.setPos(x, y, z);
-            IBlockState st = world.getBlockState(pos);
-            Material m = st.getMaterial();
-            if (m == Material.AIR) continue;
-            if (BlockRules.isWaterLike(st)) { isWater = true; break; }
-            if (BlockRules.isWaterSurfaceDecoration(st)) {
-                IBlockState below = world.getBlockState(pos.down());
-                if (BlockRules.isWaterLike(below)) { isWater = true; y = y - 1; break; }
-                continue;
-            }
-            if (BlockRules.isSoftClearable(world, pos, st)) continue;
-            break;
-        }
-        if (y < 1) y = 1;
+        int column = ColumnSurface.scan(world, pos, x, z);
+        boolean isWater = ColumnSurface.isWater(column);
+        int y = ColumnSurface.y(column);
 
         boolean isOcean = false;
         if (UltreiaConfig.GENERAL.forbidOcean && isWater) {
@@ -517,8 +468,7 @@ public class TerrainSampler implements TerrainView {
         int hardnessCat = 0;
         if (!isWater) {
             try {
-                // pos still points to (x, y, z) = the surface block
-                IBlockState surfSt = world.getBlockState(pos);
+                IBlockState surfSt = world.getBlockState(pos.setPos(x, y, z));
                 float h = surfSt.getBlockHardness(world, pos);
                 hardnessCat = hardnessCategoryFromFloat(h);
             } catch (Throwable ignored) {}
@@ -842,30 +792,8 @@ public class TerrainSampler implements TerrainView {
             }
         }
 
-        int topY = world.getHeight(p).getY() - 1;
-        if (topY < 1) topY = 1;
-
-        int start = Math.min(255, Math.max(1, Math.max(yGuess + 2, topY)));
-        int y = start;
-
-        for (int i = 0; i < 16 && y > 1; i++, y--) {
-            p.setPos(x, y, z);
-            IBlockState st = world.getBlockState(p);
-            Material m = st.getMaterial();
-
-            if (m == Material.AIR) continue;
-            if (BlockRules.isWaterLike(st)) return true;
-
-            if (BlockRules.isWaterSurfaceDecoration(st)) {
-                BlockPos below = p.down();
-                if (BlockRules.isWaterLike(world.getBlockState(below))) return true;
-                continue;
-            }
-
-            if (BlockRules.isSoftClearable(world, p, st)) continue;
-
-            break;
-        }
+        int start = Math.min(255, Math.max(yGuess + 2, ColumnSurface.topY(world, p, x, z)));
+        if (ColumnSurface.isWater(ColumnSurface.scan(world, p, x, z, start, NEAR_WATER_SCAN_DEPTH))) return true;
 
         for (int dy = -2; dy <= 2; dy++) {
             int yy = yGuess + dy;

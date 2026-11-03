@@ -1,5 +1,6 @@
 package com.jubitus.ultreia.roads;
 
+import com.jubitus.ultreia.terrain.ColumnSurface;
 import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.MillPresence;
 import com.jubitus.ultreia.block.UltreiaBlocks;
@@ -232,11 +233,7 @@ public class RoadIndex extends WorldSavedData {
             for (int lz = 0; lz < 16; lz++) {
                 int x = wx0 + lx, z = wz0 + lz;
 
-                int y = world.getHeight(pos.setPos(x, 0, z)).getY() - 1;
-                if (y < 1) y = 1;
-                if (y > 255) y = 255;
-
-                int surfaceY = findSurfaceYForScan(world, x, y, z, pos);
+                int surfaceY = ColumnSurface.y(ColumnSurface.scan(world, pos, x, z));
 
                 for (int dy = -2; dy <= 2; dy++) {
                     int yy = surfaceY + dy;
@@ -254,28 +251,6 @@ public class RoadIndex extends WorldSavedData {
             }
         }
         return true;
-    }
-
-    private int findSurfaceYForScan(World world, int x, int startY, int z, BlockPos.MutableBlockPos pos) {
-        int y = startY;
-        for (int i = 0; i < 256 && y > 1; i++, y--) {
-            pos.setPos(x, y, z);
-            IBlockState st = world.getBlockState(pos);
-            if (st.getMaterial().isReplaceable()) continue;
-            Block b = st.getBlock();
-            if (st.getMaterial().isLiquid()) return y;
-            if (b == net.minecraft.init.Blocks.SNOW_LAYER) continue;
-            if (st.getMaterial() == net.minecraft.block.material.Material.PLANTS) continue;
-            if (st.getMaterial() == net.minecraft.block.material.Material.VINE) continue;
-            if (st.getMaterial() == net.minecraft.block.material.Material.LEAVES) continue;
-            if (st.getMaterial() == net.minecraft.block.material.Material.WOOD) continue;
-            try {
-                if (b.isLeaves(st, world, pos)) continue;
-                if (b.isWood(world, pos)) continue;
-            } catch (Throwable ignored) {}
-            return y;
-        }
-        return Math.max(1, y);
     }
 
     // --- Kind lookup (unchanged) ---
