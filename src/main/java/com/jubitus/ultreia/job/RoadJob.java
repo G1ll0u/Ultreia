@@ -103,7 +103,11 @@ public final class RoadJob {
                 preparing = req == EdgeSource.NOT_READY;
                 if (preparing) return;
                 cur = req;
-                if (cur != null) startPathfinding(cur);
+                if (cur != null) {
+                    long ts = System.nanoTime();
+                    startPathfinding(cur);
+                    perf.add(EdgePerf.Step.SEARCH, ts);
+                }
                 continue;
             }
 
@@ -129,7 +133,9 @@ public final class RoadJob {
                         finishEdge("pathfinding returned an empty path");
                         continue;
                     }
+                    long tp = System.nanoTime();
                     startPainting(coarse, result);
+                    perf.add(EdgePerf.Step.PAINT, tp);
                     continue;
                 }
 
