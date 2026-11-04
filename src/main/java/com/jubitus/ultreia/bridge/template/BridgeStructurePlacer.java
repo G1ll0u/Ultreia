@@ -56,6 +56,7 @@ final class BridgeStructurePlacer {
             int slice = Math.floorMod(i, template.segmentLength);
 
             HalfY.SlabPlacement sp = HalfY.slabPlacement(deckHalfY[i]);
+            BridgeGeometry.Dir2 perp = BridgeGeometry.localDir(span.centerline, i).perp();
 
             List<BridgeTemplate.BlockEntry> sliceBlocks = blocksBySlice.get(slice);
             for (BridgeTemplate.BlockEntry b : sliceBlocks) {
@@ -96,7 +97,9 @@ final class BridgeStructurePlacer {
                                     blockLookupBySlice.get(nextSlice).containsKey(ribbonKey(nextLocal.lateral + 1, nextLocal.relY));
                             boolean fillBothCorners = flankedCurrent || flankedNext;
 
-                            sweepDecorativeRibbon(world, wp, nextWp, placeState, placedBlocks, fillBothCorners);
+                            int side = Integer.signum(b.lateral);
+                            sweepDecorativeRibbon(world, wp, nextWp, placeState, placedBlocks, fillBothCorners,
+                                    perp.dx * side, perp.dz * side);
                         }
                     }
                 }
@@ -203,10 +206,12 @@ final class BridgeStructurePlacer {
                                               BlockPos end,
                                               IBlockState state,
                                               LongOpenHashSet placedBlocks,
-                                              boolean fillBothCorners) {
+                                              boolean fillBothCorners,
+                                              int outX,
+                                              int outZ) {
         if (start == null || end == null || state == null) return;
 
-        List<BlockPos> line = buildThinRibbonPath(start, end, fillBothCorners);
+        List<BlockPos> line = buildThinRibbonPath(start, end, fillBothCorners, outX, outZ);
 
         if (line == null || line.isEmpty()) {
             placeTemplateBlockOnce(world, start, state, placedBlocks);
@@ -222,15 +227,15 @@ final class BridgeStructurePlacer {
         for (int idx = 0; idx < line.size(); idx++) {
             BlockPos p = line.get(idx);
             double t = (double) idx / (double) (line.size() - 1);
-            double y = (1.0 - t) * (double) start.getY() + t * (double) end.getY();
+            int y = (int) Math.round((1.0 - t) * (double) start.getY() + t * (double) end.getY());
 
-            // A cell between two heights takes both, so a corner under a deck step leaves no hole.
-            placeTemplateBlockOnce(world, new BlockPos(p.getX(), (int) Math.floor(y), p.getZ()), state, placedBlocks);
-            placeTemplateBlockOnce(world, new BlockPos(p.getX(), (int) Math.ceil(y), p.getZ()), state, placedBlocks);
+            BlockPos wp = new BlockPos(p.getX(), y, p.getZ());
+            placeTemplateBlockOnce(world, wp, state, placedBlocks);
         }
     }
 
-    private static List<BlockPos> buildThinRibbonPath(BlockPos start, BlockPos end, boolean fillBoth) {
+    /** (outX, outZ) points away from the centerline on the ribbon's side; zero for a centered ribbon. */
+    private static List<BlockPos> buildThinRibbonPath(BlockPos start, BlockPos end, boolean fillBoth, int outX, int outZ) {
         int dx = end.getX() - start.getX();
         int dz = end.getZ() - start.getZ();
 
@@ -247,8 +252,13 @@ final class BridgeStructurePlacer {
                 out.add(new BlockPos(start.getX() + dx, 0, start.getZ()));
                 out.add(new BlockPos(start.getX(), 0, start.getZ() + dz));
             } else {
-                // Thin decorative element (barrier, railing): single-corner zigzag stays 1 block wide.
-                out.add(new BlockPos(start.getX() + dx, 0, start.getZ()));
+                // Thin element (wall, railing): one corner, the outer one, so the zigzag stays 1 block
+                // wide and never lands on the deck's diagonal corner cells.
+                if (dz * outZ > dx * outX) {
+                    out.add(new BlockPos(start.getX(), 0, start.getZ() + dz));
+                } else {
+                    out.add(new BlockPos(start.getX() + dx, 0, start.getZ()));
+                }
             }
             out.add(new BlockPos(end.getX(), 0, end.getZ()));
             return dedupXZ(out);
