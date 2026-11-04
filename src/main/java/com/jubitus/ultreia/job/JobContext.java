@@ -60,9 +60,11 @@ final class JobContext {
         chunkManager.releaseEdge(world);
     }
 
+    /** To the player who started the job, else to the server log (a resumed job has no player). */
     void msg(String s) {
         ICommandSender sender = senderRef.get();
         if (sender != null) sender.sendMessage(new TextComponentString(s));
+        else com.jubitus.ultreia.Ultreia.LOGGER.info("[Ultreia job] {}", s);
     }
 
     int dim() {

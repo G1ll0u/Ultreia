@@ -47,8 +47,6 @@ import static com.jubitus.ultreia.route.GridMoves.turnCost;
  */
 public final class AStarSearch {
 
-    // Wall-clock timeout in seconds per path.
-    private static final int MAX_WALL_TIME_SECONDS = 320;
     // Maximum number of full-path profile rejections before A* gives up.
     private static final int PROFILE_REJECTION_LIMIT = 300;
     // Road-snap only triggers this many grid steps away from the start.
@@ -120,6 +118,8 @@ public final class AStarSearch {
     private double snapMinDistSq = 0;
 
     private long sessionStartNs = System.nanoTime();
+    // Time spent inside advance() over both passes: the search limit ignores the budget and server load.
+    private long searchNs = 0L;
     private int profileRejectionCount = 0;
 
     private boolean failed = false;
@@ -263,7 +263,9 @@ public final class AStarSearch {
     }
 
     public StepResult advance(long deadlineNs) {
+        long t0 = System.nanoTime();
         StepResult r = advanceSearch(deadlineNs);
+        searchNs += System.nanoTime() - t0;
         if (r == StepResult.RUNNING) return r;
         if (refineBand != null) return endRefinement(r);
         if (r == StepResult.FOUND && heuristicWeight > 1.0) {
@@ -334,12 +336,12 @@ public final class AStarSearch {
         if (reconstructor == null) {
             long nowNs = System.nanoTime();
 
-            // Wall-clock timeout guard — prevents infinite-seeming hangs on impossible terrain.
-            if (nowNs - sessionStartNs > (long) MAX_WALL_TIME_SECONDS * 1_000_000_000L) {
-                return failOrPartial("wall-clock timeout (" + MAX_WALL_TIME_SECONDS + "s)");
+            int maxSearchSeconds = UltreiaConfig.PATHFINDING.maxSearchSeconds;
+            if (searchNs > maxSearchSeconds * 1_000_000_000L) {
+                return failOrPartial("search time limit (" + maxSearchSeconds + " s of search)");
             }
 
-            diag.logProgress(nowNs, sessionStartNs, st, bestApproxHeuristic);
+            diag.logProgress(nowNs, sessionStartNs, searchNs, st, bestApproxHeuristic);
 
             while (!st.open.isEmpty() && st.iterations < bounds.maxIterations && System.nanoTime() < deadlineNs) {
                 st.iterations++;

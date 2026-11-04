@@ -72,15 +72,15 @@ public final class AStarDiagnostics {
     }
 
     /** Periodic log line so the user can see A* is still alive. */
-    void logProgress(long nowNs, long startNs, SearchState st, double bestHeuristic) {
+    void logProgress(long nowNs, long startNs, long searchNs, SearchState st, double bestHeuristic) {
         if (!UltreiaConfig.DEBUG.logPathfinding || nowNs - lastProgressLogNs <= PROGRESS_LOG_INTERVAL_NS) return;
         lastProgressLogNs = nowNs;
         long elapsedSec = (nowNs - startNs) / 1_000_000_000L;
         Ultreia.LOGGER.info(
-                "[Ultreia A*] still running: it={} closed={} open={} best_dist={} elapsed={}s",
+                "[Ultreia A*] still running: it={} closed={} open={} best_dist={} elapsed={}s search={}s",
                 st.iterations, st.closed.size(), st.open.size(),
                 Double.isFinite(bestHeuristic) ? (int) bestHeuristic : -1,
-                elapsedSec);
+                elapsedSec, searchNs / 1_000_000_000L);
     }
 
     void bridge(String msg) {

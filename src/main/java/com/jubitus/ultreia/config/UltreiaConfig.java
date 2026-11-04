@@ -76,6 +76,10 @@ public class UltreiaConfig {
         @Config.RangeDouble(min = 1.0, max = 10.0)
         public double searchSpeedFactor = 5.0;
 
+        @Config.Comment("Longest time spent searching for one road before giving up; higher finds roads through hard terrain, but an unreachable village keeps the road builder busy longer.")
+        @Config.RangeInt(min = 10, max = 3600)
+        public int maxSearchSeconds = 300;
+
         @Config.Comment("When a village cannot be reached, build the road as far as possible instead of giving up.")
         public boolean allowPartialPathFallback = false;
 
