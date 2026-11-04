@@ -91,8 +91,8 @@ public final class ChunkManager {
             }
         }
 
-        // Trigger async save for dirty chunks before queuing unloads
-        try { cps.saveChunks(true); } catch (Throwable ignored) {}
+        // No save here: vanilla saves each chunk when it unloads, and autosave covers chunks players keep loaded
+        // (saveChunks(true) serialised every loaded chunk of the server on the server thread).
 
         // Snapshot the forced-by-others map once to avoid redundant calls in the loop
         ImmutableSetMultimap<ChunkPos, ForgeChunkManager.Ticket> forced = snapshotForcedChunks(world);

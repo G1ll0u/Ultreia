@@ -171,10 +171,7 @@ public final class EndpointResolver {
                 double proj = dxOurs * ux + dzOurs * uz;
                 if (proj <= 0.0) continue; // behind village center
 
-                TerrainSampler.Sample sm = sampler.sample(tx, tz);
-                if (sm == null || sm.isOcean || sm.isWater) continue;
-
-                Integer millY = findMillPathY(world, tx, tz, sm.surfaceY);
+                Integer millY = millPathOnLand(world, sampler, tx, tz);
                 if (millY == null) continue;
 
                 bestForGateScore = gateAlignment * 0.4 * dlen + proj * 0.6 - usagePenalty;
@@ -224,10 +221,7 @@ public final class EndpointResolver {
             int tx = cx + ox, tz = cz + oz;
             if (protectedAreas != null && protectedAreas.contains(tx, tz)) continue;
 
-            TerrainSampler.Sample sm = sampler.sample(tx, tz);
-            if (sm == null || sm.isOcean || sm.isWater) continue;
-
-            Integer millY = findMillPathY(world, tx, tz, sm.surfaceY);
+            Integer millY = millPathOnLand(world, sampler, tx, tz);
             if (millY == null) continue;
 
             return new BlockPos(tx, millY, tz);
@@ -266,6 +260,24 @@ public final class EndpointResolver {
 
     private static int offsetZ(int packed) { return (short) packed; }
 
+
+    /**
+     * Y of a path block at (x, z) when the column is land (not ocean, not water), or null.
+     * The full sample (trees, buildings, water nearby) is read only where the surface scan finds a path block:
+     * gate searches cover thousands of columns and almost none hold one.
+     */
+    @Nullable
+    private static Integer millPathOnLand(WorldServer world, TerrainSampler sampler, int x, int z) {
+        int light = sampler.sampleLightIfLoaded(x, z);
+        if (light != TerrainSampler.LIGHT_NOT_LOADED) {
+            // Same surface scan as the full sample, so a miss here is a miss there.
+            if (TerrainSampler.lightIsWater(light)) return null;
+            if (findMillPathY(world, x, z, TerrainSampler.lightSurfaceY(light)) == null) return null;
+        }
+        TerrainSampler.Sample sm = sampler.sample(x, z);
+        if (sm == null || sm.isOcean || sm.isWater) return null;
+        return findMillPathY(world, x, z, sm.surfaceY);
+    }
 
     /** Y of a Millénaire/Ultreïa path block near the ground at (x, z), or null. */
     @Nullable
