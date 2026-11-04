@@ -395,10 +395,6 @@ public final class RoadPainter {
                 if (past > absoluteMin) absoluteMin = past;
             }
 
-            // Standard minimum for unknown roads: 20% of path.
-            // LONE_TRAIL ignores this — it should merge at the first available road.
-            int standardMin = isLoneTrail ? absoluteMin : Math.max(absoluteMin, path.size() / 5);
-
             // LONE_TRAIL scans to the very end of the path so it can merge even when the road
             // is reached late (e.g. after A* road-snap, or when the road runs at the destination).
             int scanTo = isLoneTrail
@@ -454,9 +450,8 @@ public final class RoadPainter {
                     if (odx * odx + odz * odz < startMinDistSq) continue;
                 }
 
-                // LONE_TRAIL grafts onto any existing road unconditionally.
-                // Other road types require connectivity to the destination before the standard minimum.
-                if (!isLoneTrail && idx < standardMin && !isRoadConnectedToDestination(near.getX(), near.getZ())) continue;
+                // LONE_TRAIL grafts onto any existing road; other types stop only on a road that leads to the destination.
+                if (!isLoneTrail && !isRoadConnectedToDestination(near.getX(), near.getZ())) continue;
 
                 // The connector climbs at most one half-block per cell, so the height gap is capped by its length.
                 int connectorCells = Math.max(Math.abs(p.getX() - near.getX()), Math.abs(p.getZ() - near.getZ()));
