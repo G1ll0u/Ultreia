@@ -2,7 +2,7 @@ package com.jubitus.ultreia.bridge;
 
 import com.jubitus.ultreia.bridge.template.BridgeTemplate;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateSelector;
-import com.jubitus.ultreia.mill.MillVillageIndex;
+import com.jubitus.ultreia.mill.Villages;
 import com.jubitus.ultreia.terrain.BlockRules;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
@@ -51,12 +51,12 @@ public final class WorldBridgeSite implements BridgeSite {
 
     @Override
     public boolean isNearVillage(BlockPos pos, int radius) {
-        return MillVillageIndex.isNearVillage(world, pos, radius);
+        return Villages.isNearVillage(world, pos, radius);
     }
 
     @Override
     public boolean isNearAnySettlement(BlockPos pos, int radius) {
-        return MillVillageIndex.isNearAnySettlement(world, pos, radius);
+        return Villages.isNearAnySettlement(world, pos, radius);
     }
 
     @Nullable

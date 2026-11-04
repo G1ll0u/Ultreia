@@ -3,8 +3,7 @@ package com.jubitus.ultreia.map;
 import com.jubitus.ultreia.net.NetworkHandler;
 import com.jubitus.ultreia.planner.NetworkPlanner;
 import com.jubitus.ultreia.planner.VillageClassifier;
-import com.jubitus.ultreia.mill.MillVillageIndex;
-import com.jubitus.ultreia.mill.MillWorldDataRegistry;
+import com.jubitus.ultreia.mill.Villages;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.util.math.BlockPos;
@@ -34,7 +33,7 @@ public final class PacketRequestPreview implements IMessage {
             if (!player.canUseCommand(2, "ultreia")) return null;
 
             world.addScheduledTask(() -> {
-                List<BlockPos> nodes = MillWorldDataRegistry.getAllNodePositions(world);
+                List<BlockPos> nodes = Villages.nodes(world);
 
                 NetworkPlanner.NetworkResult result = NetworkPlanner.build(world, nodes);
 
@@ -54,7 +53,7 @@ public final class PacketRequestPreview implements IMessage {
 
             List<PacketNetworkPreview.NodeData> out = new ArrayList<>(nodes.size());
             for (BlockPos pos : nodes) {
-                MillVillageIndex.VillageInfo vi = MillVillageIndex.findExact(world, pos);
+                Villages.Settlement vi = Villages.at(world, pos);
                 boolean isVillage = vi == null || vi.isVillage;
                 String name       = vi != null ? vi.name : (pos.getX() + "/" + pos.getZ());
                 VillageClassifier.VillageSize size =

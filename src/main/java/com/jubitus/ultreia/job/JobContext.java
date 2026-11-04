@@ -4,7 +4,7 @@ import com.jubitus.ultreia.MillPresence;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.ultreia.chunk.ChunkManager;
 import com.jubitus.ultreia.config.UltreiaConfig;
-import com.jubitus.ultreia.mill.MillBuildingZones;
+import com.jubitus.ultreia.mill.Villages;
 import com.jubitus.ultreia.roads.RoadIndex;
 import com.jubitus.ultreia.roads.RoadNetwork;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
@@ -45,7 +45,7 @@ final class JobContext {
         this.roadNetwork = RoadNetwork.get(world);
 
         this.protectedAreas = new ProtectedAreas();
-        if (MillPresence.isPresent()) MillBuildingZones.addMillenaireZones(world, protectedAreas);
+        Villages.addProtectedZones(world, protectedAreas);
         this.sampler.setProtectedAreas(protectedAreas);
     }
 

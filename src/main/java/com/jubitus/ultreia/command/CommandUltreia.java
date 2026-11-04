@@ -11,7 +11,6 @@ import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.roads.RoadNetwork;
 import com.jubitus.ultreia.roads.RoadSegment;
 import com.jubitus.ultreia.roads.RoadWaypoint;
-import com.jubitus.ultreia.mill.MillWorldDataRegistry;
 import com.jubitus.ultreia.net.NetworkHandler;
 import com.jubitus.ultreia.map.PacketOpenMapGui;
 import net.minecraft.command.CommandBase;

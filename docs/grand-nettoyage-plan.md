@@ -51,7 +51,7 @@ roads and bridges, completing an existing network, new villages.
 | `bridge/template/` | template classes (split in phase 8) |
 | `roads/` | `RoadNetwork`, `RoadIndex`, `RoadNavigator`, `RoadSegment`, `RoadWaypoint`, `RoadJoins` |
 | `chunk/` | `ChunkManager`, `ChunkLoadingCallback` |
-| `mill/` | `MillVillageIndex` (split in phase 11), `MillBuildingZones`, `MillPathBlocks`, `MillPathStability`, `MillWorldDataRegistry`, `MillFileNodeLoader`; Millénaire part of `RoadIndex.kindFromState`; new Millénaire-free facade `Villages` |
+| `mill/` | `Villages` (the only door), `MillSettlements`, `MillBuildings`, `MillPathBlocks`, `MillPathStability`, `MillWorldDataRegistry`, `MillFileNodeLoader`; Millénaire part of `RoadIndex.kindFromState` |
 | `geom/` | `Pos2D`, `RasterLine8` + `SupercoverLine` (→ `LineRaster`, phase 4), half-Y encoding from `BridgeGeometry` (→ `HalfY`) |
 | `map/` | `MapScreen` split (phase 11), `PacketOpenMapGui`, `PacketRequestPreview`, `PacketNetworkPreview` |
 | `net/` | `NetworkHandler` (channel only) |
@@ -312,7 +312,14 @@ paint diagnostics), `TalusPass`, `PathPalette`; `mill/MillPathBlocks` holds only
 (~300), `paint/PathPalette` (kind and support choice; Millénaire states in `mill/MillPathBlocks`). The cursor read
 inside `paintSingle` becomes an explicit argument. Debug switch for earthworks/terrain clearing.
 
-### Phase 11 — Millénaire index, map GUI, commands — status: not started
+### Phase 11 — Millénaire index, map GUI, commands — status: in progress
+
+Steps: 11.1 `mill/`: `Villages` door, `MillSettlements`, `MillBuildings` (done) · 11.2 map screen split · 11.3 commands
+and lang · 11.4 README.
+Decided (user): gates are built wall buildings whose plan key contains "gate" (wall slopes were wrongly taken as
+gates); footprints are the exact plan box (Travellers' computation) plus 1 block, for every Millénaire building (no
+radius around villages); Millénaire data through one accessor (Millénaire's own first, the mixin-captured instance as
+fallback, files as last resort).
 
 - `MillVillageIndex` (950) → `MillSettlements` (~400), `MillBuildings` (~400); `mill/Villages` is the only door
   for code outside `mill/` (checks `MillPresence`, vanilla types only).

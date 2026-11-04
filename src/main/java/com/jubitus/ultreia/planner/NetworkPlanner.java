@@ -3,7 +3,7 @@ package com.jubitus.ultreia.planner;
 import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.UltreiaConfig;
-import com.jubitus.ultreia.mill.MillVillageIndex;
+import com.jubitus.ultreia.mill.Villages;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
 
@@ -74,7 +74,7 @@ public final class NetworkPlanner {
         Map<BlockPos, VillageClassifier.VillageSize> sizes = new HashMap<>();
 
         for (BlockPos n : nodes) {
-            MillVillageIndex.VillageInfo vi = MillVillageIndex.findExact(world, n);
+            Villages.Settlement vi = Villages.at(world, n);
             if (vi == null) {
                 // Unknown node treated as village to keep connectivity
                 villages.add(n);

@@ -2,7 +2,7 @@ package com.jubitus.ultreia.planner;
 
 import com.jubitus.ultreia.MillPresence;
 import com.jubitus.ultreia.config.UltreiaConfig;
-import com.jubitus.ultreia.mill.MillVillageIndex;
+import com.jubitus.ultreia.mill.Villages;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
@@ -28,7 +28,7 @@ public final class VillageClassifier {
 
         if (MillPresence.isPresent()) {
             try {
-                int live = MillVillageIndex.countVillagersInVillage(world, center);
+                int live = Villages.population(world, center);
                 if (live > 0) {
                     wd.storeVillagePopulation(center, live);
                     return live;

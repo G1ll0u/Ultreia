@@ -1,13 +1,12 @@
 package com.jubitus.ultreia.route;
 
 import com.jubitus.ultreia.terrain.ColumnSurface;
-import com.jubitus.ultreia.mill.MillBuildingZones;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.mill.MillPathBlocks;
-import com.jubitus.ultreia.mill.MillVillageIndex;
+import com.jubitus.ultreia.mill.Villages;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
@@ -18,8 +17,6 @@ import java.util.List;
 
 public final class EndpointResolver {
 
-    // Radius around village center to search for gate buildings (borderpost_gate, full_wall_gateway, etc.) when...
-    private static final int GATE_SEARCH_RADIUS = 120;
     // Radius around each gate building's anchor to scan for Millénaire path blocks.
     private static final int GATE_MILL_PATH_SEARCH_RADIUS = 120;
 
@@ -47,18 +44,16 @@ public final class EndpointResolver {
             @Nullable VillageGateTracker gateTracker,
             @Nullable VillageGateField[] gateFieldOut
     ) {
-        MillVillageIndex.VillageInfo vi = MillVillageIndex.findExact(world, nodeCenter);
+        Villages.Settlement vi = Villages.at(world, nodeCenter);
         boolean isVillage = (vi != null && vi.isVillage);
 
-        int protectR = isVillage
-                ? Math.max(0, MillBuildingZones.VILLAGE_NO_PAINT_RADIUS)
-                : Math.max(0, MillBuildingZones.LONE_BUILDING_NO_PAINT_RADIUS);
+        int protectR = Math.max(0, Villages.CENTER_PROTECT_RADIUS);
 
         if (isVillage) {
             // Collect all gate candidates with Mill-path entries.
             List<GateCandidate> candidates = collectGateCandidates(
                     world, sampler, nodeCenter, otherNodeCenter,
-                    GATE_SEARCH_RADIUS, GATE_MILL_PATH_SEARCH_RADIUS,
+                    GATE_MILL_PATH_SEARCH_RADIUS,
                     gateTracker);
 
             // Build VillageGateField from all candidates so A* can terminate at any gate.
@@ -130,12 +125,10 @@ public final class EndpointResolver {
             TerrainSampler sampler,
             BlockPos villageCenter,
             BlockPos otherNodeCenter,
-            int gateSearchRadius,
             int gateLocalRadius,
             @Nullable VillageGateTracker tracker
     ) {
-        List<MillVillageIndex.BuildingInfo> gates =
-                MillVillageIndex.getVillageGateInfos(world, villageCenter, gateSearchRadius, 64);
+        List<BlockPos> gates = Villages.gates(world, villageCenter);
         if (gates.isEmpty()) return java.util.Collections.emptyList();
 
         double ddx = otherNodeCenter.getX() - villageCenter.getX();
@@ -149,14 +142,14 @@ public final class EndpointResolver {
         List<GateCandidate> result = new ArrayList<>();
         int[] offsets = null;
 
-        for (MillVillageIndex.BuildingInfo bi : gates) {
-            double gx = bi.chestPos.getX() - villageCenter.getX();
-            double gz = bi.chestPos.getZ() - villageCenter.getZ();
+        for (BlockPos gate : gates) {
+            double gx = gate.getX() - villageCenter.getX();
+            double gz = gate.getZ() - villageCenter.getZ();
             double gl = Math.sqrt(gx * gx + gz * gz);
             double gateAlignment = (gl > 0.5) ? ((gx / gl) * ux + (gz / gl) * uz) : 0.0;
 
             double usagePenalty = (tracker != null)
-                    ? tracker.usagePenalty(bi.chestPos.getX(), bi.chestPos.getZ())
+                    ? tracker.usagePenalty(gate.getX(), gate.getZ())
                     : 0.0;
 
             BlockPos bestForGate = null;
@@ -165,7 +158,7 @@ public final class EndpointResolver {
             // Within one gate only proj varies in the score, so the first match in farthest-first
             // order is the best one (same result as scoring every column, without reading them all).
             if (offsets == null) offsets = farthestFirstOffsets(gateLocalRadius, ux, uz);
-            int cgx = bi.chestPos.getX(), cgz = bi.chestPos.getZ();
+            int cgx = gate.getX(), cgz = gate.getZ();
             for (int packed : offsets) {
                 int tx = cgx + offsetX(packed), tz = cgz + offsetZ(packed);
 

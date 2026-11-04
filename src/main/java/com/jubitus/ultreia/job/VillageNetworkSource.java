@@ -1,9 +1,9 @@
 package com.jubitus.ultreia.job;
 
+import com.jubitus.ultreia.mill.Villages;
+
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.UltreiaConfig;
-import com.jubitus.ultreia.mill.MillVillageIndex;
-import com.jubitus.ultreia.mill.MillWorldDataRegistry;
 import com.jubitus.ultreia.planner.NetworkPlanData;
 import com.jubitus.ultreia.planner.NetworkPlanner;
 import com.jubitus.ultreia.roads.RoadJoins;
@@ -49,8 +49,8 @@ final class VillageNetworkSource implements EdgeSource {
         this.saved = NetworkPlanData.get(ctx.world);
         this.checkpoint = JobCheckpoint.get(ctx.world);
 
-        MillWorldDataRegistry.logNodeSummary(ctx.world);
-        List<BlockPos> nodes = MillWorldDataRegistry.getAllNodePositions(ctx.world);
+        Villages.logNodeSummary(ctx.world);
+        List<BlockPos> nodes = Villages.nodes(ctx.world);
         if (nodes.size() < 2) {
             ctx.msg("Not enough nodes (need at least 2).");
             this.edges = new ArrayList<>();
@@ -76,7 +76,7 @@ final class VillageNetworkSource implements EdgeSource {
         this.skipped = cp.getSkipped();
         this.failed = cp.getFailed();
 
-        MillWorldDataRegistry.logNodeSummary(ctx.world);
+        Villages.logNodeSummary(ctx.world);
 
         List<BlockPos[]> stored = cp.getEdges();
         this.edges = new ArrayList<>(stored.size());
@@ -109,8 +109,8 @@ final class VillageNetworkSource implements EdgeSource {
             return null;
         }
 
-        MillVillageIndex.VillageInfo viA = MillVillageIndex.findExact(ctx.world, e.a);
-        MillVillageIndex.VillageInfo viB = MillVillageIndex.findExact(ctx.world, e.b);
+        Villages.Settlement viA = Villages.at(ctx.world, e.a);
+        Villages.Settlement viB = Villages.at(ctx.world, e.b);
 
         boolean aIsLone = (viA != null && !viA.isVillage);
         boolean bIsLone = (viB != null && !viB.isVillage);
