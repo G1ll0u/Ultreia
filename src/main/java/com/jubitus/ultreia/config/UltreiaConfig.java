@@ -162,6 +162,9 @@ public class UltreiaConfig {
         @Config.Comment("Log chunk loading and unloading.")
         public boolean logChunks = false;
 
+        @Config.Comment("Log how much server time each road takes.")
+        public boolean logPerformance = false;
+
         @Config.Comment("Log speed boost changes.")
         public boolean logSpeedBoost = false;
     }

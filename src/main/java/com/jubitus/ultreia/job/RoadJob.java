@@ -25,6 +25,7 @@ public final class RoadJob {
     @Nullable private AStarSearch session;
     @Nullable private RoadPaintSession painter;
     private boolean done = false;
+    private final EdgePerf perf = new EdgePerf();
 
     private RoadJob(JobContext ctx, EdgeSource source) {
         this.ctx = ctx;
@@ -78,21 +79,33 @@ public final class RoadJob {
 
     void tick(long budgetNs) {
         if (done) return;
-        long end = System.nanoTime() + budgetNs;
+        long tickStart = System.nanoTime();
+        try {
+            tickWithin(tickStart + budgetNs);
+        } finally {
+            perf.addTick(System.nanoTime() - tickStart);
+        }
+    }
 
+    private void tickWithin(long end) {
         while (System.nanoTime() < end && !done) {
             if (session == null && painter == null) {
                 if (!source.hasMore()) {
                     done = true;
                     return;
                 }
+                perf.startEdge();
+                long t = System.nanoTime();
                 cur = source.next();
+                perf.add(EdgePerf.Step.PREP, t);
                 if (cur != null) startPathfinding(cur);
                 continue;
             }
 
             if (session != null) {
+                long t = System.nanoTime();
                 AStarSearch.StepResult sr = session.advance(end);
+                perf.add(EdgePerf.Step.SEARCH, t);
                 if (sr == AStarSearch.StepResult.RUNNING) return;
 
                 if (sr == AStarSearch.StepResult.FOUND || sr == AStarSearch.StepResult.PARTIAL) {
@@ -102,7 +115,9 @@ public final class RoadJob {
                     session = null;
 
                     // A* chunks are released before painting: the path needs far fewer than the search area.
+                    long tr = System.nanoTime();
                     ctx.releaseEdge();
+                    perf.add(EdgePerf.Step.RELEASE, tr);
 
                     List<BlockPos> coarse = result.getPath();
                     if (coarse == null || coarse.isEmpty()) {
@@ -123,7 +138,9 @@ public final class RoadJob {
                 continue;
             }
 
+            long t = System.nanoTime();
             RoadPaintSession.PaintResult pr = painter.advance(end);
+            perf.add(EdgePerf.Step.PAINT, t);
             if (pr == RoadPaintSession.PaintResult.RUNNING) return;
             String reason = pr == RoadPaintSession.PaintResult.OK ? null : "painting: " + painter.failureReason();
             painter = null;
@@ -152,12 +169,18 @@ public final class RoadJob {
     }
 
     private void finishEdge(@Nullable String failureReason) {
+        long t = System.nanoTime();
         ctx.releaseEdge();
+        perf.add(EdgePerf.Step.RELEASE, t);
+        t = System.nanoTime();
         source.onEdgeDone(failureReason);
+        perf.add(EdgePerf.Step.SAVE, t);
+        if (UltreiaConfig.DEBUG.logPerformance && cur != null) perf.log(cur.start, cur.goal, ctx.chunkManager);
         cur = null;
     }
 
     void shutdown() {
+        long t = System.nanoTime();
         try {
             ctx.sampler.clearCache();
         } catch (Throwable ignored) {
@@ -169,6 +192,9 @@ public final class RoadJob {
         try {
             source.shutdown();
         } catch (Throwable ignored) {
+        }
+        if (UltreiaConfig.DEBUG.logPerformance) {
+            com.jubitus.ultreia.Ultreia.LOGGER.info("[Ultreia] Perf job close: {} ms", EdgePerf.ms(System.nanoTime() - t));
         }
     }
 }

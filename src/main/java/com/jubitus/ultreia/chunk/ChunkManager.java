@@ -24,6 +24,10 @@ public final class ChunkManager {
     // Forge caps the chunks per ticket (forgeChunkLoading.cfg): more tickets are requested as they fill.
     private final java.util.List<ForgeChunkManager.Ticket> tickets = new java.util.ArrayList<>();
 
+    // Chunk loads since the last takePerfSummary() (logPerformance only): read from disk vs newly generated.
+    private int perfDiskLoads, perfGenerated;
+    private long perfDiskNs, perfGenNs, perfWorstGenNs;
+
     public ChunkManager(int edgeCap) {
         this.edgeCap = Math.max(0, edgeCap);
     }
@@ -51,10 +55,14 @@ public final class ChunkManager {
         ForgeChunkManager.Ticket ticket = ticketWithRoom(world);
         if (ticket == null) return false;
 
+        boolean perf = UltreiaConfig.DEBUG.logPerformance;
+        boolean existed = perf && cps.isChunkGeneratedAt(cx, cz);
+        long t0 = perf ? System.nanoTime() : 0L;
         try {
             ForgeChunkManager.forceChunk(ticket, new ChunkPos(cx, cz));
             cps.provideChunk(cx, cz);
         } catch (Throwable ignored) {}
+        if (perf) recordLoad(existed, System.nanoTime() - t0);
 
         if (cps.getLoadedChunk(cx, cz) != null) {
             ours.add(k);
@@ -141,6 +149,27 @@ public final class ChunkManager {
         }
         tickets.clear();
         ours.clear();
+    }
+
+    private void recordLoad(boolean fromDisk, long ns) {
+        if (fromDisk) {
+            perfDiskLoads++;
+            perfDiskNs += ns;
+        } else {
+            perfGenerated++;
+            perfGenNs += ns;
+            if (ns > perfWorstGenNs) perfWorstGenNs = ns;
+        }
+    }
+
+    /** Chunk loads since the previous call, as one log fragment; resets the counters. */
+    public String takePerfSummary() {
+        String s = "chunks: " + perfDiskLoads + " from disk (" + perfDiskNs / 1_000_000L + " ms), "
+                + perfGenerated + " generated (" + perfGenNs / 1_000_000L + " ms, worst "
+                + perfWorstGenNs / 1_000_000L + " ms)";
+        perfDiskLoads = perfGenerated = 0;
+        perfDiskNs = perfGenNs = perfWorstGenNs = 0L;
+        return s;
     }
 
     // Queues non-essential loaded chunks for unload — catches side-effect loads.
