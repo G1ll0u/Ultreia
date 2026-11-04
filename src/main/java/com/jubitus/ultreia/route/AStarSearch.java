@@ -331,7 +331,7 @@ public final class AStarSearch {
         if (rr.isEmpty()) return fail("reconstruction produced empty path");
 
         if (!PathProfileCheck.isAcceptable(rr.getPath(), rr.getBridges(), rec.bridgeStartIndices(),
-                sampler, roadType, step)) {
+                sampler, step)) {
             profileRejectionCount++;
             if (rec.reusedBridgeCount() > 0) {
                 reusedBridgePathsRejected++;

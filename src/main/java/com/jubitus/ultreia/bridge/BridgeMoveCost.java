@@ -130,7 +130,7 @@ public final class BridgeMoveCost {
 
         if (waterCells <= 0 && deepCells <= 2) cost += 200.0;
         int approachBlocks = Math.max(1, BRIDGE_APPROACH_RAMP_BLOCKS);
-        if (!BridgeApproachCheck.canConnectBridgeApproaches(sampler, span, approachBlocks + 2, roadType)) {
+        if (!BridgeApproachCheck.canConnectBridgeApproaches(sampler, span, approachBlocks + 2)) {
             cost += 120.0;
         }
 

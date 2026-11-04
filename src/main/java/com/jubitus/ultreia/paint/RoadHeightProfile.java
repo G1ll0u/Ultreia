@@ -29,7 +29,7 @@ public final class RoadHeightProfile {
 
     private RoadHeightProfile() {}
 
-    public static int[] build(List<BlockPos> path, List<BridgeSpan> bridges, TerrainView sampler, RoadType roadType) {
+    public static int[] build(List<BlockPos> path, List<BridgeSpan> bridges, TerrainView sampler) {
         int n = path == null ? 0 : path.size();
         if (n <= 0) return new int[0];
 
@@ -40,9 +40,8 @@ public final class RoadHeightProfile {
 
         int[] fixedHalf = buildExactBridgeHalfByPathIndex(path, bridges, sampler);
 
-        boolean earthworks = roadType.allowsEarthworks();
-        int cutHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxCut) * 2 : 0;
-        int fillHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxFill) * 2 : 0;
+        int cutHalf = Math.max(0, UltreiaConfig.PAINTING.earthworksMaxCut) * 2;
+        int fillHalf = Math.max(0, UltreiaConfig.PAINTING.earthworksMaxFill) * 2;
 
         int maxStepHalf = Math.max(1, HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK);
         int smoothRadius = Math.max(0, VERTICAL_SMOOTH_RADIUS);

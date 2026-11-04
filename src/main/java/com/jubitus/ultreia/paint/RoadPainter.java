@@ -41,14 +41,10 @@ import java.util.Map;
 
 public final class RoadPainter {
 
-    // Clear 2 blocks above the road to ensure walkability.
-    private static final boolean CLEAR_HEADROOM = true;
     // Maximum number of blocks trimmed from one edge of the road to create organic width variation.
     private static final int ROAD_EDGE_VARIATION = 1;
     // Average number of road blocks between edge-variation changes.
     private static final int ROAD_EDGE_VARIATION_PERIOD = 8;
-    // If true, the painter skips waypoints that run within road-width of an already-painted road, then resumes...
-    private static final boolean SUPPRESS_PARALLEL_PAINTING = true;
     // Shoulder width used to taper earthworks away from the road surface.
     private static final int EARTHWORKS_SHOULDER = 3;
     // Force-paint this many blocks after bridge exit to secure road continuation.
@@ -70,15 +66,10 @@ public final class RoadPainter {
     }
 
     public static final class Session {
-        private int[] gradeY = null;
-
         private int baseR;
         private final WorldServer world;
         private final TerrainSampler sampler;
         private final ProtectedAreas protectedAreas;
-        private final boolean dryRun;
-
-        private int r;
 
         private RoadType roadType = RoadType.VILLAGE_MAIN;
 
@@ -162,8 +153,6 @@ public final class RoadPainter {
         private int[] gapBoundaryRoadZ = null;
         private int gapBoundaryCount = 0;
 
-        private final boolean allowEarlyMerge;
-
         private BridgeSpan pendingBridge = null;
         private int pendingBridgeEndIdx = -1;
 
@@ -177,15 +166,11 @@ public final class RoadPainter {
                 List<BridgeSpan> forcedBridges,
                 TerrainSampler sampler,
                 ProtectedAreas protectedAreas,
-                RoadIndex roadIndex,
-                boolean dryRun,
-                boolean allowEarlyMerge) {
+                RoadIndex roadIndex) {
             this.world = world;
-            this.allowEarlyMerge = allowEarlyMerge;
             this.sampler = sampler;
             this.protectedAreas = protectedAreas;
             this.roadIndex = roadIndex;
-            this.dryRun = dryRun;
             this.forcedBridges = forcedBridges == null ? Collections.<BridgeSpan>emptyList() : forcedBridges;
             this.bridges = new BridgeSegmentPainter(world, sampler, protectedAreas, roadIndex, this.forcedBridges);
 
@@ -194,7 +179,6 @@ public final class RoadPainter {
 
 
             this.baseR = roadType.roadWidthBlocks() / 2;
-            this.r = baseR;
 
             this.coarse = coarsePath == null ? Collections.<BlockPos>emptyList() : coarsePath;
 
@@ -220,19 +204,13 @@ public final class RoadPainter {
                     bridges.buildFootprint();
 
                     detectEarlyMergeOnce();
-
-                    if (roadType.allowsEarthworks()) {
-                        this.gradeY = buildGradeProfile();
-                        if (failed) {
-                            return PaintResult.FAILED;
-                        }
-                    }
                     continue;
                 }
 
                 if (!profilesReady) {
                     buildProfiles();
                     profilesReady = true;
+                    if (failed) return PaintResult.FAILED;
                     continue;
                 }
 
@@ -319,7 +297,7 @@ public final class RoadPainter {
                     continue;
                 }
 
-                beginPaintSweep(p, i);
+                beginPaintSweep(p);
             }
 
             return PaintResult.RUNNING;
@@ -350,7 +328,6 @@ public final class RoadPainter {
         public void setRoadType(RoadType type) {
             this.roadType = (type != null) ? type : RoadType.VILLAGE_MAIN;
             this.baseR = this.roadType.roadWidthBlocks() / 2;
-            this.r = this.baseR;
         }
 
         private int paintedWidthBlocks() {
@@ -383,7 +360,6 @@ public final class RoadPainter {
         }
 
         private void detectEarlyMergeOnce() {
-            if (!allowEarlyMerge) return;
             if (roadIndex == null) return;
 
             boolean isLoneTrail = roadType == RoadType.LONE_TRAIL;
@@ -477,9 +453,11 @@ public final class RoadPainter {
                 mergeStopArmed = true;
                 mergeStopAt = mergeHitIndex;
 
-                Ultreia.LOGGER.info(
-                        "[Ultreia] Early merge: path index {}/{} -> road ({}, {}), stopping paint here",
-                        idx, path.size() - 1, near.getX(), near.getZ());
+                if (UltreiaConfig.DEBUG.logPainting) {
+                    Ultreia.LOGGER.info(
+                            "[Ultreia] Early merge: path index {}/{} -> road ({}, {}), stopping paint here",
+                            idx, path.size() - 1, near.getX(), near.getZ());
+                }
                 return;
             }
 
@@ -494,7 +472,6 @@ public final class RoadPainter {
          * force-paint physical connectors at each entry/exit.
          */
         private void detectParallelGaps(int absoluteMin, int exitBlocks) {
-            if (!SUPPRESS_PARALLEL_PAINTING) return;
             if (roadIndex == null) return;
 
             // Proximity radius: fire when any existing road block is this close to our path center.
@@ -688,7 +665,7 @@ public final class RoadPainter {
             edgeNoise = new int[n];
 
             try {
-                centerHalf = RoadHeightProfile.build(path, forcedBridges, sampler, roadType);
+                centerHalf = RoadHeightProfile.build(path, forcedBridges, sampler);
             } catch (IllegalStateException ex) {
                 failed = true;
                 failReason = "No feasible final road profile with max 0.5-block steps: " + ex.getMessage();
@@ -744,9 +721,6 @@ public final class RoadPainter {
                 stepsUntilChange--;
             }
 
-            if (UltreiaConfig.DEBUG.logPainting) {
-                Ultreia.LOGGER.debug("[Ultreia] edgeNoise built: n={} maxOffset={} period={}", n, maxOffset, period);
-            }
         }
 
         private int centerXAt(int idx) {
@@ -801,7 +775,7 @@ public final class RoadPainter {
             for (int[] ef : elbowFillList) {
                 long k = Pos2D.xzKey(ef[0], ef[1]);
                 if (!painted.contains(k)) {
-                    paintSingle(ef[0], ef[1], ef[2]);
+                    paintSingle(ef[0], ef[1], ef[2], i);
                     painted.add(k);
                 }
             }
@@ -851,7 +825,7 @@ public final class RoadPainter {
                     if (half == Integer.MIN_VALUE) continue;
                     dbgForced++;
                     plannedHalfByXZ.put(k, half);
-                    paintSingle(x, z, sampler.sample(x, z).surfaceY);
+                    paintSingle(x, z, sampler.sample(x, z).surfaceY, i);
                     painted.add(k);
                     pending.removeLong(pi);
                     progress = true;
@@ -920,15 +894,13 @@ public final class RoadPainter {
                     if (cell.length > 3) {
                         plannedHalfByXZ.put(k, cell[3]);
                     }
-                    paintSingle(cell[0], cell[1], cell[2]);
+                    paintSingle(cell[0], cell[1], cell[2], i);
                     painted.add(k);
                 }
             }
         }
 
         private boolean buildPlanStep(long deadlineNs) {
-            boolean earthworks = earthworksEnabled();
-
             while (planIdx < path.size() && System.nanoTime() < deadlineNs) {
                 int idx = planIdx;
 
@@ -959,7 +931,7 @@ public final class RoadPainter {
                             ? centerHalf[idx]
                             : HalfY.ofBlockTop(center.getY());
 
-                    addEndCapToPlan(cx, cz, localR, targetHalf, idx, earthworks);
+                    addEndCapToPlan(cx, cz, localR, targetHalf, idx);
                     planIdx++;
                     continue;
                 }
@@ -984,7 +956,7 @@ public final class RoadPainter {
                         ? centerHalf[idx]
                         : HalfY.ofBlockTop(center.getY());
 
-                addRibbonSegmentToPlan(x0, z0, x1, z1, localR, half0, half1, idx, earthworks);
+                addRibbonSegmentToPlan(x0, z0, x1, z1, localR, half0, half1, idx);
 
                 planIdx++;
             }
@@ -996,8 +968,7 @@ public final class RoadPainter {
                                      int cz,
                                      int localR,
                                      int targetHalf,
-                                     int idx,
-                                     boolean earthworks) {
+                                     int idx) {
             int pad = localR + 1;
             double radius = (double) localR + 0.5;
 
@@ -1011,7 +982,7 @@ public final class RoadPainter {
                     double dz = ((double) z + 0.5) - ((double) cz + 0.5);
                     double distSq = dx * dx + dz * dz;
 
-                    addPlannedRibbonCell(x, z, distSq, targetHalf, idx, earthworks);
+                    addPlannedRibbonCell(x, z, distSq, targetHalf, idx);
                 }
             }
         }
@@ -1023,8 +994,7 @@ public final class RoadPainter {
                                             int localR,
                                             int half0,
                                             int half1,
-                                            int idx,
-                                            boolean earthworks) {
+                                            int idx) {
             int pad = localR + 2;
 
             int minX = Math.min(x0, x1) - pad;
@@ -1051,7 +1021,7 @@ public final class RoadPainter {
                     double distSq = pointToSegmentDistanceSqClamped(px, pz, ax, az, bx, bz);
 
                     int targetHalf = (int) Math.round((1.0 - t) * (double) half0 + t * (double) half1);
-                    addPlannedRibbonCell(x, z, distSq, targetHalf, idx, earthworks);
+                    addPlannedRibbonCell(x, z, distSq, targetHalf, idx);
                 }
             }
         }
@@ -1060,8 +1030,7 @@ public final class RoadPainter {
                                           int z,
                                           double distSq,
                                           int targetHalf,
-                                          int idx,
-                                          boolean earthworks) {
+                                          int idx) {
             if (bridges.isBridgeCell(x, z)) return;
             // Never plan road cells inside an existing bridge volume (includes supports, lateral blocks).
             if (roadIndex != null && roadIndex.isBridgeVolumeXZ(x, z)) return;
@@ -1073,12 +1042,6 @@ public final class RoadPainter {
             if (sampler.forbiddenHard(s)) return;
             if (s.isOcean || s.isWater) return;
             if (sampler.forbidden(s, TerrainSampler.Mode.PAINTING)) return;
-
-            if (!earthworks) {
-                BlockPos top = new BlockPos(x, s.surfaceY, z);
-                IBlockState g = world.getBlockState(top);
-                if (!BlockRules.isRoadReplaceableGround(g)) return;
-            }
 
             boolean centerish = distSq <= 0.26;
 
@@ -1324,7 +1287,7 @@ public final class RoadPainter {
                     mergeConnectorList = buildMergeConnectorList(
                             lx, lz, startHalf, mergeTargetX, mergeTargetZ, endHalf);
                     if (UltreiaConfig.DEBUG.logPainting) {
-                        Ultreia.LOGGER.debug(
+                        Ultreia.LOGGER.info(
                                 "[Ultreia] Merge connector: ({},{}) half={} -> ({},{}) half={} cells={}",
                                 lx, lz, startHalf, mergeTargetX, mergeTargetZ, endHalf,
                                 mergeConnectorList == null ? 0 : mergeConnectorList.size());
@@ -1434,7 +1397,7 @@ public final class RoadPainter {
                     continue;
                 }
 
-                paintSingle(xx, zz, s.surfaceY);
+                paintSingle(xx, zz, s.surfaceY, idx);
             }
 
             return false;
@@ -1522,7 +1485,7 @@ public final class RoadPainter {
 
 
 
-        private void beginPaintSweep(BlockPos center, int idx) {
+        private void beginPaintSweep(BlockPos center) {
             this.curCenter = center;
 
             int localR = baseR;
@@ -1539,7 +1502,8 @@ public final class RoadPainter {
             }
         }
 
-        private void paintSingle(int x, int z, int surfaceY) {
+        /** {@code centerIdx}: path index whose center the cell is graded around; outside the path, no earthworks. */
+        private void paintSingle(int x, int z, int surfaceY, int centerIdx) {
             if (bridges.isBridgeCell(x, z)) return;
             // INVARIANT: no painting, clearing or earthworks inside protected areas or on Millénaire paths.
             if (protectedAreas != null && protectedAreas.contains(x, z)) return;
@@ -1557,11 +1521,11 @@ public final class RoadPainter {
             int supportTopY = HalfY.supportTopY(targetHalf);
 
             if (columnHasAnyMillPath(new BlockPos(x, sp.blockY, z))) {
-                if (roadIndex != null && !dryRun) roadIndex.markRoad(x, z);
+                if (roadIndex != null) roadIndex.markRoad(x, z);
                 return;
             }
 
-            boolean earthworks = earthworksEnabled();
+            boolean earthworks = centerIdx >= 0 && centerIdx < path.size();
 
             boolean nearNoPaint = protectedAreas != null && protectedAreas.containsWithin(x, z, 1);
             if (nearNoPaint) {
@@ -1569,7 +1533,7 @@ public final class RoadPainter {
             }
 
             if (earthworks) {
-                int rr = r;
+                int rr = baseR;
                 int shoulder = Math.max(0, EARTHWORKS_SHOULDER);
                 Earthworks.Settings st = new Earthworks.Settings(
                         rr,
@@ -1578,8 +1542,8 @@ public final class RoadPainter {
                         Math.max(0, UltreiaConfig.PAINTING.earthworksMaxFill)
                 );
 
-                int cx = centerXAt(i);
-                int cz = centerZAt(i);
+                int cx = centerXAt(centerIdx);
+                int cz = centerZAt(centerIdx);
 
                 int dx0 = x - cx;
                 int dz0 = z - cz;
@@ -1587,15 +1551,15 @@ public final class RoadPainter {
                 // A painted cell is road surface: graded to the road height; the talus pass shapes beyond it.
                 dist = Math.min(dist, rr);
 
-                Earthworks.gradeCell(world, sampler, x, z, supportTopY, dist, st, dryRun);
+                Earthworks.gradeCell(world, sampler, x, z, supportTopY, dist, st);
                 sampler.invalidateAround(x, z, 1);
             }
 
             BlockPos supportTop = new BlockPos(x, supportTopY, z);
 
-            if (!dryRun && !nearNoPaint) {
+            if (!nearNoPaint) {
                 // Always allow clearing solid natural blocks above the road surface for proper headroom.
-                HeadroomClearer.clearAtAndAbove(world, supportTop.up(), 2, false, true);
+                HeadroomClearer.clearAtAndAbove(world, supportTop.up(), 2);
             }
 
             if (!hasSupportWithinOneBlock(supportTop)) {
@@ -1605,12 +1569,10 @@ public final class RoadPainter {
             }
 
             MillPathPalette.Kind kind = pickKindAveraged(x, z);
-            placeRoadBlockFromHalf(supportTop, kind, targetHalf, earthworks);
+            placeRoadBlockFromHalf(supportTop, kind, targetHalf, centerIdx);
         }
 
-        private void placeRoadBlockFromHalf(BlockPos supportTop, MillPathPalette.Kind kind, int targetHalf, boolean allowSolidCut) {
-            if (dryRun) return;
-
+        private void placeRoadBlockFromHalf(BlockPos supportTop, MillPathPalette.Kind kind, int targetHalf, int centerIdx) {
             int x = supportTop.getX();
             int z = supportTop.getZ();
 
@@ -1624,7 +1586,7 @@ public final class RoadPainter {
             }
 
             // Always allow clearing solid natural blocks when placing the road block and clearing headroom.
-            HeadroomClearer.clearAtAndAbove(world, placePos, 2, false, true);
+            HeadroomClearer.clearAtAndAbove(world, placePos, 2);
 
             IBlockState place = useBottomSlab
                     ? MillPathPalette.slabBottom(kind)
@@ -1633,19 +1595,17 @@ public final class RoadPainter {
             world.setBlockState(placePos, place, 2);
             placedHalf.put(Pos2D.xzKey(x, z), targetHalf);
 
-            if (CLEAR_HEADROOM) {
-                HeadroomClearer.clearRoadColumn(world, placePos, 3, false, true);
-            }
+            HeadroomClearer.clearRoadColumn(world, placePos, 3);
 
             if (BlockRules.treesClearable()) {
                 net.minecraft.util.math.BlockPos dtRootPos =
-                        HeadroomClearer.clearTreesAbove(world, placePos, 4, false);
+                        HeadroomClearer.clearTreesAbove(world, placePos, 4);
                 // If a whole DT tree was removed, paint a road block at the rootydirt position
                 // (now plain dirt) so no bare earth patch is left where the tree stood.
                 if (dtRootPos != null) {
                     dbgDtRoot++;
                     dbgSample(dbgDtRootAt, dbgDtRoot, dtRootPos.getX(), dtRootPos.getY() * 2, dtRootPos.getZ());
-                    paintSingle(dtRootPos.getX(), dtRootPos.getZ(), dtRootPos.getY());
+                    paintSingle(dtRootPos.getX(), dtRootPos.getZ(), dtRootPos.getY(), centerIdx);
                     sampler.invalidateAround(dtRootPos.getX(), dtRootPos.getZ(), 1);
                 }
             }
@@ -1684,11 +1644,6 @@ public final class RoadPainter {
                     roadBlock.getY(), false) != ColumnSurface.NO_PATH;
         }
 
-        private boolean earthworksEnabled() {
-            if (!roadType.allowsEarthworks()) return false;
-            return gradeY != null && i >= 0 && i < gradeY.length;
-        }
-
         private double effectiveSlopeRatio() {
             boolean isLoneTrail = roadType == RoadType.LONE_TRAIL;
             double ltr = UltreiaConfig.PAINTING.earthworksSlopeRatioLoneTrail;
@@ -1703,8 +1658,6 @@ public final class RoadPainter {
          */
         /** Builds the talus work list once; returns false when there is nothing to do. */
         private boolean prepareTalus() {
-            if (dryRun) return false;
-            if (!roadType.allowsEarthworks()) return false;
             if (newlyPlaced.isEmpty()) return false;
 
             double slopeRatio = effectiveSlopeRatio();
@@ -1805,7 +1758,7 @@ public final class RoadPainter {
                 double lateralDist = Math.sqrt((double)(tx - rx) * (tx - rx) + (double)(tz - rz) * (tz - rz));
 
                 Earthworks.applyTalusAt(world, sampler, tx, tz, roadY,
-                        lateralDist, slopeRatio, maxCut, maxFill, dryRun);
+                        lateralDist, slopeRatio, maxCut, maxFill);
             }
 
             if (talusCursor < talusCells.length) return false;
@@ -1816,32 +1769,6 @@ public final class RoadPainter {
             return true;
         }
 
-
-        private int[] buildGradeProfile() {
-            int n = path.size();
-            if (n == 0) return new int[0];
-
-            try {
-                if (centerHalf == null || centerHalf.length != n) {
-                    centerHalf = RoadHeightProfile.build(path, forcedBridges, sampler, roadType);
-                }
-            } catch (IllegalStateException ex) {
-                failed = true;
-                failReason = "No feasible final road profile with max 0.5-block steps: " + ex.getMessage();
-                return null;
-            } catch (Throwable t) {
-                failed = true;
-                failReason = "Road profile generation failed: " + t.getClass().getSimpleName() + ": " + t.getMessage();
-                return null;
-            }
-
-            int[] out = new int[n];
-            for (int i = 0; i < n; i++) {
-                out[i] = HalfY.supportTopY(centerHalf[i]);
-            }
-
-            return out;
-        }
 
         private IBlockState pickSupportBlock(BlockPos supportPos, MillPathPalette.Kind kind) {
             IBlockState below = world.getBlockState(supportPos.down());
@@ -1927,7 +1854,7 @@ public final class RoadPainter {
         }
 
         private void registerRoadSegment() {
-            if (roadNetwork == null || dryRun || path.isEmpty()) return;
+            if (roadNetwork == null || path.isEmpty()) return;
             roadNetwork.addRoadSegment(path, roadIndex, fromVillage, toVillage, roadType, paintedWidthBlocks());
         }
 
@@ -1968,13 +1895,8 @@ public final class RoadPainter {
                                 List<BridgeSpan> forcedBridges,
                                 TerrainSampler sampler,
                                 ProtectedAreas protectedAreas,
-                                RoadIndex roadIndex,
-                                boolean dryRun,
-                                boolean allowEarlyMerge) {
-        if (coarsePath == null || coarsePath.isEmpty()) {
-            return new Session(world, Collections.<BlockPos>emptyList(), forcedBridges, sampler, protectedAreas, roadIndex, dryRun, allowEarlyMerge);
-        }
-        return new Session(world, coarsePath, forcedBridges, sampler, protectedAreas, roadIndex, dryRun, allowEarlyMerge);
+                                RoadIndex roadIndex) {
+        return new Session(world, coarsePath, forcedBridges, sampler, protectedAreas, roadIndex);
     }
 
 }

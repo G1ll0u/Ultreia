@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-03)**: phases 0–8 done (in-game checks pending). Next: phase 9.
+**Status (2026-11-04)**: phases 0–9 done (in-game checks pending). Phase 10 in progress.
 
 ## Goal
 
@@ -294,7 +294,15 @@ Built-bridge reuse (in-game test): A* takes the built bridge, but the painter st
 Then the painter painted beside the built deck: it now gets the reused deck cells (`PathResult`) and skips them as a
 gap (road stops at the bridge start, resumes at its end, connectors at both ends).
 
-### Phase 10 — Painter split — status: not started
+### Phase 10 — Painter split — status: in progress
+
+Steps: 10.1 in place (dead switches and parameters: dry run, early-merge flag, headroom and parallel-skip constants,
+always-on earthworks everywhere; profile built once; cursor index passed to the cell painter) (done) · 10.2 `PathPalette`
+/ `MillPathBlocks` · 10.3 `RibbonGeometry`, `RoadCenterline` · 10.4 `RoadMergePlanner` · 10.5 `RoadFootprintPlanner`
+· 10.6 `RoadCellPainter`, `TalusPass`, `RoadPainter` → `RoadPaintSession`.
+Decided (user): `RoadType.allowsEarthworks()` and its two constants deleted (earthworks always on); no new debug
+switch, earthworks and clearing log under `logPainting`. No test covers the painter (needs a world): moves keep the
+order of operations.
 
 `RoadPainter` (2 200) → `RoadPaintSession` (~250), `RoadCenterline`, `RoadMergePlanner` (~330),
 `RoadFootprintPlanner` (~500, owns planned/core/forcePaint/half map), `RibbonGeometry` (~120), `RoadCellPainter`

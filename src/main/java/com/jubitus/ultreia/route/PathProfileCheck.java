@@ -30,16 +30,15 @@ public final class PathProfileCheck {
      * @param step A* grid step: the first {@code step} deck cells are the launch ramp and are not checked for overlap
      */
     static boolean isAcceptable(List<BlockPos> coarsePath, List<BridgeSpan> bridges, List<Integer> bridgeStartIndices,
-                                TerrainView sampler, RoadType roadType, int step) {
-        boolean walkable = isFullPathFeasible(coarsePath, bridges, sampler, roadType);
+                                TerrainView sampler, int step) {
+        boolean walkable = isFullPathFeasible(coarsePath, bridges, sampler);
         boolean clear = bridgesClearOwnApproach(coarsePath, bridges, bridgeStartIndices, step);
         return walkable && clear;
     }
 
     private static boolean isFullPathFeasible(List<BlockPos> coarsePath,
                                              List<BridgeSpan> bridges,
-                                             TerrainView sampler,
-                                             RoadType roadType) {
+                                             TerrainView sampler) {
         if (coarsePath == null || coarsePath.isEmpty() || sampler == null) {
             return false;
         }
@@ -50,7 +49,7 @@ public final class PathProfileCheck {
         }
 
         try {
-            int[] half = RoadHeightProfile.build(dense, bridges, sampler, roadType);
+            int[] half = RoadHeightProfile.build(dense, bridges, sampler);
             if (half == null || half.length != dense.size()) {
                 return false;
             }

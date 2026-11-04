@@ -19,7 +19,6 @@ public final class RoadHeightSolver {
                                          TerrainView sampler,
                                          int startHalf,
                                          int endHalf,
-                                         boolean allowEarthworks,
                                          int cutHalf,
                                          int fillHalf,
                                          int maxStepHalf) {
@@ -37,13 +36,8 @@ public final class RoadHeightSolver {
 
             int terrainHalf = HalfY.ofBlockTop(s.surfaceY);
 
-            if (allowEarthworks) {
-                minHalf[i] = terrainHalf - Math.max(0, cutHalf);
-                maxHalf[i] = terrainHalf + Math.max(0, fillHalf);
-            } else {
-                minHalf[i] = terrainHalf;
-                maxHalf[i] = terrainHalf;
-            }
+            minHalf[i] = terrainHalf - Math.max(0, cutHalf);
+            maxHalf[i] = terrainHalf + Math.max(0, fillHalf);
         }
 
         minHalf[0] = startHalf;

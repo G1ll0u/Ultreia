@@ -145,7 +145,7 @@ public final class RoadJob {
 
     private void startPainting(List<BlockPos> coarse, PathResult result) {
         painter = RoadPainter.start(ctx.world, coarse, result.getBridges(), ctx.sampler, ctx.protectedAreas,
-                ctx.roadIndex, false, true);
+                ctx.roadIndex);
         painter.setRoadNetwork(ctx.roadNetwork, cur.fromVillage, cur.toVillage);
         painter.setRoadType(cur.roadType);
         painter.setReusedBridges(result.getReusedBridgeXZ());

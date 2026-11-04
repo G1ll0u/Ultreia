@@ -23,8 +23,7 @@ public final class BridgeApproachCheck {
 
     public static boolean canConnectBridgeApproaches(TerrainView sampler,
                                                      BridgeSpan span,
-                                                     int approachBlocks,
-                                                     RoadType roadType) {
+                                                     int approachBlocks) {
         if (sampler == null || span == null || span.centerline == null || span.centerline.size() < 2) {
             return false;
         }
@@ -33,17 +32,16 @@ public final class BridgeApproachCheck {
         int[] deckHalf = BridgeDeckProfile.of(span);
 
         int maxStepHalf = Math.max(1, HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK);
-        boolean earthworks = roadType.allowsEarthworks();
-        int cutHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxCut) * 2 : 0;
-        int fillHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxFill) * 2 : 0;
+        int cutHalf = Math.max(0, UltreiaConfig.PAINTING.earthworksMaxCut) * 2;
+        int fillHalf = Math.max(0, UltreiaConfig.PAINTING.earthworksMaxFill) * 2;
 
         int need = Math.max(1, approachBlocks);
 
-        if (!checkOneSide(sampler, span.centerline.get(0), span.centerline.get(1), deckHalf[0], need, earthworks, cutHalf, fillHalf, maxStepHalf)) {
+        if (!checkOneSide(sampler, span.centerline.get(0), span.centerline.get(1), deckHalf[0], need, cutHalf, fillHalf, maxStepHalf)) {
             return false;
         }
 
-        if (!checkOneSide(sampler, span.centerline.get(n - 1), span.centerline.get(n - 2), deckHalf[n - 1], need, earthworks, cutHalf, fillHalf, maxStepHalf)) {
+        if (!checkOneSide(sampler, span.centerline.get(n - 1), span.centerline.get(n - 2), deckHalf[n - 1], need, cutHalf, fillHalf, maxStepHalf)) {
             return false;
         }
 
@@ -55,7 +53,6 @@ public final class BridgeApproachCheck {
                                         BlockPos inwardNeighbor,
                                         int bridgeDeckHalf,
                                         int neededBlocks,
-                                        boolean earthworks,
                                         int cutHalf,
                                         int fillHalf,
                                         int maxStepHalf) {
@@ -94,7 +91,6 @@ public final class BridgeApproachCheck {
                 sampler,
                 bridgeDeckHalf,
                 farHalf,
-                earthworks,
                 cutHalf,
                 fillHalf,
                 maxStepHalf

@@ -24,9 +24,7 @@ public final class HeadroomClearer {
 
     private HeadroomClearer() {}
 
-    public static void clearRoadColumn(World world, BlockPos base, int up, boolean dryRun, boolean allowSolidNaturalCut) {
-        if (dryRun) return;
-
+    public static void clearRoadColumn(World world, BlockPos base, int up) {
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos(base);
 
         for (int dy = 1; dy <= up; dy++) {
@@ -46,15 +44,13 @@ public final class HeadroomClearer {
                 continue;
             }
 
-            if (allowSolidNaturalCut && BlockRules.isNaturalSolid(st)) {
+            if (BlockRules.isNaturalSolid(st)) {
                 setAir(world, p);
             }
         }
     }
 
-    public static void clearAtAndAbove(World world, BlockPos pos, int up, boolean dryRun, boolean allowSolidNaturalCut) {
-        if (dryRun) return;
-
+    public static void clearAtAndAbove(World world, BlockPos pos, int up) {
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos(pos);
         for (int dy = 0; dy <= up; dy++) {
             p.setPos(pos.getX(), pos.getY() + dy, pos.getZ());
@@ -73,7 +69,7 @@ public final class HeadroomClearer {
                 continue;
             }
 
-            if (allowSolidNaturalCut && BlockRules.isNaturalSolid(st)) {
+            if (BlockRules.isNaturalSolid(st)) {
                 setAir(world, p);
             }
         }
@@ -94,8 +90,7 @@ public final class HeadroomClearer {
      *         so the caller can paint a road block there. Null otherwise.
      */
     @javax.annotation.Nullable
-    public static BlockPos clearTreesAbove(World world, BlockPos base, int startDy, boolean dryRun) {
-        if (dryRun) return null;
+    public static BlockPos clearTreesAbove(World world, BlockPos base, int startDy) {
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
         for (int dy = startDy; dy <= startDy + 64; dy++) {
             int y = base.getY() + dy;

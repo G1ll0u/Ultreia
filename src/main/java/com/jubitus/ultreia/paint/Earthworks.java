@@ -29,7 +29,7 @@ public final class Earthworks {
         }
     }
 
-    public static int gradeCell(WorldServer world, TerrainSampler sampler, int x, int z, int centerY, int dist, Settings s, boolean dryRun) {
+    public static int gradeCell(WorldServer world, TerrainSampler sampler, int x, int z, int centerY, int dist, Settings s) {
         TerrainSampler.Sample sm = sampler.sample(x, z);
         if (sm == null) return centerY;
         if (sm.isOcean || sm.isWater) return sm.surfaceY;
@@ -40,16 +40,14 @@ public final class Earthworks {
         int delta = targetY - naturalY;
         if (delta > 0) {
             if (delta > s.maxFill) return naturalY;
-            if (!fillUp(world, x, z, naturalY, targetY, dryRun)) return naturalY;
+            if (!fillUp(world, x, z, naturalY, targetY)) return naturalY;
         } else if (delta < 0) {
             int cut = -delta;
             if (cut > s.maxCut) return naturalY;
-            if (!cutDown(world, x, z, naturalY, targetY, dryRun)) return naturalY;
+            if (!cutDown(world, x, z, naturalY, targetY)) return naturalY;
         }
 
-        if (!dryRun) {
-            HeadroomClearer.clearRoadColumn(world, new BlockPos(x, targetY, z), 2, false, true);
-        }
+        HeadroomClearer.clearRoadColumn(world, new BlockPos(x, targetY, z), 2);
 
         return targetY;
     }
@@ -71,9 +69,7 @@ public final class Earthworks {
         return (int) Math.round(v);
     }
 
-    private static boolean fillUp(WorldServer world, int x, int z, int surfaceY, int targetY, boolean dryRun) {
-        if (dryRun) return true;
-
+    private static boolean fillUp(WorldServer world, int x, int z, int surfaceY, int targetY) {
         for (int y = surfaceY + 1; y <= targetY; y++) {
             BlockPos p = new BlockPos(x, y, z);
             IBlockState st = world.getBlockState(p);
@@ -92,9 +88,7 @@ public final class Earthworks {
         return true;
     }
 
-    private static boolean cutDown(WorldServer world, int x, int z, int surfaceY, int targetY, boolean dryRun) {
-        if (dryRun) return true;
-
+    private static boolean cutDown(WorldServer world, int x, int z, int surfaceY, int targetY) {
         for (int y = surfaceY; y > targetY; y--) {
             BlockPos p = new BlockPos(x, y, z);
             IBlockState st = world.getBlockState(p);
@@ -152,7 +146,7 @@ public final class Earthworks {
     public static void applyTalusAt(WorldServer world, TerrainSampler sampler,
                                     int x, int z, int roadEdgeY,
                                     double lateralDist, double slopeRatio,
-                                    int maxCut, int maxFill, boolean dryRun) {
+                                    int maxCut, int maxFill) {
         TerrainSampler.Sample sm = sampler.sample(x, z);
         if (sm == null || sm.isOcean || sm.isWater) return;
 
@@ -168,7 +162,6 @@ public final class Earthworks {
             if (talusTargetY >= naturalY) return;
             int cut = naturalY - talusTargetY;
             if (cut > maxCut) return;
-            if (dryRun) return;
             // Clear snow, plants, and any non-solid above the natural surface first.
             // Using flag 3 (NOTIFY_NEIGHBORS | SEND_TO_CLIENT) breaks double-plant upper halves, etc.
             clearAboveSurface(world, x, z, naturalY);
@@ -180,7 +173,6 @@ public final class Earthworks {
             if (talusTargetY <= naturalY) return;
             int fill = talusTargetY - naturalY;
             if (fill > maxFill) return;
-            if (dryRun) return;
             if (!talusFillUp(world, x, z, naturalY, talusTargetY)) return;
             placeFillSurface(world, x, z, talusTargetY);
         }

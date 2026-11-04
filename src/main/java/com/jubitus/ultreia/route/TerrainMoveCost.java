@@ -116,7 +116,6 @@ public final class TerrainMoveCost {
         if (sw.crossesWater) return MoveCost.WATER;
         if (!sw.walkable) return MoveCost.TOO_STEEP;
 
-        boolean earthworks = roadType.allowsEarthworks();
         // The grade limit stays the same whatever the step size.
         int effectiveMaxDy = scaleUpToStep(MAX_YDELTA_PER_STEP, step);
         // LONE_TRAIL uses a higher slope multiplier to make the trail wind around hills.
@@ -131,7 +130,6 @@ public final class TerrainMoveCost {
         double aheadCost = mountainTraversePenalty(x, z, dirIdx, cs.surfaceY, ns.surfaceY);
 
         if (dy > effectiveMaxDy) {
-            if (!earthworks) return MoveCost.TOO_STEEP;
             double extra = (double) (dy - effectiveMaxDy);
             slopeCost += extra * extra * OVER_GRADE_PENALTY;
         }
@@ -448,16 +446,14 @@ public final class TerrainMoveCost {
         int startHalf = HalfY.ofBlockTop(first.surfaceY);
         int endHalf = HalfY.ofBlockTop(last.surfaceY);
 
-        boolean earthworks = roadType.allowsEarthworks();
-        int cutHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxCut + pfTolerance) * 2 : 0;
-        int fillHalf = earthworks ? Math.max(0, UltreiaConfig.PAINTING.earthworksMaxFill + pfTolerance) * 2 : 0;
+        int cutHalf = Math.max(0, UltreiaConfig.PAINTING.earthworksMaxCut + pfTolerance) * 2;
+        int fillHalf = Math.max(0, UltreiaConfig.PAINTING.earthworksMaxFill + pfTolerance) * 2;
 
         boolean gradeFeasible = RoadHeightSolver.isLineFeasible(
                 line,
                 sampler,
                 startHalf,
                 endHalf,
-                earthworks,
                 cutHalf,
                 fillHalf,
                 HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK
