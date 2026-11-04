@@ -75,8 +75,6 @@ public final class AStarPathfinder {
     private static final int ALTITUDE_PROGRESS_MIN_DY = 8;
     private static final double ALTITUDE_PROGRESS_FRACTION = 0.20;
     private static final double SCORE_EPSILON = 0.001;
-    private static final int RECONSTRUCT_GUARD = 600_000;
-    private static final long ABSURD_JUMP_BLOCKS = 2048L;
     private static final long PROGRESS_LOG_INTERVAL_NS = 10_000_000_000L;
     public enum StepResult { RUNNING, FOUND, PARTIAL, FAILED }
 
@@ -111,15 +109,8 @@ public final class AStarPathfinder {
         private boolean failed = false;
         private String failReason = "unknown";
 
-        private long foundState = Long.MIN_VALUE;
-        private boolean reconstructing = false;
-
-        private final ArrayList<Long> revStates = new ArrayList<>();
-        private long recCur = Long.MIN_VALUE;
-
-        // Index in the reconstructed path list at which each bridge span begins (prior road points end).
-        private final ArrayList<Integer> bridgePathStartIndices = new ArrayList<>();
-        private int recGuard = 0;
+        // Non-null while the path of a reached (or partial) end node is being rebuilt.
+        @javax.annotation.Nullable private PathReconstructor reconstructor;
 
         private PathResult result = new PathResult(Collections.<BlockPos>emptyList(), Collections.<BridgeSpan>emptyList());
 
@@ -253,7 +244,7 @@ public final class AStarPathfinder {
         public StepResult advance(long deadlineNs) {
             if (failed) return StepResult.FAILED;
 
-            if (!reconstructing) {
+            if (reconstructor == null) {
                 long nowNs = System.nanoTime();
 
                 // Wall-clock timeout guard — prevents infinite-seeming hangs on impossible terrain.
@@ -322,7 +313,7 @@ public final class AStarPathfinder {
                     expandBridgeMoves(cur, ck, cs);
                 }
 
-                if (!reconstructing) {
+                if (reconstructor == null) {
                     if (st.open.isEmpty()) return failOrPartial("open exhausted");
                     if (shouldAbortForNoProgress()) return failOrPartial("no meaningful progress toward goal");
                     if (st.iterations >= bounds.maxIterations) return failOrPartial("max iterations reached");
@@ -330,82 +321,44 @@ public final class AStarPathfinder {
                 }
             }
 
-            while (reconstructing && System.nanoTime() < deadlineNs) {
-                if (recCur == Long.MIN_VALUE) break;
+            PathReconstructor.Status rs = reconstructor.advance(deadlineNs);
+            if (rs == PathReconstructor.Status.RUNNING) return StepResult.RUNNING;
 
-                revStates.add(recCur);
+            PathReconstructor rec = reconstructor;
+            reconstructor = null;
+            if (rs == PathReconstructor.Status.FAILED) return fail(rec.failReason());
 
-                long prev = st.cameFrom.get(recCur);
-                recCur = prev == Long.MIN_VALUE ? Long.MIN_VALUE : prev;
+            PathResult rr = rec.result();
+            if (rr.isEmpty()) return fail("reconstruction produced empty path");
 
-                recGuard++;
-                if (recGuard > RECONSTRUCT_GUARD) {
-                    reconstructing = false;
-                    return fail("reconstruct guard hit (cycle?)");
+            if (!PathProfileCheck.isAcceptable(rr.getPath(), rr.getBridges(), rec.bridgeStartIndices(),
+                    sampler, roadType, step)) {
+                profileRejectionCount++;
+                st.closed.add(rec.endState);
+
+                // If the partial fallback itself fails profile, bestApproxState hasn't
+                // changed (search never ran while the partial path was rebuilt),
+                // so calling beginPartialReconstruction again would loop forever silently.
+                if (partialResult) {
+                    return fail("partial fallback also failed profile feasibility (" + profileRejectionCount + " total rejections)");
                 }
 
-                if (recCur == Long.MIN_VALUE) {
-                    reconstructing = false;
-                    Collections.reverse(revStates);
-                    buildResultFromReconstruction();
-                    if (failed) return fail(failReason);
-
-                    PathResult rr = result;
-                    if (rr == null || rr.getPath() == null || rr.getPath().isEmpty()) {
-                        return fail("reconstruction produced empty path");
-                    }
-
-                    boolean fullProfileOk = PathProfileCheck.isFullPathFeasible(
-                            rr.getPath(),
-                            rr.getBridges(),
-                            sampler,
-                            roadType
-                    );
-                    boolean clearanceOk = bridgesHaveApproachPathClearance(rr.getPath(), rr.getBridges());
-
-                    if (!fullProfileOk || !clearanceOk) {
-                        long badState = foundState;
-                        boolean wasPartial = partialResult;
-                        profileRejectionCount++;
-
-                        reconstructing = false;
-                        foundState = Long.MIN_VALUE;
-                        recCur = Long.MIN_VALUE;
-                        recGuard = 0;
-                        revStates.clear();
-
-                        st.closed.add(badState);
-                        result = new PathResult(
-                                Collections.<BlockPos>emptyList(),
-                                Collections.<BridgeSpan>emptyList()
-                        );
-
-                        // If the partial fallback itself fails profile, bestApproxState hasn't
-                        // changed (search never ran since reconstructing=true the whole time),
-                        // so calling beginPartialReconstruction again would loop forever silently.
-                        if (wasPartial) {
-                            return fail("partial fallback also failed profile feasibility (" + profileRejectionCount + " total rejections)");
-                        }
-
-                        // Guard: after too many full-path rejections, try a partial fallback.
-                        // Note: beginPartialReconstruction must only be called here (not from
-                        // inside a partial reconstruction) or it would loop silently.
-                        if (profileRejectionCount >= PROFILE_REJECTION_LIMIT) {
-                            return failOrPartial("non-feasible road profile after " + profileRejectionCount + " attempts");
-                        }
-
-                        // Return RUNNING without calling beginPartialReconstruction here.
-                        // The next advance() enters !reconstructing, fires the progress log,
-                        // and handles "open exhausted" through the normal path.
-                        return StepResult.RUNNING;
-                    }
-
-                    flushBridgeDebugSummary();
-                    return partialResult ? StepResult.PARTIAL : StepResult.FOUND;
+                // Guard: after too many full-path rejections, try a partial fallback.
+                // Note: beginPartialReconstruction must only be called here (not from
+                // inside a partial reconstruction) or it would loop silently.
+                if (profileRejectionCount >= PROFILE_REJECTION_LIMIT) {
+                    return failOrPartial("non-feasible road profile after " + profileRejectionCount + " attempts");
                 }
+
+                // Return RUNNING without calling beginPartialReconstruction here.
+                // The next advance() resumes the search, fires the progress log,
+                // and handles "open exhausted" through the normal path.
+                return StepResult.RUNNING;
             }
 
-            return StepResult.RUNNING;
+            result = rr;
+            flushBridgeDebugSummary();
+            return partialResult ? StepResult.PARTIAL : StepResult.FOUND;
         }
 
         private StepResult fail(String reason) {
@@ -421,10 +374,7 @@ public final class AStarPathfinder {
         }
 
         private void beginReconstruction(long state) {
-            foundState = state;
-            reconstructing = true;
-            recCur = state;
-            recGuard = 0;
+            reconstructor = new PathReconstructor(st, sampler, roadNetwork, state);
             partialResult = false;
             partialReason = null;
         }
@@ -468,7 +418,6 @@ public final class AStarPathfinder {
             beginReconstruction(bestApproxState);
             partialResult = true;
             partialReason = reason;
-            revStates.clear();
 
             return true;
         }
@@ -670,172 +619,6 @@ public final class AStarPathfinder {
                         st.relaxNewBridge(ck, nk, mv.nx, mv.nz, mv.ndir, tentative, f, mv.span);
                     }
                 }
-            }
-        }
-
-        /**
-         * Rejects paths where a bridge deck passes over its own approach path without sufficient
-         * clearance. Only the bridge interior is checked — the first {@code step} centerline cells
-         * are skipped because they are the ramp connection to the road and will always be at road Y.
-         *
-         * A bridge over a DIFFERENT road segment (valley-cross) is fine as long as clearance ≥ min.
-         */
-        private boolean bridgesHaveApproachPathClearance(List<BlockPos> path, List<BridgeSpan> spans) {
-            if (spans.isEmpty() || bridgePathStartIndices.size() != spans.size()) return true;
-
-            int minClearance = BridgeClearanceCheck.UNDER_BRIDGE_ROAD_MIN_CLEARANCE_BLOCKS;
-
-            // Skip the launch-ramp zone so the bridge connection point never triggers a false reject.
-            final int startGrace = step;
-            // Tight XZ match: 1 block tolerance avoids false matches with off-axis approach nodes.
-            final int xzRadius = 1;
-
-            for (int b = 0; b < spans.size(); b++) {
-                BridgeSpan span = spans.get(b);
-                if (span.centerline == null || span.centerline.isEmpty()) continue;
-
-                int priorEnd = Math.min(bridgePathStartIndices.get(b), path.size() - 1);
-                if (priorEnd < 0) continue;
-
-                int[] deckHalf = BridgeDeckProfile.of(span);
-
-                for (int ci = startGrace; ci < span.centerline.size(); ci++) {
-                    BlockPos bridgePoint = span.centerline.get(ci);
-                    int deckSurfaceY = HalfY.surfaceBlockY(deckHalf[Math.min(ci, deckHalf.length - 1)]);
-
-                    for (int k = 0; k <= priorEnd; k++) {
-                        BlockPos roadPoint = path.get(k);
-                        if (Math.abs(bridgePoint.getX() - roadPoint.getX()) > xzRadius) continue;
-                        if (Math.abs(bridgePoint.getZ() - roadPoint.getZ()) > xzRadius) continue;
-
-                        int freeBlocks = deckSurfaceY - roadPoint.getY() - 1;
-                        if (freeBlocks < minClearance) {
-                            if (UltreiaConfig.DEBUG.logBridges) {
-                                Ultreia.LOGGER.info(
-                                        "[Ultreia Bridge] self-overlap bridge[{}]: deck Y={} at ({},{}) over approach road Y={} at ({},{}), clearance={} < {}",
-                                        b, deckSurfaceY, bridgePoint.getX(), bridgePoint.getZ(),
-                                        roadPoint.getY(), roadPoint.getX(), roadPoint.getZ(),
-                                        freeBlocks, minClearance);
-                            }
-                            return false;
-                        }
-                    }
-                }
-            }
-            return true;
-        }
-
-        private void buildResultFromReconstruction() {
-            ArrayList<BlockPos> out = new ArrayList<BlockPos>();
-            ArrayList<BridgeSpan> spans = new ArrayList<BridgeSpan>();
-            bridgePathStartIndices.clear();
-
-            if (revStates.isEmpty()) {
-                result = new PathResult(Collections.<BlockPos>emptyList(), Collections.<BridgeSpan>emptyList());
-                return;
-            }
-
-            long first = revStates.get(0);
-            int fx = stateX(first);
-            int fz = stateZ(first);
-            TerrainSampler.Sample fs = sampler.sample(fx, fz);
-            out.add(new BlockPos(fx, fs.surfaceY, fz));
-
-            for (int i = 1; i < revStates.size(); i++) {
-                long curK = revStates.get(i);
-                int cx = stateX(curK);
-                int cz = stateZ(curK);
-
-                RoadNetwork.BridgeCrossing reused = st.cameReusedBridge.get(curK);
-                if (reused != null) {
-                    appendReusedBridgeWaypoints(out, reused);
-                    continue;
-                }
-
-                BridgeSpan span = st.cameBridge.get(curK);
-                if (span != null) {
-                    spans.add(span);
-                    bridgePathStartIndices.add(out.isEmpty() ? 0 : out.size() - 1);
-
-                    int[] deckHalf = BridgeDeckProfile.of(span);
-
-                    if (!out.isEmpty() && span.centerline != null && !span.centerline.isEmpty()) {
-                        BlockPos firstBridge = span.centerline.get(0);
-                        int firstDeckY = HalfY.walkBlockYFloor(deckHalf[0]);
-                        BlockPos prevOut = out.get(out.size() - 1);
-
-                        if (prevOut.getX() == firstBridge.getX() && prevOut.getZ() == firstBridge.getZ()) {
-                            out.set(out.size() - 1, new BlockPos(firstBridge.getX(), firstDeckY, firstBridge.getZ()));
-                        }
-                    }
-
-                    for (int j = 1; j < span.centerline.size(); j++) {
-                        BlockPos p = span.centerline.get(j);
-                        int deckY = HalfY.walkBlockYFloor(deckHalf[j]);
-
-                        if (out.isEmpty() || out.get(out.size() - 1).getX() != p.getX() || out.get(out.size() - 1).getZ() != p.getZ()) {
-                            out.add(new BlockPos(p.getX(), deckY, p.getZ()));
-                        }
-                    }
-                } else {
-                    TerrainSampler.Sample s = sampler.sample(cx, cz);
-
-                    if (!out.isEmpty()) {
-                        BlockPos prev = out.get(out.size() - 1);
-                        long ddx = (long) cx - (long) prev.getX();
-                        long ddz = (long) cz - (long) prev.getZ();
-                        long manhattan = Math.abs(ddx) + Math.abs(ddz);
-
-                        if (manhattan > ABSURD_JUMP_BLOCKS) {
-                            failed = true;
-                            failReason = "reconstructed path contains absurd jump: (" + prev.getX() + "," + prev.getZ() + ") -> (" + cx + "," + cz + ")";
-                            result = new PathResult(Collections.<BlockPos>emptyList(), Collections.<BridgeSpan>emptyList());
-                            return;
-                        }
-                    }
-
-                    if (out.isEmpty() || out.get(out.size() - 1).getX() != cx || out.get(out.size() - 1).getZ() != cz) {
-                        out.add(new BlockPos(cx, s.surfaceY, cz));
-                    }
-                }
-            }
-
-            result = new PathResult(out, spans);
-        }
-
-        /**
-         * Splices the exact persisted geometry of a reused bridge into the reconstructed coarse path,
-         * instead of the single ground-level point the naive "no span" branch would otherwise emit.
-         * Not added to {@code spans}/{@code forcedBridges}: RoadPainter must never rebuild this bridge —
-         * it treats these points as ordinary coarse waypoints, and its existing roadIndex.isBridgeXZ /
-         * isBridgeVolumeXZ checks already skip painting, earthworks and tree-clearing on them since they
-         * were marked in the persistent index when the bridge was first built.
-         */
-        private void appendReusedBridgeWaypoints(ArrayList<BlockPos> out, RoadNetwork.BridgeCrossing crossing) {
-            if (roadNetwork == null) return;
-            RoadSegment seg = roadNetwork.getSegment(crossing.segmentId);
-            if (seg == null || seg.waypoints.isEmpty()) return;
-
-            List<RoadWaypoint> wps = seg.waypoints;
-            // The crossing tells us which physical end of the persisted segment we are entering from,
-            // so we walk the stored centerline in the matching direction.
-            boolean forward = (seg.startX() == crossing.startX && seg.startZ() == crossing.startZ);
-
-            if (forward) {
-                for (RoadWaypoint wp : wps) {
-                    appendIfNewXZ(out, wp.x, wp.y, wp.z);
-                }
-            } else {
-                for (int i = wps.size() - 1; i >= 0; i--) {
-                    RoadWaypoint wp = wps.get(i);
-                    appendIfNewXZ(out, wp.x, wp.y, wp.z);
-                }
-            }
-        }
-
-        private static void appendIfNewXZ(ArrayList<BlockPos> out, int x, int y, int z) {
-            if (out.isEmpty() || out.get(out.size() - 1).getX() != x || out.get(out.size() - 1).getZ() != z) {
-                out.add(new BlockPos(x, y, z));
             }
         }
 

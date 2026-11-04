@@ -1,5 +1,8 @@
 package com.jubitus.ultreia.route;
 
+import com.jubitus.ultreia.Ultreia;
+import com.jubitus.ultreia.bridge.BridgeClearanceCheck;
+import com.jubitus.ultreia.bridge.BridgeDeckProfile;
 import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.geom.LineRaster;
 import com.jubitus.ultreia.terrain.TerrainView;
@@ -14,11 +17,26 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/** The only whole-path check of a found A* path: walkable end to end, and no bridge deck too low over its own approach road. */
 public final class PathProfileCheck {
+
+    // Tight XZ match between a bridge cell and an approach road point: avoids false matches with off-axis nodes.
+    private static final int SELF_OVERLAP_XZ_RADIUS = 1;
 
     private PathProfileCheck() {}
 
-    public static boolean isFullPathFeasible(List<BlockPos> coarsePath,
+    /**
+     * @param bridgeStartIndices index in {@code coarsePath} at which each bridge of {@code bridges} begins
+     * @param step A* grid step: the first {@code step} deck cells are the launch ramp and are not checked for overlap
+     */
+    static boolean isAcceptable(List<BlockPos> coarsePath, List<BridgeSpan> bridges, List<Integer> bridgeStartIndices,
+                                TerrainView sampler, RoadType roadType, int step) {
+        boolean walkable = isFullPathFeasible(coarsePath, bridges, sampler, roadType);
+        boolean clear = bridgesClearOwnApproach(coarsePath, bridges, bridgeStartIndices, step);
+        return walkable && clear;
+    }
+
+    private static boolean isFullPathFeasible(List<BlockPos> coarsePath,
                                              List<BridgeSpan> bridges,
                                              TerrainView sampler,
                                              RoadType roadType) {
@@ -84,5 +102,52 @@ public final class PathProfileCheck {
         }
 
         return out;
+    }
+
+    /**
+     * Rejects paths where a bridge deck passes over its own approach path without sufficient
+     * clearance. Only the bridge interior is checked: the first {@code step} centerline cells
+     * are the ramp connection to the road and are always at road Y.
+     * A bridge over a DIFFERENT road segment (valley-cross) is fine as long as clearance >= min.
+     */
+    private static boolean bridgesClearOwnApproach(List<BlockPos> path, List<BridgeSpan> spans,
+                                                   List<Integer> bridgeStartIndices, int step) {
+        if (spans.isEmpty() || bridgeStartIndices.size() != spans.size()) return true;
+
+        int minClearance = BridgeClearanceCheck.UNDER_BRIDGE_ROAD_MIN_CLEARANCE_BLOCKS;
+
+        for (int b = 0; b < spans.size(); b++) {
+            BridgeSpan span = spans.get(b);
+            if (span.centerline == null || span.centerline.isEmpty()) continue;
+
+            int priorEnd = Math.min(bridgeStartIndices.get(b), path.size() - 1);
+            if (priorEnd < 0) continue;
+
+            int[] deckHalf = BridgeDeckProfile.of(span);
+
+            for (int ci = step; ci < span.centerline.size(); ci++) {
+                BlockPos bridgePoint = span.centerline.get(ci);
+                int deckSurfaceY = HalfY.surfaceBlockY(deckHalf[Math.min(ci, deckHalf.length - 1)]);
+
+                for (int k = 0; k <= priorEnd; k++) {
+                    BlockPos roadPoint = path.get(k);
+                    if (Math.abs(bridgePoint.getX() - roadPoint.getX()) > SELF_OVERLAP_XZ_RADIUS) continue;
+                    if (Math.abs(bridgePoint.getZ() - roadPoint.getZ()) > SELF_OVERLAP_XZ_RADIUS) continue;
+
+                    int freeBlocks = deckSurfaceY - roadPoint.getY() - 1;
+                    if (freeBlocks < minClearance) {
+                        if (UltreiaConfig.DEBUG.logBridges) {
+                            Ultreia.LOGGER.info(
+                                    "[Ultreia Bridge] self-overlap bridge[{}]: deck Y={} at ({},{}) over approach road Y={} at ({},{}), clearance={} < {}",
+                                    b, deckSurfaceY, bridgePoint.getX(), bridgePoint.getZ(),
+                                    roadPoint.getY(), roadPoint.getX(), roadPoint.getZ(),
+                                    freeBlocks, minClearance);
+                        }
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
     }
 }
