@@ -269,7 +269,7 @@ one "may a bridge replace this block" rule (3 copies, same effect); `dryRun` rem
 ### Phase 9 — A* split — status: in progress
 
 Steps: 9.1 in place (dead code, `ax/az/bx/bz` renames, named constants, repeated blocks → one method) (done) · 9.2 `SearchState`,
-`GridMoves` completed (adaptive step, endpoint snap, free exits), `SearchBounds` · 9.3 `TerrainMoveCost` · 9.4 `PathReconstructor`
+`GridMoves` completed (adaptive step, endpoint snap, free exits), `SearchBounds` (done) · 9.3 `TerrainMoveCost` · 9.4 `PathReconstructor`
 · 9.5 `AStarDiagnostics`, `Session` → `AStarSearch` · 9.6 hairpin debug trace, then fix decided with the user.
 Decided (user): the bridge-over-own-approach check moves to `PathProfileCheck` (one whole-path check); the per-move
 and look-ahead cut costs stay two terms (shared enclosed detection only); the two endpoint debug views become one.
