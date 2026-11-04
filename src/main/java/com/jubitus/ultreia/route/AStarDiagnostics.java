@@ -56,7 +56,7 @@ public final class AStarDiagnostics {
         skipHairpin++;
     }
 
-    String failureSummary(String reason, SearchState st, boolean detailed) {
+    String failureSummary(String reason, SearchState st, int profileRejections, boolean detailed) {
         if (!detailed) return reason;
         return reason
                 + " it=" + st.iterations
@@ -67,7 +67,8 @@ public final class AStarDiagnostics {
                 + ", blocked=" + skipBlocked
                 + ", slope=" + skipSlope
                 + ", bridge=" + skipBridge
-                + ", hairpin=" + skipHairpin + "}";
+                + ", hairpin=" + skipHairpin + "}"
+                + " pathsRefusedByProfileCheck=" + profileRejections;
     }
 
     /** Periodic log line so the user can see A* is still alive. */

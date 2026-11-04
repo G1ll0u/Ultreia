@@ -737,7 +737,7 @@ public final class AStarSearch {
     }
 
     public String failureSummary(boolean detailed) {
-        return diag.failureSummary(failReason, st, detailed);
+        return diag.failureSummary(failReason, st, profileRejectionCount, detailed);
     }
 
     public String debugStartArea(@javax.annotation.Nullable ProtectedAreas protectedAreas) {

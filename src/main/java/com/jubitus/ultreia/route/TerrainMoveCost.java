@@ -449,8 +449,10 @@ public final class TerrainMoveCost {
         int cutHalf = Math.max(0, UltreiaConfig.PAINTING.earthworksMaxCut + pfTolerance) * 2;
         int fillHalf = Math.max(0, UltreiaConfig.PAINTING.earthworksMaxFill + pfTolerance) * 2;
 
+        // Graded on the painted centerline's raster, as the whole-path check does: supercover adds cells on diagonals
+        // and let A* accept climbs twice as steep as the painter can build.
         boolean gradeFeasible = RoadHeightSolver.isLineFeasible(
-                line,
+                LineRaster.forBridges(x0, z0, x1, z1, 0),
                 sampler,
                 startHalf,
                 endHalf,

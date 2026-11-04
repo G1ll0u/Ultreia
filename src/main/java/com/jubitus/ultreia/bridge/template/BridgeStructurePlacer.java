@@ -222,10 +222,11 @@ final class BridgeStructurePlacer {
         for (int idx = 0; idx < line.size(); idx++) {
             BlockPos p = line.get(idx);
             double t = (double) idx / (double) (line.size() - 1);
-            int y = (int) Math.round((1.0 - t) * (double) start.getY() + t * (double) end.getY());
+            double y = (1.0 - t) * (double) start.getY() + t * (double) end.getY();
 
-            BlockPos wp = new BlockPos(p.getX(), y, p.getZ());
-            placeTemplateBlockOnce(world, wp, state, placedBlocks);
+            // A cell between two heights takes both, so a corner under a deck step leaves no hole.
+            placeTemplateBlockOnce(world, new BlockPos(p.getX(), (int) Math.floor(y), p.getZ()), state, placedBlocks);
+            placeTemplateBlockOnce(world, new BlockPos(p.getX(), (int) Math.ceil(y), p.getZ()), state, placedBlocks);
         }
     }
 

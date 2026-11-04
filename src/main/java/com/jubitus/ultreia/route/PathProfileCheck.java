@@ -55,6 +55,9 @@ public final class PathProfileCheck {
         try {
             int[] half = RoadHeightProfile.build(dense, bridges, sampler);
             if (half == null || half.length != dense.size()) {
+                if (UltreiaConfig.DEBUG.logPathfinding) {
+                    Ultreia.LOGGER.info("[Ultreia A*] whole-path check refused: no height profile for {} blocks", dense.size());
+                }
                 return false;
             }
 
@@ -62,12 +65,23 @@ public final class PathProfileCheck {
             for (int i = 1; i < half.length; i++) {
                 if (isFollowed(followedXZ, dense.get(i)) && isFollowed(followedXZ, dense.get(i - 1))) continue;
                 if (Math.abs(half[i] - half[i - 1]) > maxStepHalf) {
+                    if (UltreiaConfig.DEBUG.logPathfinding) {
+                        BlockPos p = dense.get(i);
+                        Ultreia.LOGGER.info("[Ultreia A*] whole-path check refused: step of {} half-blocks at ({},{},{}), block {}/{} of the path",
+                                Math.abs(half[i] - half[i - 1]), p.getX(), p.getY(), p.getZ(), i, half.length);
+                    }
                     return false;
                 }
             }
 
             return true;
-        } catch (Throwable ignored) {
+        } catch (IllegalStateException noProfile) {
+            if (UltreiaConfig.DEBUG.logPathfinding) {
+                Ultreia.LOGGER.info("[Ultreia A*] whole-path check refused: {}", noProfile.getMessage());
+            }
+            return false;
+        } catch (Throwable t) {
+            Ultreia.LOGGER.warn("[Ultreia A*] whole-path check failed with an error, path refused", t);
             return false;
         }
     }
