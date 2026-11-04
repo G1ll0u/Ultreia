@@ -314,7 +314,7 @@ inside `paintSingle` becomes an explicit argument. Debug switch for earthworks/t
 
 ### Phase 11 — Millénaire index, map GUI, commands — status: in progress
 
-Steps: 11.1 `mill/`: `Villages` door, `MillSettlements`, `MillBuildings` (done) · 11.2 map screen split · 11.3 commands
+Steps: 11.1 `mill/`: `Villages` door, `MillSettlements`, `MillBuildings` (done) · 11.2 map screen split (`MapView`, `MapRenderer`, `MapExporter`; text in the lang file; export renamed `ultreia_export_*.txt`) (done) · 11.3 commands
 and lang · 11.4 README.
 Decided (user): gates are built wall buildings whose plan key contains "gate" (wall slopes were wrongly taken as
 gates); footprints are the exact plan box (Travellers' computation) plus 1 block, for every Millénaire building (no

@@ -1,2 +1,30 @@
 tile.ultreia.path_block.name=Path Block
 tile.ultreia.path_slab.name=Path Slab
+
+# Road map screen
+ultreia.map.button.export=Export [E]
+ultreia.map.button.reset=Reset [R]
+ultreia.map.button.preview=Preview [P]
+ultreia.map.button.loading=Loading...
+ultreia.map.button.close=Close [Esc]
+ultreia.map.hud=X: %.0f  Z: %.0f   Zoom: %.3fx   Segs: %d  Roads: %d  Bridges: %d
+ultreia.map.north=N
+ultreia.map.segment.road=ROAD #%d
+ultreia.map.segment.bridge=BRIDGE #%d
+ultreia.map.segment.waypoints=Waypoints: %d
+ultreia.map.segment.length=Length ≈ %d m
+ultreia.map.segment.start=Start: (%d, %d, %d)
+ultreia.map.segment.end=End:   (%d, %d, %d)
+ultreia.map.segment.waypoint=--- waypoint #%d / %d ---
+ultreia.map.segment.pos=Pos: (%d, %d, %d)
+ultreia.map.segment.from=From-village: (%d, %d)
+ultreia.map.segment.to=To-village: (%d, %d)
+ultreia.map.node.hub=HUB
+ultreia.map.node.medium=MEDIUM
+ultreia.map.node.small=SMALL
+ultreia.map.node.lone=LONE BUILDING
+ultreia.map.node.population=Population: %d
+ultreia.map.node.population_unknown=Population: unknown
+ultreia.map.node.coords=X: %d  Z: %d
+ultreia.map.export.saved=Saved: %s
+ultreia.map.export.failed=Export failed: %s
