@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-04)**: phases 0–10 done (in-game checks pending). Next: phase 11.
+**Status (2026-11-04)**: phases 0–11 done (in-game checks pending). Next: phase 12.
 
 ## Goal
 
@@ -312,9 +312,9 @@ paint diagnostics), `TalusPass`, `PathPalette`; `mill/MillPathBlocks` holds only
 (~300), `paint/PathPalette` (kind and support choice; Millénaire states in `mill/MillPathBlocks`). The cursor read
 inside `paintSingle` becomes an explicit argument. Debug switch for earthworks/terrain clearing.
 
-### Phase 11 — Millénaire index, map GUI, commands — status: in progress
+### Phase 11 — Millénaire index, map GUI, commands — status: done (in-game checks pending)
 
-Steps: 11.1 `mill/`: `Villages` door, `MillSettlements`, `MillBuildings` (done) · 11.2 map screen split (`MapView`, `MapRenderer`, `MapExporter`; text in the lang file; export renamed `ultreia_export_*.txt`) (done) · 11.3 commands (one usage text, one player check, create/update share one capture; text in the lang file) (done) · 11.4 README.
+Steps: 11.1 `mill/`: `Villages` door, `MillSettlements`, `MillBuildings` (done) · 11.2 map screen split (`MapView`, `MapRenderer`, `MapExporter`; text in the lang file; export renamed `ultreia_export_*.txt`) (done) · 11.3 commands (one usage text, one player check, create/update share one capture; text in the lang file) (done) · 11.4 README (commands section, wrong commands fixed) (done).
 Decided (user): gates are built wall buildings whose plan key contains "gate" (wall slopes were wrongly taken as
 gates); footprints are the exact plan box (Travellers' computation) plus 1 block, for every Millénaire building (no
 radius around villages); Millénaire data through one accessor (Millénaire's own first, the mixin-captured instance as

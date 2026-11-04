@@ -34,7 +34,7 @@ Radius suggested for single player : at least 2000 blocks
 If you're a big explorer go 4000+ blocks
 2. Ensure you use the latest version of #MillMix
 3. If you're generating paths for an existing world, I suggest to **do a backup**
-4. Run `/ultreia generate` or `/ultreia generate`
+4. Run `/ultreia generate`
 
 **Ensure village generation is ON before pregen**
 
@@ -42,11 +42,27 @@ The mod is not really made to connect new villages to an existing network but it
 
 Ultreïa not only generates paths, it also generates **bridges** using a **template system**.
 
-**Bridge template cration available in pinned messages**
+**Bridge template creation available in pinned messages**
 
+
+### Commands
+All commands need operator rights. `/mpb` works as a short alias.
+
+```
+/ultreia generate                 — build the road network between all villages
+/ultreia cancel                   — stop the generation in progress
+/ultreia status                   — show the generation progress and your pos1/pos2
+/ultreia pos1 [x z]               — mark the start of a custom road (your position if no x z)
+/ultreia pos2 [x z]               — mark the end of a custom road
+/ultreia generatecustom [type]    — build a road from pos1 to pos2; type is VILLAGE_MAIN (default) or LONE_TRAIL (narrow trail)
+/ultreia reset                    — clear pos1 and pos2
+/ultreia gui [radius]             — open the road map around you (default radius 2000)
+/ultreia config                   — open the configuration screen
+/ultreia bridge ...               — bridge templates, see below
+```
 
 ### Config
-Go to "mod options" or use "/mpb config" (same config as travellers)
+Go to "mod options" or use `/ultreia config` (same config as travellers)
 This mod is highly configurable (way too much)
 Some config keys may not work or not act like it should.
 
@@ -142,4 +158,4 @@ The default template is used when no other template matches the current biome co
 5. `/ultreia bridge set my_bridge` → activate as default if desired
 6. If you later modify the blocks in-world → `/ultreia bridge update my_bridge` to re-scan
 
-**Note** : Don't hesitate to use `/ultreia import default` to see a valid template example.
+**Note** : Don't hesitate to use `/ultreia bridge import default` to see a valid template example.
