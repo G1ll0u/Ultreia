@@ -298,7 +298,7 @@ gap (road stops at the bridge start, resumes at its end, connectors at both ends
 
 Steps: 10.1 in place (dead switches and parameters: dry run, early-merge flag, headroom and parallel-skip constants,
 always-on earthworks everywhere; profile built once; cursor index passed to the cell painter) (done) · 10.2 `PathPalette`
-/ `MillPathBlocks` (done) · 10.3 `RibbonGeometry`, `RoadCenterline` (done) · 10.4 `RoadMergePlanner` · 10.5 `RoadFootprintPlanner`
+/ `MillPathBlocks` (done) · 10.3 `RibbonGeometry`, `RoadCenterline` (done) · 10.4 `RoadMergePlanner` (done) · 10.5 `RoadFootprintPlanner`
 · 10.6 `RoadCellPainter`, `TalusPass`, `RoadPainter` → `RoadPaintSession`.
 Decided (user): `RoadType.allowsEarthworks()` and its two constants deleted (earthworks always on); no new debug
 switch, earthworks and clearing log under `logPainting`. No test covers the painter (needs a world): moves keep the
