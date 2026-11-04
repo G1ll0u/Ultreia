@@ -28,3 +28,32 @@ ultreia.map.node.population_unknown=Population: unknown
 ultreia.map.node.coords=X: %d  Z: %d
 ultreia.map.export.saved=Saved: %s
 ultreia.map.export.failed=Export failed: %s
+
+# Commands
+ultreia.command.usage=/ultreia <pos1 [x z]|pos2 [x z]|generate|generatecustom [VILLAGE_MAIN|LONE_TRAIL]|gui [radius]|config|status|reset|cancel|bridge ...>
+ultreia.command.bridge.usage=/ultreia bridge <create <name>|update <name>|set <name>|export|import <name>|validate|list|reloadconfig>
+ultreia.command.player_only=Ultreïa: %s can only be used by a player.
+ultreia.command.pos_set=Ultreïa: %s = %s in dim %s
+ultreia.command.pos_unset=Ultreïa: %1$s is not set. Use /ultreia %1$s
+ultreia.command.same_pos=Ultreïa: pos1 and pos2 are the same.
+ultreia.command.unknown_road_type=Ultreïa: unknown road type '%s'. Use VILLAGE_MAIN or LONE_TRAIL.
+ultreia.command.gui.bad_radius=Ultreïa: invalid radius — using %s.
+ultreia.command.gui.opening=§7[Ultreïa] Opening map GUI — %s segment(s) in radius %s...
+ultreia.command.status.player=Ultreïa: dim=%s pos1=%s pos2=%s
+ultreia.command.status.console=Ultreïa: dim=%s console sender
+ultreia.command.status.unset=<unset>
+ultreia.command.status.job=Ultreïa job: %s
+ultreia.command.reset=Ultreïa: pos1 and pos2 cleared for dim %s
+ultreia.command.cancel=Ultreïa: cancelled active generation in dim %s
+ultreia.command.bridge.missing_name=Missing bridge template name.
+ultreia.command.bridge.not_found=Bridge template not found: %s
+ultreia.command.bridge.save_failed=Failed to save bridge template: %s
+ultreia.command.bridge.saved=Saved to: %s
+ultreia.command.bridge.updated=Updated: %s
+ultreia.command.bridge.default_set=Default bridge template set to: %s
+ultreia.command.bridge.reloaded=Config and bridge templates reloaded from disk.
+ultreia.command.bridge.error=[ERROR] %s: %s
+ultreia.command.bridge.warn=[WARN]  %s: %s
+ultreia.command.bridge.all_valid=All bridge templates are valid.
+ultreia.command.bridge.none=No bridge templates found.
+ultreia.command.bridge.list=Bridge templates: %s

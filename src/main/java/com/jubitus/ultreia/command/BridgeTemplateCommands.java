@@ -8,178 +8,164 @@ import com.jubitus.ultreia.bridge.template.BridgeTemplateRegistry;
 import com.jubitus.ultreia.bridge.template.BridgeTemplateValidator;
 import com.jubitus.jubiconfig.JubiConfig;
 
-import com.jubitus.ultreia.Tags;
 import net.minecraft.command.CommandException;
 import net.minecraft.command.ICommandSender;
+import net.minecraft.command.WrongUsageException;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.world.WorldServer;
-import net.minecraftforge.common.config.Config;
-import net.minecraftforge.common.config.ConfigManager;
 
-public final class BridgeTemplateCommands {
+import javax.annotation.Nullable;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+
+import static com.jubitus.ultreia.command.CommandUltreia.requirePlayer;
+import static com.jubitus.ultreia.command.CommandUltreia.say;
+
+/** /ultreia bridge: capture, update, export and import bridge templates, set the default, validate, list, reload. */
+final class BridgeTemplateCommands {
+
+    static final List<String> SUBS = Arrays.asList(
+            "create", "update", "set", "export", "import", "validate", "list", "reloadconfig");
 
     private BridgeTemplateCommands() {}
 
-    public static void handle(WorldServer world, ICommandSender sender, String[] args) throws CommandException {
+    static void handle(WorldServer world, ICommandSender sender, String[] args) throws CommandException {
         if (args.length < 2) {
-            sender.sendMessage(new TextComponentString(usage()));
-            return;
+            throw new WrongUsageException("ultreia.command.bridge.usage");
         }
 
-        String sub = args[1].toLowerCase();
+        String sub = args[1].toLowerCase(Locale.ROOT);
 
-        if ("create".equals(sub)) {
-            if (args.length < 3) throw new CommandException("Missing bridge template name.");
-
-            EntityPlayerMP player = requirePlayer(sender);
-            String name = args[2];
-
-            BridgeTemplateAnalyzer.CreateResult result = BridgeTemplateAnalyzer.createNearestTemplate(world, player.getPosition(), name);
-            if (!result.ok || result.template == null) throw new CommandException(result.message);
-
-            try {
-                BridgeTemplateRegistry.saveTemplate(result.template);
-            } catch (Throwable t) {
-                throw new CommandException("Failed to save bridge template: " + t.getMessage());
+        switch (sub) {
+            case "create": {
+                String name = requireName(args);
+                captureTemplate(world, sender, requirePlayer(sender, "bridge create"), name, null);
+                return;
             }
 
-            BridgeTemplateRegistry.invalidateTemplateCache();
-            sender.sendMessage(new TextComponentString(result.message));
-            sender.sendMessage(new TextComponentString("Saved to: " + BridgeTemplateRegistry.getTemplateFile(result.template.name).getAbsolutePath()));
-            return;
-        }
-
-        if ("set".equals(sub)) {
-            if (args.length < 3) throw new CommandException("Missing bridge template name.");
-
-            String name = args[2];
-            if (!BridgeTemplateRegistry.setDefaultTemplate(name)) {
-                throw new CommandException("Bridge template not found: " + BridgeTemplateRegistry.sanitizeName(name));
+            case "update": {
+                String name = requireName(args);
+                EntityPlayerMP player = requirePlayer(sender, "bridge update");
+                BridgeTemplate existing = BridgeTemplateRegistry.loadTemplate(name);
+                if (existing == null) {
+                    throw new CommandException("ultreia.command.bridge.not_found", BridgeTemplateRegistry.sanitizeName(name));
+                }
+                captureTemplate(world, sender, player, name, existing);
+                return;
             }
 
-            sender.sendMessage(new TextComponentString("Default bridge template set to: " + BridgeTemplateRegistry.sanitizeName(name)));
-            return;
-        }
-
-        if ("export".equals(sub)) {
-            EntityPlayerMP player = requirePlayer(sender);
-
-            BridgeDebugExporter.ExportResult result = BridgeDebugExporter.exportNearestBridge(world, player.getPosition());
-            if (!result.ok || result.file == null) throw new CommandException(result.message);
-
-            sender.sendMessage(new TextComponentString(result.message));
-            sender.sendMessage(new TextComponentString("Saved to: " + result.file.getAbsolutePath()));
-            return;
-        }
-
-        if ("import".equals(sub)) {
-            if (args.length < 3) throw new CommandException("Missing bridge template name.");
-
-            EntityPlayerMP player = requirePlayer(sender);
-            String name = args[2];
-
-            BridgeTemplate template = BridgeTemplateRegistry.loadTemplate(name);
-            if (template == null) {
-                throw new CommandException("Bridge template not found: " + BridgeTemplateRegistry.sanitizeName(name));
+            case "set": {
+                String name = requireName(args);
+                if (!BridgeTemplateRegistry.setDefaultTemplate(name)) {
+                    throw new CommandException("ultreia.command.bridge.not_found", BridgeTemplateRegistry.sanitizeName(name));
+                }
+                say(sender, "ultreia.command.bridge.default_set", BridgeTemplateRegistry.sanitizeName(name));
+                return;
             }
 
-            BridgeTemplateImporter.ImportResult result = BridgeTemplateImporter.importUnderPlayer(world, player.getPosition(), template);
-            if (!result.ok) throw new CommandException(result.message);
+            case "export": {
+                EntityPlayerMP player = requirePlayer(sender, "bridge export");
+                BridgeDebugExporter.ExportResult result = BridgeDebugExporter.exportNearestBridge(world, player.getPosition());
+                if (!result.ok || result.file == null) throw new CommandException(result.message);
 
-            sender.sendMessage(new TextComponentString(result.message));
-            return;
-        }
-
-        if ("update".equals(sub)) {
-            if (args.length < 3) throw new CommandException("Missing bridge template name.");
-
-            EntityPlayerMP player = requirePlayer(sender);
-            String name = args[2];
-
-            BridgeTemplate existing = BridgeTemplateRegistry.loadTemplate(name);
-            if (existing == null) {
-                throw new CommandException("Bridge template not found: " + BridgeTemplateRegistry.sanitizeName(name));
+                sender.sendMessage(new TextComponentString(result.message));
+                say(sender, "ultreia.command.bridge.saved", result.file.getAbsolutePath());
+                return;
             }
 
-            BridgeTemplateAnalyzer.CreateResult result = BridgeTemplateAnalyzer.createNearestTemplate(world, player.getPosition(), name);
-            if (!result.ok || result.template == null) throw new CommandException(result.message);
+            case "import": {
+                String name = requireName(args);
+                EntityPlayerMP player = requirePlayer(sender, "bridge import");
+                BridgeTemplate template = BridgeTemplateRegistry.loadTemplate(name);
+                if (template == null) {
+                    throw new CommandException("ultreia.command.bridge.not_found", BridgeTemplateRegistry.sanitizeName(name));
+                }
 
-            // Preserve spawn conditions and per-template overrides from the existing file
-            BridgeTemplate updated = result.template;
-            updated.biomes = existing.biomes;
-            updated.biomeTemperatureCategories = existing.biomeTemperatureCategories;
-            updated.biomeDictionaryTypes = existing.biomeDictionaryTypes;
-            updated.waterOnly = existing.waterOnly;
-            updated.minLength = existing.minLength;
-            updated.maxLength = existing.maxLength;
-            updated.bridgeCrownHalfBlocks = existing.bridgeCrownHalfBlocks;
-            updated.bridgeCrownMinLenBlocks = existing.bridgeCrownMinLenBlocks;
-            updated.maxSupportDepth = existing.maxSupportDepth;
+                BridgeTemplateImporter.ImportResult result = BridgeTemplateImporter.importUnderPlayer(world, player.getPosition(), template);
+                if (!result.ok) throw new CommandException(result.message);
 
-            try {
-                BridgeTemplateRegistry.saveTemplate(updated);
-            } catch (Throwable t) {
-                throw new CommandException("Failed to save bridge template: " + t.getMessage());
+                sender.sendMessage(new TextComponentString(result.message));
+                return;
             }
 
-            BridgeTemplateRegistry.invalidateTemplateCache();
-            sender.sendMessage(new TextComponentString(result.message));
-            sender.sendMessage(new TextComponentString("Updated: " + BridgeTemplateRegistry.getTemplateFile(updated.name).getAbsolutePath()));
-            return;
-        }
+            case "reloadconfig":
+                JubiConfig.applyOnStartup();
+                BridgeTemplateRegistry.invalidateTemplateCache();
+                say(sender, "ultreia.command.bridge.reloaded");
+                return;
 
-        if ("reloadconfig".equals(sub)) {
-            JubiConfig.applyOnStartup();
-            BridgeTemplateRegistry.invalidateTemplateCache();
-            sender.sendMessage(new TextComponentString("Config and bridge templates reloaded from disk."));
-            return;
-        }
-
-        if ("validate".equals(sub)) {
-            boolean hasIssues = false;
-            for (BridgeTemplate t : BridgeTemplateRegistry.loadAllTemplates()) {
-                BridgeTemplateValidator.ValidationResult result = BridgeTemplateValidator.validate(t);
-                if (result.hasErrors()) {
+            case "validate": {
+                boolean hasIssues = false;
+                for (BridgeTemplate t : BridgeTemplateRegistry.loadAllTemplates()) {
+                    BridgeTemplateValidator.ValidationResult result = BridgeTemplateValidator.validate(t);
                     for (String e : result.errors) {
-                        sender.sendMessage(new TextComponentString("[ERROR] " + t.name + ": " + e));
+                        say(sender, "ultreia.command.bridge.error", t.name, e);
+                        hasIssues = true;
                     }
-                    hasIssues = true;
-                }
-                if (result.hasWarnings()) {
                     for (String w : result.warnings) {
-                        sender.sendMessage(new TextComponentString("[WARN]  " + t.name + ": " + w));
+                        say(sender, "ultreia.command.bridge.warn", t.name, w);
+                        hasIssues = true;
                     }
-                    hasIssues = true;
                 }
+                if (!hasIssues) {
+                    say(sender, "ultreia.command.bridge.all_valid");
+                }
+                return;
             }
-            if (!hasIssues) {
-                sender.sendMessage(new TextComponentString("All bridge templates are valid."));
-            }
-            return;
-        }
 
-        if ("list".equals(sub)) {
-            java.util.List<String> names = BridgeTemplateRegistry.listTemplateNames();
-            if (names.isEmpty()) {
-                sender.sendMessage(new TextComponentString("No bridge templates found."));
-            } else {
-                sender.sendMessage(new TextComponentString("Bridge templates: " + String.join(", ", names)));
+            case "list": {
+                List<String> names = BridgeTemplateRegistry.listTemplateNames();
+                if (names.isEmpty()) {
+                    say(sender, "ultreia.command.bridge.none");
+                } else {
+                    say(sender, "ultreia.command.bridge.list", String.join(", ", names));
+                }
+                return;
             }
-            return;
-        }
 
-        sender.sendMessage(new TextComponentString(usage()));
+            default:
+                throw new WrongUsageException("ultreia.command.bridge.usage");
+        }
     }
 
-    private static EntityPlayerMP requirePlayer(ICommandSender sender) throws CommandException {
-        if (!(sender.getCommandSenderEntity() instanceof EntityPlayerMP)) {
-            throw new CommandException("This bridge command must be run by a player.");
-        }
-        return (EntityPlayerMP) sender.getCommandSenderEntity();
+    private static String requireName(String[] args) throws CommandException {
+        if (args.length < 3) throw new CommandException("ultreia.command.bridge.missing_name");
+        return args[2];
     }
 
-    private static String usage() {
-        return "/ultreia bridge <create <name>|update <name>|set <name>|export|import <name>|validate|list|reloadconfig>";
+    /**
+     * Captures the bridge nearest the player as template {@code name} and saves it. When {@code existing} is given
+     * (update), its spawn conditions and per-template overrides are kept.
+     */
+    private static void captureTemplate(WorldServer world, ICommandSender sender, EntityPlayerMP player, String name,
+                                        @Nullable BridgeTemplate existing) throws CommandException {
+        BridgeTemplateAnalyzer.CreateResult result = BridgeTemplateAnalyzer.createNearestTemplate(world, player.getPosition(), name);
+        if (!result.ok || result.template == null) throw new CommandException(result.message);
+
+        BridgeTemplate template = result.template;
+        if (existing != null) {
+            template.biomes = existing.biomes;
+            template.biomeTemperatureCategories = existing.biomeTemperatureCategories;
+            template.biomeDictionaryTypes = existing.biomeDictionaryTypes;
+            template.waterOnly = existing.waterOnly;
+            template.minLength = existing.minLength;
+            template.maxLength = existing.maxLength;
+            template.bridgeCrownHalfBlocks = existing.bridgeCrownHalfBlocks;
+            template.bridgeCrownMinLenBlocks = existing.bridgeCrownMinLenBlocks;
+            template.maxSupportDepth = existing.maxSupportDepth;
+        }
+
+        try {
+            BridgeTemplateRegistry.saveTemplate(template);
+        } catch (Throwable t) {
+            throw new CommandException("ultreia.command.bridge.save_failed", t.getMessage());
+        }
+
+        BridgeTemplateRegistry.invalidateTemplateCache();
+        sender.sendMessage(new TextComponentString(result.message));
+        say(sender, existing != null ? "ultreia.command.bridge.updated" : "ultreia.command.bridge.saved",
+                BridgeTemplateRegistry.getTemplateFile(template.name).getAbsolutePath());
     }
 }

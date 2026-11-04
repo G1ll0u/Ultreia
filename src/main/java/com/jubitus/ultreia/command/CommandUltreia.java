@@ -20,12 +20,13 @@ import net.minecraft.command.WrongUsageException;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.text.TextComponentString;
+import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.world.WorldServer;
 
 import javax.annotation.Nullable;
 import java.util.*;
 
+/** /ultreia: manual path selection, generation, map, config, status, and the bridge template sub-commands. */
 public final class CommandUltreia extends CommandBase {
 
     private static final List<String> SUBS = Arrays.asList(
@@ -41,6 +42,9 @@ public final class CommandUltreia extends CommandBase {
             "bridge"
     );
 
+    private static final int GUI_DEFAULT_RADIUS = 2000;
+    private static final int GUI_MAX_RADIUS = 8000;
+
     @Override
     public String getName() {
         return "ultreia";
@@ -48,8 +52,7 @@ public final class CommandUltreia extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/ultreia <pos1|pos2|generate|generatecustom|status|reset|cancel" +
-               "/ultreia bridge <create <name>|export|import <name>|validate|list|reloadconfig>";
+        return "ultreia.command.usage";
     }
 
     @Override
@@ -60,6 +63,18 @@ public final class CommandUltreia extends CommandBase {
     @Override
     public List<String> getAliases() {
         return Collections.singletonList("mpb");
+    }
+
+    /** The sender as a player, else a "player only" error naming the sub-command. */
+    static EntityPlayerMP requirePlayer(ICommandSender sender, String sub) throws CommandException {
+        if (!(sender.getCommandSenderEntity() instanceof EntityPlayerMP)) {
+            throw new CommandException("ultreia.command.player_only", sub);
+        }
+        return (EntityPlayerMP) sender.getCommandSenderEntity();
+    }
+
+    static void say(ICommandSender sender, String key, Object... args) {
+        sender.sendMessage(new TextComponentTranslation(key, args));
     }
 
     @Override
@@ -74,159 +89,125 @@ public final class CommandUltreia extends CommandBase {
                 ? (WorldServer) sender.getEntityWorld()
                 : server.getWorld(0);
 
-        EntityPlayerMP player = sender instanceof EntityPlayerMP ? (EntityPlayerMP) sender : null;
         int dim = world.provider.getDimension();
 
-        if ("bridge".equals(sub)) {
-            BridgeTemplateCommands.handle(world, sender, args);
-            return;
-        }
+        switch (sub) {
+            case "bridge":
+                BridgeTemplateCommands.handle(world, sender, args);
+                return;
 
-        if ("pos1".equals(sub)) {
-            if (player == null) {
-                sender.sendMessage(new TextComponentString("Ultreïa: pos1 can only be used by a player."));
+            case "pos1":
+            case "pos2": {
+                EntityPlayerMP player = requirePlayer(sender, sub);
+                BlockPos pos = resolveCommandPos(world, player, args);
+                if ("pos1".equals(sub)) ManualPathSelection.setPos1(player, dim, pos);
+                else ManualPathSelection.setPos2(player, dim, pos);
+                say(sender, "ultreia.command.pos_set", sub, formatPos(pos), dim);
                 return;
             }
 
-            BlockPos pos = resolveCommandPos(world, player, args);
-            ManualPathSelection.setPos1(player, dim, pos);
-            sender.sendMessage(new TextComponentString("Ultreïa: pos1 = " + formatPos(pos) + " in dim " + dim));
-            return;
-        }
-
-        if ("pos2".equals(sub)) {
-            if (player == null) {
-                sender.sendMessage(new TextComponentString("Ultreïa: pos2 can only be used by a player."));
+            case "generate":
+                GenerationManager.start(world, sender);
                 return;
-            }
 
-            BlockPos pos = resolveCommandPos(world, player, args);
-            ManualPathSelection.setPos2(player, dim, pos);
-            sender.sendMessage(new TextComponentString("Ultreïa: pos2 = " + formatPos(pos) + " in dim " + dim));
-            return;
-        }
-
-        if ("generate".equals(sub)) {
-            GenerationManager.start(world, sender);
-            return;
-        }
-
-        if ("generatecustom".equals(sub)) {
-            if (player == null) {
-                sender.sendMessage(new TextComponentString("Ultreïa: generatecustom can only be used by a player."));
-                return;
-            }
-
-            ManualPathSelection.PlayerState state = ManualPathSelection.getForDimension(player, dim);
-
-            if (state.pos1 == null) {
-                sender.sendMessage(new TextComponentString("Ultreïa: pos1 is not set. Use /ultreia pos1"));
-                return;
-            }
-            if (state.pos2 == null) {
-                sender.sendMessage(new TextComponentString("Ultreïa: pos2 is not set. Use /ultreia pos2"));
-                return;
-            }
-            if (Pos2D.sameXZ(state.pos1, state.pos2)) {
-                sender.sendMessage(new TextComponentString("Ultreïa: pos1 and pos2 are the same."));
-                return;
-            }
-
-            RoadType roadType = RoadType.VILLAGE_MAIN;
-            if (args.length >= 2) {
-                String typeArg = args[1].toUpperCase(Locale.ROOT);
-                if ("LONE_TRAIL".equals(typeArg)) {
-                    roadType = RoadType.LONE_TRAIL;
-                } else if (!"VILLAGE_MAIN".equals(typeArg)) {
-                    sender.sendMessage(new TextComponentString("Ultreïa: unknown road type '" + args[1] + "'. Use VILLAGE_MAIN or LONE_TRAIL."));
-                    return;
-                }
-            }
-
-            GenerationManager.startCustom(world, sender, state.pos1, state.pos2, roadType);
-            return;
-        }
-
-        if ("gui".equals(sub)) {
-            if (player == null) {
-                sender.sendMessage(new TextComponentString("Ultreïa: gui can only be used by a player."));
-                return;
-            }
-            int guiRadius = 2000;
-            if (args.length >= 2) {
-                try {
-                    guiRadius = Math.max(1, Math.min(8000, parseInt(args[1])));
-                } catch (CommandException ignored) {
-                    sender.sendMessage(new TextComponentString("Ultreïa: invalid radius — using 2000."));
-                }
-            }
-            BlockPos ppos = player.getPosition();
-            int px = ppos.getX(), pz = ppos.getZ();
-            RoadNetwork network = RoadNetwork.get(world);
-            List<RoadSegment> nearby = network.getSegmentsNear(px, pz, guiRadius);
-            List<PacketOpenMapGui.SegmentData> segData = new ArrayList<>();
-            for (RoadSegment seg : nearby) {
-                int fromX = seg.fromVillage != null ? seg.fromVillage.getX() : PacketOpenMapGui.ABSENT;
-                int fromZ = seg.fromVillage != null ? seg.fromVillage.getZ() : PacketOpenMapGui.ABSENT;
-                int toX   = seg.toVillage   != null ? seg.toVillage.getX()   : PacketOpenMapGui.ABSENT;
-                int toZ   = seg.toVillage   != null ? seg.toVillage.getZ()   : PacketOpenMapGui.ABSENT;
-                int wc = seg.waypoints.size();
-                int[] wp = new int[wc * 3];
-                int wi = 0;
-                for (RoadWaypoint wpt : seg.waypoints) {
-                    wp[wi++] = wpt.x; wp[wi++] = wpt.y; wp[wi++] = wpt.z;
-                }
-                segData.add(new PacketOpenMapGui.SegmentData(seg.id, seg.isBridge, fromX, fromZ, toX, toZ, wp));
-            }
-            NetworkHandler.CHANNEL.sendTo(new PacketOpenMapGui(px, pz, guiRadius, segData), player);
-            sender.sendMessage(new TextComponentString(
-                    "§7[Ultreïa] Opening map GUI — " + nearby.size() + " segment(s) in radius " + guiRadius + "..."));
-            return;
-        }
-
-        if ("config".equals(sub)) {
-            if (player == null) {
-                sender.sendMessage(new TextComponentString("Ultreïa: config GUI can only be opened by a player."));
-                return;
-            }
-            MsgOpenConfigGui.open(player, false);
-            return;
-        }
-
-        if ("status".equals(sub)) {
-            if (player != null) {
+            case "generatecustom": {
+                EntityPlayerMP player = requirePlayer(sender, sub);
                 ManualPathSelection.PlayerState state = ManualPathSelection.getForDimension(player, dim);
 
-                String pos1 = state.pos1 == null ? "<unset>" : formatPos(state.pos1);
-                String pos2 = state.pos2 == null ? "<unset>" : formatPos(state.pos2);
+                if (state.pos1 == null) {
+                    say(sender, "ultreia.command.pos_unset", "pos1");
+                    return;
+                }
+                if (state.pos2 == null) {
+                    say(sender, "ultreia.command.pos_unset", "pos2");
+                    return;
+                }
+                if (Pos2D.sameXZ(state.pos1, state.pos2)) {
+                    say(sender, "ultreia.command.same_pos");
+                    return;
+                }
 
-                sender.sendMessage(new TextComponentString("Ultreïa: dim=" + dim + " pos1=" + pos1 + " pos2=" + pos2));
-            } else {
-                sender.sendMessage(new TextComponentString("Ultreïa: dim=" + dim + " console sender"));
-            }
+                RoadType roadType = RoadType.VILLAGE_MAIN;
+                if (args.length >= 2) {
+                    String typeArg = args[1].toUpperCase(Locale.ROOT);
+                    if ("LONE_TRAIL".equals(typeArg)) {
+                        roadType = RoadType.LONE_TRAIL;
+                    } else if (!"VILLAGE_MAIN".equals(typeArg)) {
+                        say(sender, "ultreia.command.unknown_road_type", args[1]);
+                        return;
+                    }
+                }
 
-            sender.sendMessage(new TextComponentString("Ultreïa job: " + GenerationManager.status(world)));
-            return;
-        }
-
-        if ("reset".equals(sub)) {
-            if (player == null) {
-                sender.sendMessage(new TextComponentString("Ultreïa: reset can only be used by a player."));
+                GenerationManager.startCustom(world, sender, state.pos1, state.pos2, roadType);
                 return;
             }
 
-            ManualPathSelection.reset(player, dim);
-            sender.sendMessage(new TextComponentString("Ultreïa: pos1 and pos2 cleared for dim " + dim));
-            return;
-        }
+            case "gui": {
+                EntityPlayerMP player = requirePlayer(sender, sub);
+                int guiRadius = GUI_DEFAULT_RADIUS;
+                if (args.length >= 2) {
+                    try {
+                        guiRadius = Math.max(1, Math.min(GUI_MAX_RADIUS, parseInt(args[1])));
+                    } catch (CommandException ignored) {
+                        say(sender, "ultreia.command.gui.bad_radius", GUI_DEFAULT_RADIUS);
+                    }
+                }
+                openMap(world, player, guiRadius);
+                return;
+            }
 
-        if ("cancel".equals(sub)) {
-            GenerationManager.cancel(world);
-            sender.sendMessage(new TextComponentString("Ultreïa: cancelled active generation in dim " + dim));
-            return;
-        }
+            case "config":
+                MsgOpenConfigGui.open(requirePlayer(sender, sub), false);
+                return;
 
-        throw new WrongUsageException(getUsage(sender));
+            case "status": {
+                if (sender.getCommandSenderEntity() instanceof EntityPlayerMP) {
+                    ManualPathSelection.PlayerState state =
+                            ManualPathSelection.getForDimension((EntityPlayerMP) sender.getCommandSenderEntity(), dim);
+                    say(sender, "ultreia.command.status.player", dim, formatPosOrUnset(state.pos1), formatPosOrUnset(state.pos2));
+                } else {
+                    say(sender, "ultreia.command.status.console", dim);
+                }
+                say(sender, "ultreia.command.status.job", GenerationManager.status(world));
+                return;
+            }
+
+            case "reset":
+                ManualPathSelection.reset(requirePlayer(sender, sub), dim);
+                say(sender, "ultreia.command.reset", dim);
+                return;
+
+            case "cancel":
+                GenerationManager.cancel(world);
+                say(sender, "ultreia.command.cancel", dim);
+                return;
+
+            default:
+                throw new WrongUsageException(getUsage(sender));
+        }
+    }
+
+    /** Sends the built roads and bridges within {@code radius} of the player and opens the map screen. */
+    private static void openMap(WorldServer world, EntityPlayerMP player, int radius) {
+        BlockPos ppos = player.getPosition();
+        int px = ppos.getX(), pz = ppos.getZ();
+        List<RoadSegment> nearby = RoadNetwork.get(world).getSegmentsNear(px, pz, radius);
+        List<PacketOpenMapGui.SegmentData> segData = new ArrayList<>();
+        for (RoadSegment seg : nearby) {
+            int fromX = seg.fromVillage != null ? seg.fromVillage.getX() : PacketOpenMapGui.ABSENT;
+            int fromZ = seg.fromVillage != null ? seg.fromVillage.getZ() : PacketOpenMapGui.ABSENT;
+            int toX   = seg.toVillage   != null ? seg.toVillage.getX()   : PacketOpenMapGui.ABSENT;
+            int toZ   = seg.toVillage   != null ? seg.toVillage.getZ()   : PacketOpenMapGui.ABSENT;
+            int wc = seg.waypoints.size();
+            int[] wp = new int[wc * 3];
+            int wi = 0;
+            for (RoadWaypoint wpt : seg.waypoints) {
+                wp[wi++] = wpt.x; wp[wi++] = wpt.y; wp[wi++] = wpt.z;
+            }
+            segData.add(new PacketOpenMapGui.SegmentData(seg.id, seg.isBridge, fromX, fromZ, toX, toZ, wp));
+        }
+        NetworkHandler.CHANNEL.sendTo(new PacketOpenMapGui(px, pz, radius, segData), player);
+        say(player, "ultreia.command.gui.opening", nearby.size(), radius);
     }
 
     @Override
@@ -236,8 +217,7 @@ public final class CommandUltreia extends CommandBase {
         }
         if (args.length >= 2 && "bridge".equals(args[0].toLowerCase(Locale.ROOT))) {
             if (args.length == 2) {
-                return getListOfStringsMatchingLastWord(args, Arrays.asList(
-                        "create", "update", "set", "export", "import", "validate", "list", "reloadconfig"));
+                return getListOfStringsMatchingLastWord(args, BridgeTemplateCommands.SUBS);
             }
 
             if (args.length == 3) {
@@ -283,7 +263,7 @@ public final class CommandUltreia extends CommandBase {
             return resolveAnchor(world, x, z);
         }
 
-        throw new WrongUsageException("/ultreia " + args[0] + " [x z]");
+        throw new WrongUsageException("ultreia.command.usage");
     }
 
     private static BlockPos resolveAnchor(WorldServer world, int x, int z) {
@@ -297,5 +277,9 @@ public final class CommandUltreia extends CommandBase {
 
     private static String formatPos(BlockPos pos) {
         return "(" + pos.getX() + ", " + pos.getY() + ", " + pos.getZ() + ")";
+    }
+
+    private static Object formatPosOrUnset(@Nullable BlockPos pos) {
+        return pos == null ? new TextComponentTranslation("ultreia.command.status.unset") : formatPos(pos);
     }
 }
