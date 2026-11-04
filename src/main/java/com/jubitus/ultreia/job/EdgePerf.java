@@ -7,7 +7,8 @@ import net.minecraft.util.math.BlockPos;
 /** Server-thread time spent on one edge, split by step, for the logPerformance debug line. */
 final class EdgePerf {
 
-    enum Step { PREP, SEARCH, PAINT, RELEASE, SAVE }
+    // GATES and ROAD_SCAN are parts of the edge preparation; PREP keeps the rest (mostly chunk preloading).
+    enum Step { PREP, GATES, ROAD_SCAN, SEARCH, PAINT, RELEASE, SAVE }
 
     private static final int STEPS = Step.values().length;
 
@@ -33,6 +34,15 @@ final class EdgePerf {
         tickStepNs[step.ordinal()] += ns;
     }
 
+    /** A part of {@code parent} timed on its own: counted in {@code part}, taken out of the parent's total. */
+    void addPart(Step parent, Step part, long sinceNs) {
+        long ns = System.nanoTime() - sinceNs;
+        stepNs[part.ordinal()] += ns;
+        tickStepNs[part.ordinal()] += ns;
+        stepNs[parent.ordinal()] -= ns;
+        tickStepNs[parent.ordinal()] -= ns;
+    }
+
     void addTick(long spentNs) {
         ticks++;
         if (spentNs > worstTickNs) {
@@ -44,11 +54,13 @@ final class EdgePerf {
 
     void log(BlockPos start, BlockPos goal, ChunkManager chunks) {
         Ultreia.LOGGER.info("[Ultreia] Perf edge ({},{})->({},{}): wall {} s over {} ticks, worst tick {} ms ({})"
-                        + " | prep {} ms, search {} ms, paint {} ms, release {} ms, save {} ms | {}",
+                        + " | prep {} ms, gates {} ms, road_scan {} ms, search {} ms, paint {} ms, release {} ms,"
+                        + " save {} ms | {}",
                 start.getX(), start.getZ(), goal.getX(), goal.getZ(),
                 String.format("%.1f", (System.nanoTime() - edgeStartNs) / 1e9), ticks, ms(worstTickNs),
                 worstTickSteps(),
-                ms(stepNs[0]), ms(stepNs[1]), ms(stepNs[2]), ms(stepNs[3]), ms(stepNs[4]),
+                ms(stepNs[0]), ms(stepNs[1]), ms(stepNs[2]), ms(stepNs[3]), ms(stepNs[4]), ms(stepNs[5]),
+                ms(stepNs[6]),
                 chunks.takePerfSummary());
     }
 

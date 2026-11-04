@@ -137,6 +137,7 @@ final class VillageNetworkSource implements EdgeSource {
         VillageGateField[] gateFieldA = new VillageGateField[1];
         VillageGateField[] gateFieldB = new VillageGateField[1];
 
+        long tGates = System.nanoTime();
         BlockPos a0 = EndpointResolver.resolveEndpointAnchor(
                 ctx.world, e.a, e.b, ctx.sampler, ctx.protectedAreas,
                 aIsVillage ? gateTracker : null,
@@ -146,14 +147,17 @@ final class VillageNetworkSource implements EdgeSource {
                 ctx.world, e.b, e.a, ctx.sampler, ctx.protectedAreas,
                 bIsVillage ? gateTracker : null,
                 bIsVillage ? gateFieldB : null);
+        ctx.perf.addPart(EdgePerf.Step.PREP, EdgePerf.Step.GATES, tGates);
 
         if (UltreiaConfig.DEBUG.logPathfinding) {
             ctx.msg("  anchorA node=(" + e.a.getX() + "," + e.a.getZ() + ") resolved=(" + a0.getX() + "," + a0.getY() + "," + a0.getZ() + ")");
             ctx.msg("  anchorB node=(" + e.b.getX() + "," + e.b.getZ() + ") resolved=(" + b0.getX() + "," + b0.getY() + "," + b0.getZ() + ")");
         }
 
+        long tScan = System.nanoTime();
         ctx.scanRoadsAround(a0);
         ctx.scanRoadsAround(b0);
+        ctx.perf.addPart(EdgePerf.Step.PREP, EdgePerf.Step.ROAD_SCAN, tScan);
         BlockPos nearA = ctx.roadIndex.findNearestRoad(a0.getX(), a0.getZ(), LONE_SPUR_RADIUS);
         BlockPos nearB = ctx.roadIndex.findNearestRoad(b0.getX(), b0.getZ(), LONE_SPUR_RADIUS);
 

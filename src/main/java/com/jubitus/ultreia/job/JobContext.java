@@ -29,6 +29,7 @@ final class JobContext {
     final RoadIndex roadIndex;
     final RoadNetwork roadNetwork;
     final ProtectedAreas protectedAreas;
+    final EdgePerf perf = new EdgePerf();
 
     JobContext(WorldServer world, ICommandSender sender) {
         this.world = world;
