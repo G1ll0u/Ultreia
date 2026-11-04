@@ -23,6 +23,8 @@ import net.minecraft.util.math.BlockPos;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 import java.util.List;
 
 import static com.jubitus.ultreia.route.GridMoves.DIR_NONE;
@@ -79,6 +81,8 @@ public final class AStarSearch {
     private static final int ALTITUDE_PROGRESS_MIN_DY = 8;
     private static final double ALTITUDE_PROGRESS_FRACTION = 0.20;
     private static final double SCORE_EPSILON = 0.001;
+    // How far back along the path (blocks) a move is checked for closing a steep hairpin.
+    private static final int HAIRPIN_LOOKBACK_BLOCKS = 32;
     public enum StepResult { RUNNING, FOUND, PARTIAL, FAILED }
 
     private int sx, sz;
@@ -116,6 +120,12 @@ public final class AStarSearch {
     private PathResult result = new PathResult(Collections.<BlockPos>emptyList(), Collections.<BridgeSpan>emptyList());
 
     private final AStarDiagnostics diag = new AStarDiagnostics();
+
+    // Recent path of the node being expanded (itself first, then its ancestors): x, z, ground y, blocks along from it.
+    private final IntArrayList recentX = new IntArrayList();
+    private final IntArrayList recentZ = new IntArrayList();
+    private final IntArrayList recentY = new IntArrayList();
+    private final DoubleArrayList recentAlong = new DoubleArrayList();
 
     private long bestApproxState = Long.MIN_VALUE;
     private double bestApproxHeuristic = Double.POSITIVE_INFINITY;
@@ -469,6 +479,8 @@ public final class AStarSearch {
             }
         }
 
+        collectRecentPath(ck, cur, cs);
+
         for (int dirIdx = 0; dirIdx < NEIGHBOR_DIRS.length; dirIdx++) {
             int[] dir = NEIGHBOR_DIRS[dirIdx];
             int dx = dir[0] * step;
@@ -496,6 +508,11 @@ public final class AStarSearch {
             }
 
             double base = Math.sqrt((double) dx * (double) dx + (double) dz * (double) dz);
+
+            if (closesSteepHairpin(nx, nz, ns.surfaceY, base)) {
+                diag.countSteepHairpin();
+                continue;
+            }
 
             long nk = stateKey(nx, nz, dirIdx);
             if (st.closed.contains(nk)) continue;
@@ -545,6 +562,57 @@ public final class AStarSearch {
                 st.relaxRoad(ck, nk, nx, nz, dirIdx, tentative, tentative + heuristicToGoal(nx, nz), base);
             }
         }
+    }
+
+    /** Fills the recent-path buffers from the expanded node back along its road links (stops at a bridge). */
+    private void collectRecentPath(long ck, SearchState.Node cur, TerrainSampler.Sample cs) {
+        recentX.clear();
+        recentZ.clear();
+        recentY.clear();
+        recentAlong.clear();
+        recentX.add(cur.x);
+        recentZ.add(cur.z);
+        recentY.add(cs.surfaceY);
+        recentAlong.add(0.0);
+
+        long k = ck;
+        int x = cur.x, z = cur.z;
+        double along = 0.0;
+        while (along < HAIRPIN_LOOKBACK_BLOCKS
+                && !st.cameBridge.containsKey(k) && !st.cameReusedBridge.containsKey(k)) {
+            long pk = st.cameFrom.get(k);
+            if (pk == Long.MIN_VALUE) break;
+            int px = stateX(pk), pz = stateZ(pk);
+            along += Math.sqrt((double) (px - x) * (px - x) + (double) (pz - z) * (pz - z));
+            recentX.add(px);
+            recentZ.add(pz);
+            recentY.add(sampler.sample(px, pz).surfaceY);
+            recentAlong.add(along);
+            k = pk;
+            x = px;
+            z = pz;
+        }
+    }
+
+    /**
+     * True when stepping to (nx, nz) brings the road back beside its own recent path with a height gap
+     * the painter cannot make walkable (a steep hairpin). {@code stepLength} is the move's own length.
+     */
+    private boolean closesSteepHairpin(int nx, int nz, int ny, double stepLength) {
+        int width = roadType.roadWidthBlocks();
+        double contactSq = width * TerrainMoveCost.HAIRPIN_CONTACT_WIDTHS;
+        contactSq *= contactSq;
+        double minPathGap = width * TerrainMoveCost.HAIRPIN_MIN_PATH_WIDTHS;
+
+        for (int i = 0; i < recentX.size(); i++) {
+            if (stepLength + recentAlong.getDouble(i) < minPathGap) continue;
+            double ddx = nx - recentX.getInt(i);
+            double ddz = nz - recentZ.getInt(i);
+            double dSq = ddx * ddx + ddz * ddz;
+            if (dSq > contactSq) continue;
+            if (TerrainMoveCost.isSteepHairpinGap(Math.abs(ny - recentY.getInt(i)), Math.sqrt(dSq))) return true;
+        }
+        return false;
     }
 
     private void expandBridgeMoves(SearchState.Node cur, long ck, TerrainSampler.Sample cs) {

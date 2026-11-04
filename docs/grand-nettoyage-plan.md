@@ -266,11 +266,11 @@ one "may a bridge replace this block" rule (3 copies, same effect); `dryRun` rem
   once at load (not at every bridge). JSON classes (`BridgeTemplate`, `BlockStateRef`, `BridgeTemplateIO`) keep their format.
 - Fix `CLAUDE.md`: the approach check is a cost (user), the "only gatekeeper" line rewritten (done, with the bridge-moves line).
 
-### Phase 9 — A* split — status: in progress
+### Phase 9 — A* split — status: done (in-game checks pending)
 
 Steps: 9.1 in place (dead code, `ax/az/bx/bz` renames, named constants, repeated blocks → one method) (done) · 9.2 `SearchState`,
 `GridMoves` completed (adaptive step, endpoint snap, free exits), `SearchBounds` (done) · 9.3 `TerrainMoveCost` (done) · 9.4 `PathReconstructor` (done)
-· 9.5 `AStarDiagnostics`, `Session` → `AStarSearch` (done) · 9.6 hairpin debug trace (done; fix to decide with the user).
+· 9.5 `AStarDiagnostics`, `Session` → `AStarSearch` (done) · 9.6 hairpin debug trace (done) · 9.7 hairpin fix (done).
 Decided (user): the bridge-over-own-approach check moves to `PathProfileCheck` (one whole-path check); the per-move
 and look-ahead cut costs stay two terms (shared enclosed detection only); the two endpoint debug views become one.
 Outcome: `AStarSearch` (~700: search loop, moves, magnetism, partial fallback, stagnation), `SearchState`, `SearchBounds`,
@@ -283,11 +283,11 @@ approach check and painter (phase 10).
 `PathReconstructor` (~200), `AStarDiagnostics` (~200), bridge parts already in `bridge/`. Shared search state goes
 in one `SearchState` object; the shadowed `ax/az/bx/bz` locals are renamed first. Magic numbers become named
 constants. Golden tests must stay identical.
-Open (user, after a test): on slopes A* prefers tight zigzags; at a hairpin two road parts lie side by side at
-different heights and the painter cannot make the gap walkable (the remaining `stepsOverHalf` in the paint
-diagnostic). Fix at the cost level (slope vs turn balance, or forbid hairpins tighter than the road width).
-Trace (`logPathfinding`): one summary per found path, each hairpin with both points, XZ gap, height gap, STEEP when
-over half a block per block. Reproduced on a synthetic 0.8-per-block slope: one STEEP hairpin, 2.8 blocks apart, 2 high.
+Hairpins (user, after a test): on slopes A* made tight zigzags whose two road parts lay side by side at different
+heights, a gap the painter cannot make walkable. Trace (`logPathfinding`): one summary per found path, STEEP hairpins.
+Decided (user, option A): A* refuses a move that comes back within a road width of its own last 32 blocks of path
+(at least 3 widths further along) with more than half a block of height per block of gap. Golden
+`astar_steep_slope_no_hairpin` (0.8-per-block slope) added; the four existing goldens are unchanged.
 
 ### Phase 10 — Painter split — status: not started
 

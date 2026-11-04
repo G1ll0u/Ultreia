@@ -72,6 +72,15 @@ class AStarGoldenTest {
         }
     }
 
+    @Test
+    void steepSlopeNoHairpin() throws IOException {
+        // A slope steeper than a road may climb straight: the road must zigzag without coming back beside itself too high.
+        SyntheticTerrain t = new SyntheticTerrain() {
+            @Override protected int height(int x, int z) { return 64 + (int) Math.max(0, Math.min(24, (x - 40) * 0.8)); }
+        };
+        Golden.check("astar_steep_slope_no_hairpin", run(t, 0, 0, 120, 0, RoadType.VILLAGE_MAIN));
+    }
+
     private static String run(SyntheticTerrain t, int sx, int sz, int gx, int gz, RoadType type) {
         BlockPos start = new BlockPos(sx, t.sample(sx, sz).surfaceY, sz);
         BlockPos goal = new BlockPos(gx, t.sample(gx, gz).surfaceY, gz);

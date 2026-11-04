@@ -22,6 +22,9 @@ public final class TerrainMoveCost {
 
     // Max vertical delta allowed between neighbor grid nodes.
     public static final int MAX_YDELTA_PER_STEP = 2;
+    // Hairpin: the road comes back within this many road widths (XZ) of itself, at least this many widths further along.
+    static final double HAIRPIN_CONTACT_WIDTHS = 1.0;
+    static final double HAIRPIN_MIN_PATH_WIDTHS = 3.0;
     // Extra cost per unit of local terrain roughness along a segment.
     private static final double SURFACE_ROUGHNESS_PENALTY = 3.0;
     // Hard cap for cumulative roughness along one neighbor segment.
@@ -461,5 +464,10 @@ public final class TerrainMoveCost {
         );
 
         return new SegmentWalkability(gradeFeasible, false, roughness, terrainPenalty);
+    }
+
+    /** True when two touching parts of a road differ in height by more than half a block per block of gap (not walkable). */
+    static boolean isSteepHairpinGap(int dy, double distXZ) {
+        return dy * 2 > Math.max(1, (int) Math.round(distXZ));
     }
 }

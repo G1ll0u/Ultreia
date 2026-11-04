@@ -12,6 +12,8 @@ import java.util.List;
 
 import static com.jubitus.ultreia.route.GridMoves.GRID_STEP;
 import static com.jubitus.ultreia.route.GridMoves.isOpenCell;
+import static com.jubitus.ultreia.route.TerrainMoveCost.HAIRPIN_CONTACT_WIDTHS;
+import static com.jubitus.ultreia.route.TerrainMoveCost.HAIRPIN_MIN_PATH_WIDTHS;
 
 /** Debug output of one A* search: rejection counters, failure summary, progress log, capped bridge log, cell description. */
 public final class AStarDiagnostics {
@@ -20,12 +22,9 @@ public final class AStarDiagnostics {
     private static final long PROGRESS_LOG_INTERVAL_NS = 10_000_000_000L;
     private static final int ROAD_NEAR_RADIUS = 16;
     private static final int DESCRIBED_RINGS = 3;
-    // Hairpin trace: two path points closer than this many road widths (XZ) but this many road widths apart along the path.
-    private static final double HAIRPIN_CONTACT_WIDTHS = 1.0;
-    private static final double HAIRPIN_MIN_PATH_WIDTHS = 3.0;
     private static final int HAIRPIN_LOG_LIMIT = 5;
 
-    private int skipOcean = 0, skipBlacklist = 0, skipBlocked = 0, skipSlope = 0, skipBridge = 0;
+    private int skipOcean = 0, skipBlacklist = 0, skipBlocked = 0, skipSlope = 0, skipBridge = 0, skipHairpin = 0;
     private long lastProgressLogNs = 0;
     private int bridgeDebugPrinted = 0;
     private int bridgeDebugSuppressed = 0;
@@ -46,6 +45,10 @@ public final class AStarDiagnostics {
         skipSlope++;
     }
 
+    void countSteepHairpin() {
+        skipHairpin++;
+    }
+
     String failureSummary(String reason, SearchState st, boolean detailed) {
         if (!detailed) return reason;
         return reason
@@ -56,7 +59,8 @@ public final class AStarDiagnostics {
                 + ", blacklisted=" + skipBlacklist
                 + ", blocked=" + skipBlocked
                 + ", slope=" + skipSlope
-                + ", bridge=" + skipBridge + "}";
+                + ", bridge=" + skipBridge
+                + ", hairpin=" + skipHairpin + "}";
     }
 
     /** Periodic log line so the user can see A* is still alive. */
@@ -199,8 +203,7 @@ public final class AStarDiagnostics {
     /** Appends one hairpin line (up to the log limit); true when its height gap is not walkable across the gap. */
     private static boolean appendHairpin(StringBuilder lines, int index, List<BlockPos> path,
                                          int i, int j, double dist, int dy) {
-        // Walkable across the gap: at most half a block of height per block of distance.
-        boolean steepGap = dy * 2 > Math.max(1, (int) Math.round(dist));
+        boolean steepGap = TerrainMoveCost.isSteepHairpinGap(dy, dist);
         if (index < HAIRPIN_LOG_LIMIT) {
             BlockPos a = path.get(i);
             BlockPos b = path.get(j);
