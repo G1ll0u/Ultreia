@@ -1,6 +1,6 @@
 # Grand nettoyage — feature packages, one authority per question, giant classes split
 
-**Status (2026-11-04)**: phases 0–11 done (in-game checks pending). Next: phase 12.
+**Status (2026-11-04)**: done (phases 0–12). Open in-game checks and deferred items: memory `project-cleanup-followups`.
 
 ## Goal
 
@@ -326,7 +326,7 @@ fallback, files as last resort).
 - Commands: one usage text, one "player only" check, `create`/`update` share one sequence; player text through the lang file (keys listed).
 - README fixed (wrong commands, missing ones).
 
-### Phase 12 — Wrap-up — status: not started
+### Phase 12 — Wrap-up — status: done
 
 Root `CLAUDE.md` code map and authorities written, package `CLAUDE.md` files written, invariants re-checked
 (mixin-plugin line, Millénaire-allowed packages become `mill/` and `mixin/`), memory cleaned, plan archived.

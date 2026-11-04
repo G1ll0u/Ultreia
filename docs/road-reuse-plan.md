@@ -1,4 +1,4 @@
-# Road reuse — status: not started (after grand-nettoyage phase 10)
+# Road reuse — status: not started (next, now that the grand nettoyage is done)
 
 ## Goal
 

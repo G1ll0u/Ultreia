@@ -41,24 +41,44 @@ General rules are in `~/.claude/CLAUDE.md`, rules shared by all mods in `/home/u
 
 ## Code map
 
-Packages under `src/main/java/com/jubitus/ultreia/`. This map is provisional until the planned redesign.
+Packages under `src/main/java/com/jubitus/ultreia/`. Package notes (`<package>/CLAUDE.md`) load when you work there.
 
 | Area | Folder |
 |---|---|
-| Generation jobs, manager, tick budget, checkpoint, manual path selection | `job/` |
+| Generation job, manager, tick budget, checkpoint, edge sources, manual path state | `job/` (notes) |
 | Logical network (MST + RNG, village classes, planned network save) | `planner/` |
-| A*, endpoints, village gates, road types, whole-path check | `route/` |
-| Terrain sampling, ground and tree rules, protected areas | `terrain/` |
-| Road painting, earthworks, headroom clearing, road height profile | `paint/` |
-| Bridges (feasibility, geometry, approach) and templates | `bridge/`, `bridge/template/` |
+| A* search, move costs, endpoints, village gates, road types, whole-path check | `route/` (notes) |
+| Terrain questions, sampler, protected areas | `terrain/` |
+| Road painting: session, centerline, merge and footprint planning, cell painter, talus, palette | `paint/` (notes) |
+| Bridges: moves, feasibility, deck, painting; templates | `bridge/`, `bridge/template/` |
 | Placed roads: network, index, navigation, joins | `roads/` |
 | Chunk loading | `chunk/` |
-| Millénaire data and path blocks | `mill/` |
-| Mixins into Millénaire (queued only when Millénaire is present) | `mixin/` |
-| Geometry (xz keys, line rasterisation) | `geom/` |
+| Millénaire data (behind `Villages`), path blocks; mixins into Millénaire | `mill/`, `mixin/` |
+| Geometry (xz keys, lines, half-Y) | `geom/` |
 | Map GUI and preview packets; network channel | `map/`, `net/` |
-| Config (single jubiconfig class, `Debug` category) | `config/` |
-| Commands, proxies, blocks, player speed boost, public API | `command/`, `proxy/`, `block/`, `boost/`, `api/` |
+| Config (single jubiconfig class, `Debug` category), commands, blocks, speed boost, proxies, public API | `config/`, `command/`, `block/`, `boost/`, `proxy/`, `api/` |
+
+## Single authorities
+
+One class answers each question; use it instead of re-deriving the answer.
+
+| Question | Authority |
+|---|---|
+| Where is the ground in this column | `terrain/ColumnSurface` |
+| What kind of block is this (tree, plant, liquid, natural ground, clearable, man-made) | `terrain/BlockRules` (DynamicTrees: `terrain/TreeCompat`) |
+| Terrain sample for A* and planning | `terrain/TerrainView` (`TerrainSampler` in game) |
+| Is this spot protected (building footprint, no-paint zone) | `terrain/ProtectedAreas` |
+| Is this a path block / its block state | `mill/MillPathBlocks`; which kind to place: `paint/PathPalette` |
+| Block Y ↔ half Y, step limits | `geom/HalfY` |
+| xz key, 2D distance; line rasterisation | `geom/Pos2D`; `geom/LineRaster` |
+| May a bridge exist here | `bridge/BridgeFeasibility` |
+| Deck heights of a bridge | `bridge/BridgeDeckProfile` |
+| Endpoints of an edge (gates, anchors) | `route/EndpointResolver` |
+| Is a found path acceptable | `route/PathProfileCheck.isAcceptable` |
+| Loading / releasing a chunk | `chunk/ChunkManager` |
+| Village list, population, gates, is a point near a settlement | `mill/Villages` |
+| Is there a road here, its Y, a route over roads | `roads/RoadIndex`, `roads/RoadNavigator` |
+| Time spent generating per tick | `job/GenerationManager` |
 
 ## Cross-cutting invariants
 
@@ -69,7 +89,7 @@ Packages under `src/main/java/com/jubitus/ultreia/`. This map is provisional unt
 - **Chunks.** Always go through `chunk/ChunkManager` (force-load before touching, bounded count, per-edge lifecycle, unload pressure); never load chunks directly.
 - **Never paint** inside `terrain/ProtectedAreas` (building footprints) or over existing Millénaire path blocks.
 - **Bridge moves are part of A\*** — `bridge/BridgeMoveGenerator` offers them during the search and `bridge/BridgeSegmentPainter` builds them while the road is painted; do not add a post-pass that invents bridges.
-- **Millénaire is optional.** Nothing outside `mill/` and `mixin/` may require it at class-load time; use `MillPresence`. The late mixin loader queues the mixins only when Millénaire is present; detect it with `getResource()`, never `Class.forName()` (it triggers `MixinTargetAlreadyLoadedException`).
+- **Millénaire is optional.** Nothing outside `mill/` and `mixin/` may require it at class-load time; use `MillPresence`. The late mixin loader queues the mixins only when Millénaire is present; detect it with `getResource()`, never `Class.forName()` (it triggers `MixinTargetAlreadyLoadedException`). Village data outside `mill/` goes through `mill/Villages` (vanilla types; it answers nothing without Millénaire).
 - **Mixin targets are Millénaire internals**: any change to a mixin means re-checking the target's obfuscated names.
 - **Road types** (`RoadType`: village main vs lone trail) change A* costs, width and earthworks; any new road behaviour must say which types it applies to.
 
