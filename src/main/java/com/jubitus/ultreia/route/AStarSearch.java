@@ -121,6 +121,7 @@ public final class AStarSearch {
     private PathResult result = new PathResult(Collections.<BlockPos>emptyList(), Collections.<BridgeSpan>emptyList());
 
     private final AStarDiagnostics diag = new AStarDiagnostics();
+    private final ReuseTrace reuseTrace = new ReuseTrace();
 
     // Recent path of the node being expanded (itself first, then its ancestors): x, z, ground y, blocks along from it.
     private final IntArrayList recentX = new IntArrayList();
@@ -361,6 +362,7 @@ public final class AStarSearch {
 
         result = rr;
         AStarDiagnostics.logHairpins(rr.getPath(), roadType);
+        reuseTrace.logFoundPath(st, rec.states(), sampler, roadType, roadNetwork, step);
         flushBridgeLog();
         return partialResult ? StepResult.PARTIAL : StepResult.FOUND;
     }
@@ -670,14 +672,17 @@ public final class AStarSearch {
 
             // Reusing a built bridge builds nothing: the lone-trail multiplier only deters new bridges.
             double moveMult = mv.reusedCrossing != null ? 1.0 : bridgeMult;
-            double tentative = st.gScore.get(ck) + mv.cost * moveMult + mv.turnCost
-                    + sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
-            if (tentative < st.gScore.get(nk)) {
+            double extra = sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
+            double tentative = st.gScore.get(ck) + mv.cost * moveMult + mv.turnCost + extra;
+            boolean better = tentative < st.gScore.get(nk);
+            if (mv.reusedCrossing != null) {
+                reuseTrace.offer(mv.reusedCrossing, cur.x, cur.z, st.gScore.get(ck), mv.cost, mv.turnCost, extra,
+                        tentative, nk, better);
+            }
+            if (better) {
                 double f = tentative + heuristicToGoal(mv.nx, mv.nz);
                 if (mv.reusedCrossing != null) {
                     st.relaxReusedBridge(ck, nk, mv.nx, mv.nz, mv.ndir, tentative, f, mv.reusedCrossing);
-                    diag.bridge("reuse transition taken: seg=" + mv.reusedCrossing.segmentId
-                            + " (" + cur.x + "," + cur.z + ") -> (" + mv.nx + "," + mv.nz + ")");
                 } else {
                     st.relaxNewBridge(ck, nk, mv.nx, mv.nz, mv.ndir, tentative, f, mv.span);
                 }

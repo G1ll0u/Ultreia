@@ -82,6 +82,11 @@ final class PathReconstructor {
         return bridgeStartIndices;
     }
 
+    /** The path's A* states from start to end (once done). */
+    List<Long> states() {
+        return revStates;
+    }
+
     int reusedBridgeCount() {
         return reusedBridgeCount;
     }
