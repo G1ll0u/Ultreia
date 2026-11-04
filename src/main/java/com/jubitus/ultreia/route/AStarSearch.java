@@ -110,6 +110,7 @@ public final class AStarSearch {
 
     private long sessionStartNs = System.nanoTime();
     private int profileRejectionCount = 0;
+    private int reusedBridgePathsRejected = 0;
 
     private boolean failed = false;
     private String failReason = "unknown";
@@ -332,6 +333,10 @@ public final class AStarSearch {
         if (!PathProfileCheck.isAcceptable(rr.getPath(), rr.getBridges(), rec.bridgeStartIndices(),
                 sampler, roadType, step)) {
             profileRejectionCount++;
+            if (rec.reusedBridgeCount() > 0) {
+                reusedBridgePathsRejected++;
+                diag.bridge("found path through " + rec.reusedBridgeCount() + " built bridge(s) rejected: not walkable end to end");
+            }
             st.closed.add(rec.endState);
 
             // If the partial fallback itself fails profile, bestApproxState hasn't
@@ -356,15 +361,19 @@ public final class AStarSearch {
 
         result = rr;
         AStarDiagnostics.logHairpins(rr.getPath(), roadType);
-        diag.flushBridge();
+        flushBridgeLog();
         return partialResult ? StepResult.PARTIAL : StepResult.FOUND;
     }
 
     private StepResult fail(String reason) {
         failed = true;
         failReason = reason;
-        diag.flushBridge();
+        flushBridgeLog();
         return StepResult.FAILED;
+    }
+
+    private void flushBridgeLog() {
+        diag.flushBridge(bridgeMoves == null ? null : bridgeMoves.reuseSummary(), reusedBridgePathsRejected);
     }
 
     private StepResult failOrPartial(String reason) {
@@ -667,11 +676,8 @@ public final class AStarSearch {
                 double f = tentative + heuristicToGoal(mv.nx, mv.nz);
                 if (mv.reusedCrossing != null) {
                     st.relaxReusedBridge(ck, nk, mv.nx, mv.nz, mv.ndir, tentative, f, mv.reusedCrossing);
-                    if (UltreiaConfig.DEBUG.logBridges) {
-                        Ultreia.LOGGER.info(
-                                "[Ultreia Bridge] reuse transition taken: seg={} ({},{}) -> ({},{})",
-                                mv.reusedCrossing.segmentId, cur.x, cur.z, mv.nx, mv.nz);
-                    }
+                    diag.bridge("reuse transition taken: seg=" + mv.reusedCrossing.segmentId
+                            + " (" + cur.x + "," + cur.z + ") -> (" + mv.nx + "," + mv.nz + ")");
                 } else {
                     st.relaxNewBridge(ck, nk, mv.nx, mv.nz, mv.ndir, tentative, f, mv.span);
                 }

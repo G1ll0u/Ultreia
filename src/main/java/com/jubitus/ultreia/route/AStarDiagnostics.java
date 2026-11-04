@@ -86,8 +86,13 @@ public final class AStarDiagnostics {
         }
     }
 
-    void flushBridge() {
+    /** End of search: the bridge-reuse summary (null when no built bridge was near) and the capped-lines count. */
+    void flushBridge(@Nullable String reuseSummary, int reusedPathsRejected) {
         if (!UltreiaConfig.DEBUG.logBridges) return;
+        if (reuseSummary != null) {
+            Ultreia.LOGGER.info("[Ultreia bridge-debug] {}, found paths through it rejected by the whole-path check: {}",
+                    reuseSummary, reusedPathsRejected);
+        }
         if (bridgeDebugSuppressed > 0) {
             Ultreia.LOGGER.info("[Ultreia bridge-debug] suppressed {} additional bridge debug lines", bridgeDebugSuppressed);
             bridgeDebugSuppressed = 0;

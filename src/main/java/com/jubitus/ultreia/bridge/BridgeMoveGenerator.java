@@ -73,6 +73,13 @@ public final class BridgeMoveGenerator {
     private final SearchArea area;
     private final Consumer<String> debug;
 
+    // Reuse of built bridges over the whole search, for the one-line summary.
+    private boolean reuseNearby = false;
+    private double reuseClosestSq = Double.POSITIVE_INFINITY;
+    private int reuseOffered = 0;
+    private int reuseRejectedStep = 0, reuseRejectedOutside = 0, reuseRejectedUnloaded = 0;
+    private int reuseRejectedOcean = 0, reuseRejectedAway = 0;
+
     /** {@code debug} must be capped by the caller (never per block or per tick). */
     public BridgeMoveGenerator(TerrainView sampler, int step, SearchArea area, Consumer<String> debug) {
         this.sampler = sampler;
@@ -100,8 +107,8 @@ public final class BridgeMoveGenerator {
 
         List<RoadNetwork.BridgeCrossing> crossings = roadNetwork.getBridgeCrossingsNear(curX, curZ, reuseRadius);
         if (crossings.isEmpty()) return Collections.<BridgeMove>emptyList();
+        reuseNearby = true;
 
-        boolean debugOn = UltreiaConfig.DEBUG.logBridges;
         // A validated "adjacent" tolerance, not a teleport radius: on the step-spaced A* grid, the
         // nearest lattice point to any target coordinate is at most step*sqrt(2)/2 away, so this is
         // always reachable once the search has genuinely arrived at the crossing's entrance cell.
@@ -111,14 +118,8 @@ public final class BridgeMoveGenerator {
 
         for (RoadNetwork.BridgeCrossing crossing : crossings) {
             double distToStartSq = Pos2D.distSq(curX, curZ, crossing.startX, crossing.startZ);
-            if (distToStartSq > snapTolSq) {
-                if (debugOn) {
-                    Ultreia.LOGGER.info(
-                            "[Ultreia Bridge] reuse candidate seg={} rejected: not yet adjacent to entrance (dist={}, tol={})",
-                            crossing.segmentId, Math.sqrt(distToStartSq), snapTol);
-                }
-                continue;
-            }
+            if (distToStartSq < reuseClosestSq) reuseClosestSq = distToStartSq;
+            if (distToStartSq > snapTolSq) continue;
 
             // The hop onto the deck is not a normal move: keep it walkable (one half-block per cell,
             // plus one for the rounding of the stored deck Y).
@@ -126,29 +127,32 @@ public final class BridgeMoveGenerator {
             int hopDelta = Math.abs(HalfY.ofBlockTop(cs.surfaceY)
                     - HalfY.ofBlockTop(crossing.startY));
             if (hopDelta > hopCells + 1) {
-                if (debugOn) Ultreia.LOGGER.info(
-                        "[Ultreia Bridge] reuse candidate seg={} rejected: entrance step {} halves over {} cells",
-                        crossing.segmentId, hopDelta, hopCells);
+                reuseRejectedStep++;
+                debug.accept("reuse seg=" + crossing.segmentId + " rejected at (" + curX + "," + curZ
+                        + "): entrance step " + hopDelta + " halves over " + hopCells + " cells");
                 continue;
             }
 
             int endX = crossing.endX, endZ = crossing.endZ;
-            if (!area.contains(endX, endZ)) continue;
+            if (!area.contains(endX, endZ)) {
+                reuseRejectedOutside++;
+                continue;
+            }
 
             TerrainSampler.Sample endSample = sampler.sampleIfLoaded(endX, endZ);
-            if (endSample == null) continue;
+            if (endSample == null) {
+                reuseRejectedUnloaded++;
+                continue;
+            }
             if (endSample.isOcean) {
-                if (debugOn) Ultreia.LOGGER.info(
-                        "[Ultreia Bridge] reuse candidate seg={} rejected: far end is ocean", crossing.segmentId);
+                reuseRejectedOcean++;
                 continue;
             }
 
             // Prefer crossings that go roughly toward our goal
             double toGoalDot = normalizedDot(endX - curX, endZ - curZ, gx - curX, gz - curZ);
             if (toGoalDot < -0.3) {
-                if (debugOn) Ultreia.LOGGER.info(
-                        "[Ultreia Bridge] reuse candidate seg={} rejected: leads away from goal (dot={})",
-                        crossing.segmentId, toGoalDot);
+                reuseRejectedAway++;
                 continue; // bridge goes away from goal — skip
             }
 
@@ -159,16 +163,23 @@ public final class BridgeMoveGenerator {
             int ndir = nearestDirIndex(endX - curX, endZ - curZ);
             double turn = turnCost(curDir, ndir, step, UltreiaConfig.PATHFINDING.turnPenalty);
 
-            if (debugOn) {
-                Ultreia.LOGGER.info(
-                        "[Ultreia Bridge] reuse candidate seg={} accepted at ({},{}) -> ({},{}) cost={}",
-                        crossing.segmentId, curX, curZ, endX, endZ, cost);
-            }
+            reuseOffered++;
             // span = null: this is an existing bridge, RoadPainter must not rebuild it.
             out.add(new BridgeMove(endX, endZ, ndir, cost, turn, null, crossing));
         }
 
         return out;
+    }
+
+    /** One line on built-bridge reuse over the search, or null when no built bridge was ever near. */
+    @Nullable
+    public String reuseSummary() {
+        if (!reuseNearby) return null;
+        return "built bridge nearby: closest approach to an entrance " + Math.round(Math.sqrt(reuseClosestSq) * 10.0) / 10.0
+                + " (must be <= " + step + "), offered " + reuseOffered
+                + ", rejected{entranceStep=" + reuseRejectedStep + ", farEndOutside=" + reuseRejectedOutside
+                + ", farEndUnloaded=" + reuseRejectedUnloaded + ", farEndOcean=" + reuseRejectedOcean
+                + ", awayFromGoal=" + reuseRejectedAway + "}";
     }
 
     /** New bridges are only probed near water or a valley edge (avoids loading chunks everywhere). */

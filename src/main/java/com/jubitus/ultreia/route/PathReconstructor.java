@@ -42,6 +42,7 @@ final class PathReconstructor {
     // Index in the path at which each new bridge span begins (the prior road points end there).
     private final ArrayList<Integer> bridgeStartIndices = new ArrayList<>();
     private String failReason = null;
+    private int reusedBridgeCount = 0;
 
     PathReconstructor(SearchState st, TerrainView sampler, @Nullable RoadNetwork roadNetwork, long endState) {
         this.st = st;
@@ -78,6 +79,10 @@ final class PathReconstructor {
         return bridgeStartIndices;
     }
 
+    int reusedBridgeCount() {
+        return reusedBridgeCount;
+    }
+
     String failReason() {
         return failReason;
     }
@@ -99,6 +104,7 @@ final class PathReconstructor {
 
             RoadNetwork.BridgeCrossing reused = st.cameReusedBridge.get(curK);
             if (reused != null) {
+                reusedBridgeCount++;
                 appendReusedBridgeWaypoints(out, reused);
                 continue;
             }
