@@ -345,6 +345,7 @@ public final class AStarSearch {
         }
 
         result = rr;
+        AStarDiagnostics.logHairpins(rr.getPath(), roadType);
         diag.flushBridge();
         return partialResult ? StepResult.PARTIAL : StepResult.FOUND;
     }

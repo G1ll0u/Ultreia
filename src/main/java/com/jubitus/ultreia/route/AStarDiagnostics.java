@@ -8,6 +8,7 @@ import com.jubitus.ultreia.terrain.TerrainView;
 import net.minecraft.util.math.BlockPos;
 
 import javax.annotation.Nullable;
+import java.util.List;
 
 import static com.jubitus.ultreia.route.GridMoves.GRID_STEP;
 import static com.jubitus.ultreia.route.GridMoves.isOpenCell;
@@ -19,6 +20,10 @@ public final class AStarDiagnostics {
     private static final long PROGRESS_LOG_INTERVAL_NS = 10_000_000_000L;
     private static final int ROAD_NEAR_RADIUS = 16;
     private static final int DESCRIBED_RINGS = 3;
+    // Hairpin trace: two path points closer than this many road widths (XZ) but this many road widths apart along the path.
+    private static final double HAIRPIN_CONTACT_WIDTHS = 1.0;
+    private static final double HAIRPIN_MIN_PATH_WIDTHS = 3.0;
+    private static final int HAIRPIN_LOG_LIMIT = 5;
 
     private int skipOcean = 0, skipBlacklist = 0, skipBlocked = 0, skipSlope = 0, skipBridge = 0;
     private long lastProgressLogNs = 0;
@@ -134,5 +139,84 @@ public final class AStarDiagnostics {
             }
         }
         return free;
+    }
+
+    /**
+     * Logs the hairpins of a found path: places where the path comes back beside itself within a road width,
+     * with the height gap between the two parts (the painter cannot make a steep gap walkable). One summary per path.
+     */
+    static void logHairpins(List<BlockPos> path, RoadType roadType) {
+        if (!UltreiaConfig.DEBUG.logPathfinding || path.size() < 3) return;
+
+        int width = roadType.roadWidthBlocks();
+        double contactDist = width * HAIRPIN_CONTACT_WIDTHS;
+        double minPathGap = width * HAIRPIN_MIN_PATH_WIDTHS;
+
+        double[] along = new double[path.size()];
+        for (int i = 1; i < path.size(); i++) {
+            along[i] = along[i - 1] + Math.sqrt(distSqXZ(path.get(i - 1), path.get(i)));
+        }
+
+        int hairpins = 0;
+        int steep = 0;
+        int lastContactI = Integer.MIN_VALUE;
+        // Worst contact of the hairpin being grouped: index pair, XZ distance, height gap.
+        int bestI = -1, bestJ = -1;
+        double bestDist = 0;
+        int bestDy = -1;
+        StringBuilder lines = new StringBuilder();
+
+        for (int i = 0; i < path.size(); i++) {
+            for (int j = i + 1; j < path.size(); j++) {
+                if (along[j] - along[i] < minPathGap) continue;
+                double d = Math.sqrt(distSqXZ(path.get(i), path.get(j)));
+                if (d > contactDist) continue;
+
+                int dy = Math.abs(path.get(i).getY() - path.get(j).getY());
+                if (i > lastContactI + 1 && bestI >= 0) {
+                    if (appendHairpin(lines, hairpins, path, bestI, bestJ, bestDist, bestDy)) steep++;
+                    hairpins++;
+                    bestI = -1;
+                }
+                lastContactI = i;
+                if (bestI < 0 || dy > bestDy) {
+                    bestI = i;
+                    bestJ = j;
+                    bestDist = d;
+                    bestDy = dy;
+                }
+            }
+        }
+        if (bestI >= 0) {
+            if (appendHairpin(lines, hairpins, path, bestI, bestJ, bestDist, bestDy)) steep++;
+            hairpins++;
+        }
+
+        Ultreia.LOGGER.info("[Ultreia A*] hairpins: {} ({} with a height gap over half a block per block of gap), road width {}, turnPenalty={} slopePenalty={}{}",
+                hairpins, steep, width, UltreiaConfig.PATHFINDING.turnPenalty, UltreiaConfig.PATHFINDING.slopePenalty, lines);
+    }
+
+    /** Appends one hairpin line (up to the log limit); true when its height gap is not walkable across the gap. */
+    private static boolean appendHairpin(StringBuilder lines, int index, List<BlockPos> path,
+                                         int i, int j, double dist, int dy) {
+        // Walkable across the gap: at most half a block of height per block of distance.
+        boolean steepGap = dy * 2 > Math.max(1, (int) Math.round(dist));
+        if (index < HAIRPIN_LOG_LIMIT) {
+            BlockPos a = path.get(i);
+            BlockPos b = path.get(j);
+            lines.append("\n  hairpin (").append(a.getX()).append(',').append(a.getY()).append(',').append(a.getZ())
+                    .append(") / (").append(b.getX()).append(',').append(b.getY()).append(',').append(b.getZ())
+                    .append(") xz=").append(Math.round(dist * 10.0) / 10.0)
+                    .append(" dy=").append(dy)
+                    .append(" pathPoints=").append(j - i)
+                    .append(steepGap ? " STEEP" : "");
+        }
+        return steepGap;
+    }
+
+    private static double distSqXZ(BlockPos a, BlockPos b) {
+        double dx = a.getX() - b.getX();
+        double dz = a.getZ() - b.getZ();
+        return dx * dx + dz * dz;
     }
 }
