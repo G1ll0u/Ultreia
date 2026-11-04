@@ -47,7 +47,7 @@ Packages under `src/main/java/com/jubitus/ultreia/`. Package notes (`<package>/C
 |---|---|
 | Generation job, manager, tick budget, checkpoint, edge sources, manual path state | `job/` (notes) |
 | Logical network (MST + RNG, village classes, planned network save) | `planner/` |
-| A* search, move costs, endpoints, village gates, road types, whole-path check | `route/` (notes) |
+| A* search, move costs, moves along the road network, endpoints, village gates, road types, whole-path check | `route/` (notes) |
 | Terrain questions, sampler, protected areas | `terrain/` |
 | Road painting: session, centerline, merge and footprint planning, cell painter, talus, palette | `paint/` (notes) |
 | Bridges: moves, feasibility, deck, painting; templates | `bridge/`, `bridge/template/` |

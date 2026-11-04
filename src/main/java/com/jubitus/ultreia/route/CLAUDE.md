@@ -12,4 +12,4 @@
   more than half a block of height per block of gap; the `logPathfinding` trace uses the same rule
   (`TerrainMoveCost.isSteepHairpinGap`).
 - **Road reuse goes only through `NetworkMoves`** (join, follow stored waypoints, exit; built bridges included):
-  no road-cell bonus, attraction or parallel-road penalty, no special bridge jump. Plan: `docs/road-reuse-plan.md`.
+  no road-cell bonus, attraction or parallel-road penalty, no special bridge jump.

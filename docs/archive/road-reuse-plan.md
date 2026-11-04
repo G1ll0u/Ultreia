@@ -1,4 +1,4 @@
-# Road reuse — status: step 4 coded, awaiting the in-game check
+# Road reuse — status: done
 
 ## Goal
 
@@ -57,7 +57,7 @@ aligned, no doubled road).
    `astar_follows_main_road` approved); in game: the second road followed the first one 144 blocks over its bridge.
 4. **Painter:** followed stretches (plus holes of up to 8 blocks between two of them) are gaps with forced
    connectors at join and leave; the parallel-gap skip and the main-road early merge go (the lone-trail merge stays);
-   only painted pieces are registered in the network; no elbow fill inside a gap — coded, in-game check pending.
-5. **Travellers:** check routes across a join and a leave (code + in game) — not started.
-6. **Close:** invariants into `route/` and `paint/` notes, remove the frozen-settings rule, archive this plan — not
-   started.
+   only painted pieces are registered in the network; no elbow fill inside a gap — done (in game: no step over half a
+   block, the fork where a road leaves the network is acceptable).
+5. **Travellers:** check routes across a join and a leave (code + in game) — done (walkers plan over shared roads).
+6. **Close:** invariants into `route/` and `paint/` notes, frozen-settings rule removed, plan archived — done.
