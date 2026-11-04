@@ -41,10 +41,6 @@ import java.util.Map;
 
 public final class RoadPainter {
 
-    // Maximum number of blocks trimmed from one edge of the road to create organic width variation.
-    private static final int ROAD_EDGE_VARIATION = 1;
-    // Average number of road blocks between edge-variation changes.
-    private static final int ROAD_EDGE_VARIATION_PERIOD = 8;
     // Shoulder width used to taper earthworks away from the road surface.
     private static final int EARTHWORKS_SHOULDER = 3;
     // Force-paint this many blocks after bridge exit to secure road continuation.
@@ -73,15 +69,14 @@ public final class RoadPainter {
 
         private RoadType roadType = RoadType.VILLAGE_MAIN;
 
-        private final List<BlockPos> coarse;
         private final List<BridgeSpan> forcedBridges;
         private final BridgeSegmentPainter bridges;
-        private final List<BlockPos> path = new ArrayList<>();
+        private final RoadCenterline line;
+        private final List<BlockPos> path;
 
         private final Map<Long, ForcedBridgeRef> forcedByStartKey = new HashMap<>();
 
-        private int densifyIndex = 1;
-        private boolean densifyDone = false;
+        private boolean densifyDone;
 
         private int i = 0;
         private boolean paintingCell = false;
@@ -97,8 +92,6 @@ public final class RoadPainter {
         private boolean planPruned = false;
 
         private int planIdx = 0;
-
-        private int[] edgeNoise;
 
         private final it.unimi.dsi.fastutil.longs.LongOpenHashSet planned = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
         private final it.unimi.dsi.fastutil.longs.LongOpenHashSet core = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
@@ -156,8 +149,6 @@ public final class RoadPainter {
         private BridgeSpan pendingBridge = null;
         private int pendingBridgeEndIdx = -1;
 
-        private int[] centerHalf = null;
-
         private final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap plannedHalfByXZ = new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
         private final it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap plannedPriorityByXZ = new it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap();
 
@@ -180,15 +171,9 @@ public final class RoadPainter {
 
             this.baseR = roadType.roadWidthBlocks() / 2;
 
-            this.coarse = coarsePath == null ? Collections.<BlockPos>emptyList() : coarsePath;
-
-            if (!this.coarse.isEmpty()) {
-                BlockPos a = this.coarse.get(0);
-                TerrainSampler.Sample sm = sampler.sample(a.getX(), a.getZ());
-                path.add(new BlockPos(a.getX(), sm.surfaceY, a.getZ()));
-            } else {
-                densifyDone = true;
-            }
+            this.line = new RoadCenterline(coarsePath == null ? Collections.<BlockPos>emptyList() : coarsePath, sampler);
+            this.path = line.points;
+            this.densifyDone = path.isEmpty();
         }
 
         public PaintResult advance(long deadlineNs) {
@@ -197,8 +182,12 @@ public final class RoadPainter {
             while (System.nanoTime() < deadlineNs) {
 
                 if (!densifyDone) {
-                    if (!densifyStep(deadlineNs)) return PaintResult.RUNNING;
+                    if (!line.densifyStep(deadlineNs)) return PaintResult.RUNNING;
                     densifyDone = true;
+                    if (line.failReason() != null) {
+                        failed = true;
+                        failReason = line.failReason();
+                    }
 
                     indexForcedBridges();
                     bridges.buildFootprint();
@@ -208,9 +197,12 @@ public final class RoadPainter {
                 }
 
                 if (!profilesReady) {
-                    buildProfiles();
                     profilesReady = true;
-                    if (failed) return PaintResult.FAILED;
+                    if (!line.buildProfiles(forcedBridges, baseR)) {
+                        failed = true;
+                        failReason = line.failReason();
+                        return PaintResult.FAILED;
+                    }
                     continue;
                 }
 
@@ -338,8 +330,8 @@ public final class RoadPainter {
             forcedByStartKey.clear();
             for (BridgeSpan span : forcedBridges) {
                 if (span == null) continue;
-                int s = findIndexForXZ(span.start.getX(), span.start.getZ(), 0);
-                int e = findIndexForXZ(span.end.getX(), span.end.getZ(), Math.max(0, s));
+                int s = line.indexOf(span.start.getX(), span.start.getZ(), 0);
+                int e = line.indexOf(span.end.getX(), span.end.getZ(), Math.max(0, s));
                 if (s < 0 || e < 0 || e <= s) {
                     Ultreia.LOGGER.warn("Skipping forced bridge span: unresolved indices start=({}, {}) end=({}, {}) s={} e={}",
                             span.start.getX(), span.start.getZ(),
@@ -349,14 +341,6 @@ public final class RoadPainter {
                 }
                 forcedByStartKey.put(Pos2D.xzKey(span.start.getX(), span.start.getZ()), new ForcedBridgeRef(span, s, e));
             }
-        }
-
-        private int findIndexForXZ(int x, int z, int fromIdx) {
-            for (int idx = Math.max(0, fromIdx); idx < path.size(); idx++) {
-                BlockPos p = path.get(idx);
-                if (p.getX() == x && p.getZ() == z) return idx;
-            }
-            return -1;
         }
 
         private void detectEarlyMergeOnce() {
@@ -629,100 +613,6 @@ public final class RoadPainter {
             return null;
         }
 
-        private boolean densifyStep(long deadlineNs) {
-            while (densifyIndex < coarse.size() && System.nanoTime() < deadlineNs) {
-                BlockPos a = coarse.get(densifyIndex - 1);
-                BlockPos b = coarse.get(densifyIndex);
-
-                List<BlockPos> line;
-                try {
-                    line = LineRaster.forBridges(a.getX(), a.getZ(), b.getX(), b.getZ(), 0);
-                } catch (Throwable t) {
-                    failed = true;
-                    failReason = "densify failed on segment (" + a.getX() + "," + a.getZ() + ") -> (" + b.getX() + "," + b.getZ() + "): " + t.getMessage();
-                    return true;
-                }
-
-                if (line == null || line.isEmpty()) {
-                    densifyIndex++;
-                    continue;
-                }
-
-                // Always finish the segment: densifyIndex only advances per whole segment.
-                for (int k = 1; k < line.size(); k++) {
-                    BlockPos p = line.get(k);
-                    TerrainSampler.Sample sm = sampler.sample(p.getX(), p.getZ());
-                    path.add(new BlockPos(p.getX(), sm.surfaceY, p.getZ()));
-                }
-
-                densifyIndex++;
-            }
-            return densifyIndex >= coarse.size();
-        }
-
-        private void buildProfiles() {
-            int n = path.size();
-            edgeNoise = new int[n];
-
-            try {
-                centerHalf = RoadHeightProfile.build(path, forcedBridges, sampler);
-            } catch (IllegalStateException ex) {
-                failed = true;
-                failReason = "No feasible final road profile with max 0.5-block steps: " + ex.getMessage();
-                centerHalf = new int[n];
-                return;
-            } catch (Throwable t) {
-                failed = true;
-                failReason = "Road profile generation failed: " + t.getClass().getSimpleName() + ": " + t.getMessage();
-                centerHalf = new int[n];
-                return;
-            }
-
-            buildEdgeVariationProfile();
-
-        }
-
-        private void buildEdgeVariationProfile() {
-            int n = edgeNoise.length;
-            if (n == 0) return;
-
-            int maxOffset = ROAD_EDGE_VARIATION;
-            if (maxOffset <= 0 || baseR <= 0) return;
-
-            // Clamp maxOffset so we never reduce the road to 0-wide.
-            maxOffset = Math.min(maxOffset, baseR);
-
-            int period = Math.max(2, ROAD_EDGE_VARIATION_PERIOD);
-
-            BlockPos start = path.get(0);
-            java.util.Random rng = new java.util.Random(
-                    (long) start.getX() * 73856093L ^ (long) start.getZ() * 19349663L);
-
-            // For a 3-wide road (baseR == 1) one side must always be trimmed: never allow current == 0.
-            boolean forceNonZero = (baseR == 1 && maxOffset >= 1);
-            int current = forceNonZero ? (rng.nextBoolean() ? 1 : -1) : 0;
-            // Stagger the first change so different paths don't all change at the same step.
-            int stepsUntilChange = period / 2 + rng.nextInt(Math.max(1, period));
-
-            for (int idx = 0; idx < n; idx++) {
-                // Keep endpoints at 0 for clean terminal connections.
-                if (idx == 0 || idx == n - 1) {
-                    edgeNoise[idx] = 0;
-                    continue;
-                }
-                if (stepsUntilChange <= 0) {
-                    int delta = rng.nextInt(3) - 1; // -1, 0, +1
-                    current = Math.max(-maxOffset, Math.min(maxOffset, current + delta));
-                    // On a 3-wide road, skip 0 — flip to the same sign the delta was heading.
-                    if (forceNonZero && current == 0) current = (delta >= 0) ? 1 : -1;
-                    stepsUntilChange = period / 2 + rng.nextInt(Math.max(1, period));
-                }
-                edgeNoise[idx] = current;
-                stepsUntilChange--;
-            }
-
-        }
-
         private int centerXAt(int idx) {
             return path.get(idx).getX();
         }
@@ -918,8 +808,6 @@ public final class RoadPainter {
                     continue;
                 }
 
-                BlockPos center = path.get(idx);
-
                 int cx = centerXAt(idx);
                 int cz = centerZAt(idx);
 
@@ -927,9 +815,7 @@ public final class RoadPainter {
 
                 if (idx == 0) {
                     int localR = baseR;
-                    int targetHalf = centerHalf != null && idx < centerHalf.length
-                            ? centerHalf[idx]
-                            : HalfY.ofBlockTop(center.getY());
+                    int targetHalf = line.halfAt(idx);
 
                     addEndCapToPlan(cx, cz, localR, targetHalf, idx);
                     planIdx++;
@@ -937,7 +823,6 @@ public final class RoadPainter {
                 }
 
                 int prevIdx = idx - 1;
-                BlockPos prev = path.get(prevIdx);
 
                 int x0 = centerXAt(prevIdx);
                 int z0 = centerZAt(prevIdx);
@@ -948,13 +833,9 @@ public final class RoadPainter {
                 int r1 = baseR;
                 int localR = Math.max(r0, r1);
 
-                int half0 = centerHalf != null && prevIdx < centerHalf.length
-                        ? centerHalf[prevIdx]
-                        : HalfY.ofBlockTop(prev.getY());
+                int half0 = line.halfAt(prevIdx);
 
-                int half1 = centerHalf != null && idx < centerHalf.length
-                        ? centerHalf[idx]
-                        : HalfY.ofBlockTop(center.getY());
+                int half1 = line.halfAt(idx);
 
                 addRibbonSegmentToPlan(x0, z0, x1, z1, localR, half0, half1, idx);
 
@@ -974,7 +855,7 @@ public final class RoadPainter {
 
             for (int x = cx - pad; x <= cx + pad; x++) {
                 for (int z = cz - pad; z <= cz + pad; z++) {
-                    if (!cellIntersectsDisk(x, z, cx + 0.5, cz + 0.5, radius)) {
+                    if (!RibbonGeometry.cellIntersectsDisk(x, z, cx + 0.5, cz + 0.5, radius)) {
                         continue;
                     }
 
@@ -1011,14 +892,14 @@ public final class RoadPainter {
 
             for (int x = minX; x <= maxX; x++) {
                 for (int z = minZ; z <= maxZ; z++) {
-                    if (!cellIntersectsRibbon(x, z, ax, az, bx, bz, halfWidth)) {
+                    if (!RibbonGeometry.cellIntersectsRibbon(x, z, ax, az, bx, bz, halfWidth)) {
                         continue;
                     }
 
                     double px = x + 0.5;
                     double pz = z + 0.5;
-                    double t = segmentParam01(px, pz, ax, az, bx, bz);
-                    double distSq = pointToSegmentDistanceSqClamped(px, pz, ax, az, bx, bz);
+                    double t = RibbonGeometry.segmentParam01(px, pz, ax, az, bx, bz);
+                    double distSq = RibbonGeometry.pointToSegmentDistanceSqClamped(px, pz, ax, az, bx, bz);
 
                     int targetHalf = (int) Math.round((1.0 - t) * (double) half0 + t * (double) half1);
                     addPlannedRibbonCell(x, z, distSq, targetHalf, idx);
@@ -1064,21 +945,6 @@ public final class RoadPainter {
             }
         }
 
-        private double segmentParam01(double px, double pz,
-                                      double ax, double az,
-                                      double bx, double bz) {
-            double dx = bx - ax;
-            double dz = bz - az;
-            double lenSq = dx * dx + dz * dz;
-
-            if (lenSq <= 1.0e-9) return 0.0;
-
-            double t = ((px - ax) * dx + (pz - az) * dz) / lenSq;
-            if (t < 0.0) return 0.0;
-            if (t > 1.0) return 1.0;
-            return t;
-        }
-
         private boolean isExistingRoadNotOurs(int x, int z) {
             if (roadIndex == null) return false;
             long k = Pos2D.xzKey(x, z);
@@ -1111,8 +977,9 @@ public final class RoadPainter {
         // Runs after junctionReinforcement — also removes from forcePaint so shouldPaintCell
         // correctly skips pruned cells even if junctionReinforcement over-filled them.
         private void applyEdgeNoisePrune() {
+            int[] edgeNoise = line.edgeNoise;
             if (edgeNoise == null || path.isEmpty() || baseR <= 0) return;
-            if (ROAD_EDGE_VARIATION <= 0) return;
+            if (RoadCenterline.ROAD_EDGE_VARIATION <= 0) return;
 
             int n = path.size();
 
@@ -1277,9 +1144,7 @@ public final class RoadPainter {
                     int lz = centerZAt(mergeHitIndex);
                     fillLineForced(lx, lz, mergeTargetX, mergeTargetZ);
 
-                    int startHalf = (centerHalf != null && mergeHitIndex < centerHalf.length)
-                            ? centerHalf[mergeHitIndex]
-                            : HalfY.ofBlockTop(path.get(mergeHitIndex).getY());
+                    int startHalf = line.halfAt(mergeHitIndex);
                     Integer roadHalfVal = RoadJoins.findRoadSurfaceHalfY(
                             world, sampler, mergeTargetX, mergeTargetZ);
                     int endHalf = roadHalfVal != null ? roadHalfVal : startHalf;
@@ -1401,86 +1266,6 @@ public final class RoadPainter {
             }
 
             return false;
-        }
-
-        private double pointToSegmentDistanceSqClamped(double px, double pz,
-                                                       double ax, double az,
-                                                       double bx, double bz) {
-            double t = segmentParam01(px, pz, ax, az, bx, bz);
-            double cx = ax + (bx - ax) * t;
-            double cz = az + (bz - az) * t;
-
-            double dx = px - cx;
-            double dz = pz - cz;
-            return dx * dx + dz * dz;
-        }
-
-        private boolean cellIntersectsRibbon(int x,
-                                             int z,
-                                             double ax,
-                                             double az,
-                                             double bx,
-                                             double bz,
-                                             double halfWidth) {
-            double nearestX = x + 0.5;
-            double nearestZ = z + 0.5;
-            double bestDistSq = Double.POSITIVE_INFINITY;
-
-            for (int sx = 0; sx <= 1; sx++) {
-                double px = x + sx;
-                for (int sz = 0; sz <= 1; sz++) {
-                    double pz = z + sz;
-                    double d2 = pointToSegmentDistanceSqClamped(px, pz, ax, az, bx, bz);
-                    if (d2 < bestDistSq) {
-                        bestDistSq = d2;
-                        nearestX = px;
-                        nearestZ = pz;
-                    }
-                }
-            }
-
-            double centerD2 = pointToSegmentDistanceSqClamped(x + 0.5, z + 0.5, ax, az, bx, bz);
-            if (centerD2 < bestDistSq) {
-                bestDistSq = centerD2;
-                nearestX = x + 0.5;
-                nearestZ = z + 0.5;
-            }
-
-            if (bestDistSq <= halfWidth * halfWidth) {
-                return true;
-            }
-
-            double segDx = bx - ax;
-            double segDz = bz - az;
-            double segLen = Math.sqrt(segDx * segDx + segDz * segDz);
-            if (segLen <= 1.0e-9) {
-                return false;
-            }
-
-            double nx = -segDz / segLen;
-            double nz = segDx / segLen;
-
-            double support = 0.5 * Math.abs(nx) + 0.5 * Math.abs(nz);
-
-            double t = segmentParam01(nearestX, nearestZ, ax, az, bx, bz);
-            double cx = ax + (bx - ax) * t;
-            double cz = az + (bz - az) * t;
-
-            double perp = Math.abs((nearestX - cx) * nx + (nearestZ - cz) * nz);
-            return perp <= halfWidth + support;
-        }
-
-        private boolean cellIntersectsDisk(int x,
-                                           int z,
-                                           double cx,
-                                           double cz,
-                                           double radius) {
-            double nearestX = Math.max((double) x, Math.min(cx, (double) x + 1.0));
-            double nearestZ = Math.max((double) z, Math.min(cz, (double) z + 1.0));
-
-            double dx = nearestX - cx;
-            double dz = nearestZ - cz;
-            return dx * dx + dz * dz <= radius * radius;
         }
 
 
