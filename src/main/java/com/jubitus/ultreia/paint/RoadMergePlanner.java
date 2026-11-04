@@ -38,7 +38,7 @@ final class RoadMergePlanner {
     @Nullable private RoadNetwork roadNetwork;
     @Nullable private BlockPos toVillage;
     private LongSet reusedBridgeXZ = LongSets.EMPTY_SET;
-    private Collection<RoadPainter.ForcedBridgeRef> forced = Collections.emptyList();
+    private Collection<RoadPaintSession.ForcedBridgeRef> forced = Collections.emptyList();
 
     /** The road stops at path index {@code hitIndex} and joins the existing road at (targetX, targetZ). */
     boolean active = false;
@@ -71,7 +71,7 @@ final class RoadMergePlanner {
 
     /** Decides, once the centerline is known, where the road stops on an existing road and which stretches it skips. */
     void detect(RoadType roadType, int baseR, @Nullable RoadNetwork roadNetwork, @Nullable BlockPos toVillage,
-                LongSet reusedBridgeXZ, Collection<RoadPainter.ForcedBridgeRef> forced) {
+                LongSet reusedBridgeXZ, Collection<RoadPaintSession.ForcedBridgeRef> forced) {
         this.roadNetwork = roadNetwork;
         this.toVillage = toVillage;
         this.reusedBridgeXZ = reusedBridgeXZ;
@@ -85,11 +85,11 @@ final class RoadMergePlanner {
         if (!isLoneTrail && path.size() < 8) return;
         if (path.size() < 3) return;
 
-        int exitBlocks = Math.max(0, RoadPainter.FORCE_PAINT_EXIT_BLOCKS);
+        int exitBlocks = Math.max(0, RoadPaintSession.FORCE_PAINT_EXIT_BLOCKS);
 
         // Hard minimum: never merge before own forced bridges are fully painted.
         int absoluteMin = Math.max(isLoneTrail ? 3 : 6, baseR + 3);
-        for (RoadPainter.ForcedBridgeRef ref : forced) {
+        for (RoadPaintSession.ForcedBridgeRef ref : forced) {
             int past = ref.endIdx + exitBlocks + 1;
             if (past > absoluteMin) absoluteMin = past;
         }
@@ -223,7 +223,7 @@ final class RoadMergePlanner {
 
             // Skip bridge-protected indices.
             boolean inBridge = false;
-            for (RoadPainter.ForcedBridgeRef ref : forced) {
+            for (RoadPaintSession.ForcedBridgeRef ref : forced) {
                 if (idx >= ref.startIdx - bridgeBuffer && idx <= ref.endIdx + bridgeBuffer) {
                     inBridge = true;
                     break;

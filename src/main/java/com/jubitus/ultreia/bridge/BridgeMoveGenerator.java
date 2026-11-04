@@ -164,7 +164,7 @@ public final class BridgeMoveGenerator {
             double turn = turnCost(curDir, ndir, step, UltreiaConfig.PATHFINDING.turnPenalty);
 
             reuseOffered++;
-            // span = null: this is an existing bridge, RoadPainter must not rebuild it.
+            // span = null: this is an existing bridge, the painter must not rebuild it.
             out.add(new BridgeMove(endX, endZ, ndir, cost, turn, null, crossing));
         }
 

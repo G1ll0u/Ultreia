@@ -152,10 +152,8 @@ final class PathReconstructor {
     /**
      * Splices the exact persisted geometry of a reused bridge into the reconstructed coarse path,
      * instead of the single ground-level point the naive "no span" branch would otherwise emit.
-     * Not added to {@code spans}/{@code forcedBridges}: RoadPainter must never rebuild this bridge —
-     * it treats these points as ordinary coarse waypoints, and its existing roadIndex.isBridgeXZ /
-     * isBridgeVolumeXZ checks already skip painting, earthworks and tree-clearing on them since they
-     * were marked in the persistent index when the bridge was first built.
+     * Not added to {@code spans}: the painter must never rebuild this bridge. Its deck cells go to
+     * {@code reusedBridgeXZ}, which the painter skips as a gap (road stops at the bridge start, resumes at its end).
      */
     private void appendReusedBridgeWaypoints(ArrayList<BlockPos> out, RoadNetwork.BridgeCrossing crossing) {
         if (roadNetwork == null) return;

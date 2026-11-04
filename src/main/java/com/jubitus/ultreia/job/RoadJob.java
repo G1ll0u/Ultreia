@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.job;
 
 import com.jubitus.ultreia.config.UltreiaConfig;
-import com.jubitus.ultreia.paint.RoadPainter;
+import com.jubitus.ultreia.paint.RoadPaintSession;
 import com.jubitus.ultreia.route.AStarDiagnostics;
 import com.jubitus.ultreia.route.AStarSearch;
 import com.jubitus.ultreia.route.PathResult;
@@ -23,7 +23,7 @@ public final class RoadJob {
 
     @Nullable private EdgeSource.EdgeRequest cur;
     @Nullable private AStarSearch session;
-    @Nullable private RoadPainter.Session painter;
+    @Nullable private RoadPaintSession painter;
     private boolean done = false;
 
     private RoadJob(JobContext ctx, EdgeSource source) {
@@ -123,9 +123,9 @@ public final class RoadJob {
                 continue;
             }
 
-            RoadPainter.PaintResult pr = painter.advance(end);
-            if (pr == RoadPainter.PaintResult.RUNNING) return;
-            String reason = pr == RoadPainter.PaintResult.OK ? null : "painting: " + painter.failureReason();
+            RoadPaintSession.PaintResult pr = painter.advance(end);
+            if (pr == RoadPaintSession.PaintResult.RUNNING) return;
+            String reason = pr == RoadPaintSession.PaintResult.OK ? null : "painting: " + painter.failureReason();
             painter = null;
             finishEdge(reason);
         }
@@ -144,7 +144,7 @@ public final class RoadJob {
     }
 
     private void startPainting(List<BlockPos> coarse, PathResult result) {
-        painter = RoadPainter.start(ctx.world, coarse, result.getBridges(), ctx.sampler, ctx.protectedAreas,
+        painter = new RoadPaintSession(ctx.world, coarse, result.getBridges(), ctx.sampler, ctx.protectedAreas,
                 ctx.roadIndex);
         painter.setRoadNetwork(ctx.roadNetwork, cur.fromVillage, cur.toVillage);
         painter.setRoadType(cur.roadType);
