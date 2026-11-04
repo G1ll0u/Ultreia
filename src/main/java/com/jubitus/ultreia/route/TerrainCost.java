@@ -53,13 +53,6 @@ public final class TerrainCost {
         RoadIndex roadIndex = sampler.roadIndex();
         if (mode == Mode.PATHFINDING && roadIndex != null) {
             if (roadIndex.isBridgeVolumeXZ(s.x, s.z)) cost += EXISTING_BRIDGE_VOLUME_AVOIDANCE_COST;
-
-            boolean onRoad = roadIndex.isRoadXZ(s.x, s.z);
-            if (onRoad && UltreiaConfig.PATHFINDING.preferExistingRoads) {
-                cost -= Math.max(0.0, UltreiaConfig.PATHFINDING.existingRoadBonus);
-            } else if (!onRoad && UltreiaConfig.PATHFINDING.avoidParallelToExistingRoads) {
-                cost += parallelRoadPenalty(sampler, s.x, s.z);
-            }
         }
 
         if (!s.isWater && s.nearWaterLike) {
@@ -73,18 +66,6 @@ public final class TerrainCost {
         }
 
         return cost;
-    }
-
-    private static double parallelRoadPenalty(TerrainSampler sampler, int x, int z) {
-        int maxR = Math.max(1, UltreiaConfig.PATHFINDING.parallelRoadAvoidRadius);
-        int step = Math.max(1, UltreiaConfig.PATHFINDING.parallelRoadAvoidScanStep);
-        int dist = sampler.nearestRoadDistManhattan(x, z, maxR, step);
-        if (dist <= 1 || dist == Integer.MAX_VALUE) return 0.0;
-
-        double t = (double) (maxR - dist + 1);
-        if (t <= 0.0) return 0.0;
-        double p = Math.max(1.0, UltreiaConfig.PATHFINDING.parallelRoadPenaltyPower);
-        return UltreiaConfig.PATHFINDING.parallelRoadPenalty * Math.pow(t, p);
     }
 
     /** Large DynamicTrees trunks cost more; vanilla trees keep the base penalty. */

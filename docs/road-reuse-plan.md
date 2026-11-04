@@ -1,38 +1,54 @@
-# Road reuse — status: not started (next, now that the grand nettoyage is done)
+# Road reuse — status: steps 1–2 done, step 3 next
 
 ## Goal
 
-A new road may join an existing road, follow it as long as that brings it closer to its goal, and leave it.
-Existing bridges are ordinary road segments of that network: no special bridge-reuse move. The only special work is
-a clean connection at each join and each leave (walkable, aligned, no doubled road).
+A new road may join an existing road, follow it as long as that is cheaper than building its own way, and leave it.
+While it follows, nothing is painted. Existing bridges are ordinary road segments: no special bridge move. The only
+special work is a clean physical connection at each join and each leave (walkable for players and Travellers walkers,
+aligned, no doubled road).
 
 ## Decisions taken with the user
 
-- The special built-bridge reuse move (single-cell snap onto a bridge end, then a jump to its other end) is abandoned:
-  it never worked reliably in game.
-- Painter (kept, still useful): a village main road stops on an existing road only if it leads to its destination;
-  a path over a built bridge paints nothing on the deck (stops at its start, resumes at its end).
+- The old reuse settings and their logic go: `preferExistingRoads`/`existingRoadBonus`, `avoidParallelToExistingRoads`
+  and its four tuning keys, road magnetism (four keys), bridge-endpoint magnetism. None worked as hoped.
+- **Network move.** A* follows a road with a dedicated move along the recorded `RoadNetwork` segments (bridges
+  included, at their stored heights), generalising the built-bridge move; no "cheap road cells" on the grid.
+- **Cost decides when to leave.** Following costs `existingRoadCost` per block (half a flat new block by default);
+  no explicit "turns away from the goal" rule.
+- **Config:** `existingRoadCost` in Pathfinding, default 0.5, range 0.1–1.0. Comment: "Cost of walking along an
+  existing road compared with building a new one; lower makes roads share the network more, even with detours."
+- **Road types:** a village main road follows only main roads (and their bridges); a lone trail follows any road.
+  Nothing is ever widened or repainted.
+- Painter (kept): a path over a followed stretch paints nothing there (stops at the join, resumes at the leave).
+- The bridge cost's "mostly water" rule stays different from `waterDominant`.
 
-## Findings (in-game tests, end of phase 9)
+## Findings
 
-- A* offered the built bridge many times and none of those paths was rejected, yet the found path built a new
-  parallel bridge: the cause is in the search itself, not found (the capped bridge log was full of other lines).
-- The painter used to stop at the first road met after 20 % of the path, and to paint beside a reused deck
-  (only centerline ±1 is marked as deck in `RoadIndex`).
-- The whole-path check samples terrain heights: over a reused bridge it works only because the built deck is
-  the sampled surface.
-
-## Open questions (to decide with the user)
-
-- How A* walks on an existing road: road cells as cheap moves (existing `existingRoadBonus`), or a dedicated
-  "follow the network" move along `RoadNetwork` segments (bridges included, at deck height).
-- What becomes of the frozen reuse settings: reuse bonus, magnetism (made twisted or too-wide roads), parallel-road
-  avoidance, partial path, the painter's early merge and parallel-gap skip.
-- What "as long as it makes sense" means: leave when the network turns away from the goal, cost of the detour.
-- Join / leave geometry: angle, height matching on ramps and bridge ends, width difference (lone trail onto main road).
-- Road type of a shared stretch (a lone trail following a main road stays a main road).
-- First step: a debug trace of why a found path did not follow a nearby existing road.
+- Built-bridge reuse costs at least 700 because its landing cell is in the bridge volume
+  (`EXISTING_BRIDGE_VOLUME_AVOIDANCE_COST`); a new water bridge beside it costs about 650 and wins. Cause of the
+  doubled bridge (trace, in game).
+- With no reuse setting on, a road cell costs the same as the grass beside it: roads ran 1–8 blocks beside an
+  existing road for ~45 blocks around a junction, and the painter hid it with a 52-block parallel gap (trace).
+- The painter registers the whole path as one network segment, followed and skipped stretches included.
+- `RoadNavigator` (Travellers) already links a segment whose end lies within 12 blocks of another segment's waypoint,
+  so registering only the painted pieces keeps routes navigable.
+- `TerrainSampler.nearestRoadDistManhattan` caches by cell regardless of radius (wrong when magnetism and parallel
+  avoidance were both on); goes away with them.
+- Separate issue, not this plan: the server lags 2–5 s around the end of each generated edge.
 
 ## Steps
 
-Not planned yet.
+1. **Debug trace** (`ReuseTrace`: roads alongside, bridges offered vs built) — done.
+2. **Remove the old reuse settings and logic** (config keys, `TerrainCost` bonus/parallel penalty, road magnetism,
+   the radius-blind distance cache). All were off by default: no behaviour change; goldens unchanged — done.
+3. **Network move in A\*** (also removes the built-bridge jump and its always-on bridge-endpoint magnetism): join (within a grid step of a waypoint of an allowed segment, walkable height; a bridge
+   only at its ends), follow along the segment to its ends and periodic exit points, leave by normal moves; cost
+   `existingRoadCost` × length, no terrain extra at the landing; replaces the built-bridge jump and its +700 trap.
+   Reconstruction splices the stored waypoints and reports followed stretches; whole-path check over them.
+   New golden test with a synthetic road; `ReuseTrace` updated — not started.
+4. **Painter:** followed stretches are gaps with forced, walkable connectors at join and leave; the parallel-gap
+   skip and the main-road early merge go; only painted pieces are registered in the network. In-game checks — not
+   started.
+5. **Travellers:** check routes across a join and a leave (code + in game) — not started.
+6. **Close:** invariants into `route/` and `paint/` notes, remove the frozen-settings rule, archive this plan — not
+   started.

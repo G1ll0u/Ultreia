@@ -71,27 +71,6 @@ public class UltreiaConfig {
         @Config.Comment("When a village cannot be reached, build the road as far as possible instead of giving up.")
         public boolean allowPartialPathFallback = false;
 
-        @Config.Comment("Make new roads prefer to run on existing ones.")
-        public boolean preferExistingRoads = false;
-
-        @Config.Comment("How strongly new roads prefer existing ones, when that is on.")
-        @Config.RangeDouble(min = 0.0, max = 15.0)
-        public double existingRoadBonus = 3.0;
-
-        @Config.Comment("Keep new roads from running alongside existing ones.")
-        public boolean avoidParallelToExistingRoads = false;
-
-        @Config.Comment("How far a road counts as running alongside another one.")
-        public int parallelRoadAvoidRadius = 32;
-
-        @Config.Comment("Precision of the side-by-side road check; higher is faster but coarser.")
-        public int parallelRoadAvoidScanStep = 2;
-
-        @Config.Comment("How strongly roads avoid running alongside each other.")
-        public double parallelRoadPenalty = 1.25;
-
-        @Config.Comment("How sharply that avoidance grows as roads get closer.")
-        public double parallelRoadPenaltyPower = 2.0;
     }
 
     public static class Painting {
@@ -144,21 +123,6 @@ public class UltreiaConfig {
         @Config.Comment("How much more trails to lone buildings avoid climbing than village roads.")
         @Config.RangeDouble(min = 1.0, max = 10.0)
         public double loneTrailSlopePenaltyMultiplier = 2.5;
-
-        @Config.Comment("Pull new roads toward nearby existing roads.")
-        public boolean magnetismEnabled = false;
-
-        @Config.Comment("Distance at which that pull starts.")
-        @Config.RangeInt(min = 2, max = 64)
-        public int magnetismRadius = 12;
-
-        @Config.Comment("Strength of the pull toward a nearby road.")
-        @Config.RangeDouble(min = 0.0, max = 80.0)
-        public double magnetismAttractionBonus = 10.0;
-
-        @Config.Comment("How much a road close to another one resists moving away from it.")
-        @Config.RangeDouble(min = 0.0, max = 80.0)
-        public double magnetismRepulsionPenalty = 6.0;
     }
 
     public static final class SpeedBoost {

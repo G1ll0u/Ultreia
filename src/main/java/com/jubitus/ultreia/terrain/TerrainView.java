@@ -33,8 +33,6 @@ public interface TerrainView {
     @Nullable
     BlockPos findNearestExistingRoad(int x, int z, int radius);
 
-    int nearestRoadDistManhattan(int x, int z, int maxRadius, int scanStep);
-
     boolean isNaturalLandEndpoint(int x, int z);
 
     /** World reads of bridge feasibility at this terrain. */

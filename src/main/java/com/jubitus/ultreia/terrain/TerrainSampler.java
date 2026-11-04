@@ -133,11 +133,6 @@ public class TerrainSampler implements TerrainView {
     private ChunkManager chunkManager;
     private RoadIndex roadIndex;
 
-    private final Long2IntOpenHashMap roadDistCache = new Long2IntOpenHashMap();
-    {
-        roadDistCache.defaultReturnValue(Integer.MIN_VALUE);
-    }
-
     public TerrainSampler(WorldServer world) {
         this.world = world;
         lightCache.defaultReturnValue(LIGHT_NOT_LOADED);
@@ -157,7 +152,6 @@ public class TerrainSampler implements TerrainView {
 
     public void setRoadIndex(RoadIndex idx) {
         this.roadIndex = idx;
-        roadDistCache.clear();
     }
 
     @Nullable
@@ -170,21 +164,9 @@ public class TerrainSampler implements TerrainView {
         return roadIndex;
     }
 
-    /** Cached manhattan distance to nearest road, or Integer.MAX_VALUE if none within maxRadius. */
-    public int nearestRoadDistManhattan(int x, int z, int maxRadius, int scanStep) {
-        if (roadIndex == null) return Integer.MAX_VALUE;
-        long k = Pos2D.xzKey(x, z);
-        int cached = roadDistCache.get(k);
-        if (cached != Integer.MIN_VALUE) return cached;
-        int dist = roadIndex.approxNearestRoadDistManhattan(x, z, maxRadius, scanStep);
-        roadDistCache.put(k, dist);
-        return dist;
-    }
-
     public void clearCache() {
         cache.clear();
         lightCache.clear();
-        roadDistCache.clear();
     }
 
     public void invalidateAround(int x, int z, int r) {
@@ -193,7 +175,6 @@ public class TerrainSampler implements TerrainView {
                 long k = Pos2D.xzKey(x + dx, z + dz);
                 cache.remove(k);
                 lightCache.remove(k);
-                roadDistCache.remove(k);
             }
         }
     }
@@ -457,7 +438,6 @@ public class TerrainSampler implements TerrainView {
         if (cache.size() >= MAX_SAMPLE_CACHE) {
             cache.clear();
             lightCache.clear();
-            roadDistCache.clear();
         }
         cache.put(k, out);
         return out;

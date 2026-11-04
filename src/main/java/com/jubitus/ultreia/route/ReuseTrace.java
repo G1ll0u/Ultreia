@@ -147,11 +147,7 @@ final class ReuseTrace {
                 .append(", alongside one (within ").append(ALONGSIDE_RADIUS).append(")=").append(round(alongside))
                 .append(", away from roads=").append(round(free))
                 .append(", new bridges=").append(newBridges).append(" (").append(round(newBridgeBlocks)).append(" blocks)")
-                .append(", built bridges used=").append(reused).append(" (").append(round(reusedBlocks)).append(" blocks)")
-                .append("; settings preferExistingRoads=").append(UltreiaConfig.PATHFINDING.preferExistingRoads)
-                .append(" existingRoadBonus=").append(UltreiaConfig.PATHFINDING.existingRoadBonus)
-                .append(" magnetism=").append(UltreiaConfig.ROAD_HIERARCHY.magnetismEnabled)
-                .append(" avoidParallel=").append(UltreiaConfig.PATHFINDING.avoidParallelToExistingRoads);
+                .append(", built bridges used=").append(reused).append(" (").append(round(reusedBlocks)).append(" blocks)");
 
         stretches.sort(Comparator.comparingDouble((Stretch s) -> s.length).reversed());
         for (int n = 0; n < Math.min(ALONGSIDE_LOG_LIMIT, stretches.size()); n++) {

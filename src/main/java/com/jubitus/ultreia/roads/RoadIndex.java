@@ -256,25 +256,6 @@ public class RoadIndex extends WorldSavedData {
     }
 
 
-    // --- Approx nearest road dist (unchanged) ---
-
-    public int approxNearestRoadDistManhattan(int x, int z, int maxRadius, int step) {
-        if (maxRadius <= 0) return Integer.MAX_VALUE;
-        if (step < 1) step = 1;
-        if (isRoadXZ(x, z)) return 0;
-
-        for (int r = 1; r <= maxRadius; r += step) {
-            int minX = x - r, maxX = x + r, minZ = z - r, maxZ = z + r;
-            for (int xx = minX; xx <= maxX; xx += step) {
-                if (isRoadXZ(xx, minZ) || isRoadXZ(xx, maxZ)) return r;
-            }
-            for (int zz = minZ; zz <= maxZ; zz += step) {
-                if (isRoadXZ(minX, zz) || isRoadXZ(maxX, zz)) return r;
-            }
-        }
-        return Integer.MAX_VALUE;
-    }
-
     // --- NBT serialization ---
 
     @Override

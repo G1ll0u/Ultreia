@@ -42,7 +42,7 @@ import static com.jubitus.ultreia.route.GridMoves.turnCost;
 
 /**
  * One A* search between two points, run in slices within the tick budget: grid moves with their terrain cost,
- * bridge moves, road and bridge magnetism, partial fallback, then path reconstruction and the whole-path check.
+ * bridge moves, bridge-endpoint magnetism, partial fallback, then path reconstruction and the whole-path check.
  */
 public final class AStarSearch {
 
@@ -52,8 +52,6 @@ public final class AStarSearch {
     private static final int PROFILE_REJECTION_LIMIT = 300;
     // Cost discount applied to normal A* moves that step closer to a known existing bridge crossing's entrance,...
     private static final double BRIDGE_ENDPOINT_MAGNETISM_BONUS = 12.0;
-    // Road distance scan step of road magnetism.
-    private static final int MAGNETISM_SCAN_STEP = 2;
     // Road-snap only triggers this many grid steps away from the start.
     private static final double SNAP_MIN_DIST_STEPS = 6.0;
     // Weight of the remaining distance in the score that picks the partial-path end point.
@@ -470,10 +468,6 @@ public final class AStarSearch {
     }
 
     private void expandNormalMoves(SearchState.Node cur, long ck, TerrainSampler.Sample cs) {
-        // Magnetism: cache radii once per call to avoid per-neighbor lookups when disabled.
-        final boolean magnetismActive = UltreiaConfig.ROAD_HIERARCHY.magnetismEnabled;
-        final int magRadius = magnetismActive ? Math.max(4, UltreiaConfig.ROAD_HIERARCHY.magnetismRadius) : 0;
-
         // Bridge-endpoint magnetism: pulls the search toward a known existing bridge crossing's
         // entrance from a distance, so buildExistingBridgeMoves' validated single-cell snap
         // (bug A fix) actually has a real adjacent node to trigger from instead of drifting past it.
@@ -540,25 +534,6 @@ public final class AStarSearch {
             // Same formula used for entering/exiting a bridge (see turnCost) — one turn-cost model for
             // every kind of move, so a bridge never gets to attach at an angle a road turn wouldn't.
             tentative += turnCost(cur.dir, dirIdx, step, UltreiaConfig.PATHFINDING.turnPenalty);
-
-            // Road magnetism: direction-aware attraction/repulsion around existing roads.
-            // Moving toward an existing road is discounted; moving away is penalised.
-            if (magnetismActive) {
-                int distNeighbor = sampler.nearestRoadDistManhattan(nx, nz, magRadius, MAGNETISM_SCAN_STEP);
-                if (distNeighbor < magRadius) {
-                    int distCurrent = sampler.nearestRoadDistManhattan(cur.x, cur.z, magRadius, MAGNETISM_SCAN_STEP);
-                    double scale = (double) magRadius;
-                    if (distNeighbor < distCurrent) {
-                        // Moving toward road → attraction bonus, strongest when almost on it.
-                        double frac = 1.0 - (double) distNeighbor / scale;
-                        tentative -= Math.max(0.0, UltreiaConfig.ROAD_HIERARCHY.magnetismAttractionBonus) * frac;
-                    } else if (distCurrent < magRadius && distNeighbor > distCurrent) {
-                        // Moving away from road while inside the attraction zone → repulsion.
-                        double frac = 1.0 - (double) distCurrent / scale;
-                        tentative += Math.max(0.0, UltreiaConfig.ROAD_HIERARCHY.magnetismRepulsionPenalty) * frac;
-                    }
-                }
-            }
 
             // Bridge-endpoint magnetism: discount moving closer to a known crossing's entrance.
             if (bridgeMagnetismActive) {
