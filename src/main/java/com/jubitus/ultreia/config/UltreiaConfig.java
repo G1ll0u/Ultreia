@@ -68,6 +68,10 @@ public class UltreiaConfig {
         @Config.Comment("How much roads avoid climbing; higher makes them go around hills.")
         public double slopePenalty = 8.0;
 
+        @Config.Comment("Higher finds roads much faster but slightly less well; 1 finds the best road but slowly.")
+        @Config.RangeDouble(min = 1.0, max = 10.0)
+        public double searchSpeedFactor = 5.0;
+
         @Config.Comment("When a village cannot be reached, build the road as far as possible instead of giving up.")
         public boolean allowPartialPathFallback = false;
 

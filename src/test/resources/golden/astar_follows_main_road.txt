@@ -2,9 +2,7 @@ result FOUND
 bridges 0
 follows a road true
 0 64 0
-2 64 0
-4 64 0
-6 64 0
+4 64 2
 10 64 6
 14 64 6
 18 64 6

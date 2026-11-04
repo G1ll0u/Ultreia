@@ -2,6 +2,7 @@ package com.jubitus.ultreia.route;
 
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.UltreiaConfig;
+import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.terrain.TerrainView;
@@ -10,7 +11,13 @@ import net.minecraft.util.math.BlockPos;
 import javax.annotation.Nullable;
 import java.util.List;
 
+import static com.jubitus.ultreia.route.GridMoves.DIR_NONE;
 import static com.jubitus.ultreia.route.GridMoves.GRID_STEP;
+import static com.jubitus.ultreia.route.GridMoves.NEIGHBOR_DIRS;
+import static com.jubitus.ultreia.route.GridMoves.turnCost;
+import static com.jubitus.ultreia.route.SearchState.stateDir;
+import static com.jubitus.ultreia.route.SearchState.stateX;
+import static com.jubitus.ultreia.route.SearchState.stateZ;
 import static com.jubitus.ultreia.route.GridMoves.isOpenCell;
 import static com.jubitus.ultreia.route.TerrainMoveCost.HAIRPIN_CONTACT_WIDTHS;
 import static com.jubitus.ultreia.route.TerrainMoveCost.HAIRPIN_MIN_PATH_WIDTHS;
@@ -222,5 +229,79 @@ public final class AStarDiagnostics {
         double dx = a.getX() - b.getX();
         double dz = a.getZ() - b.getZ();
         return dx * dx + dz * dz;
+    }
+
+    /**
+     * Where the cost of the found path goes, beside the same terms along the straight line to the goal:
+     * shows which cost made the road leave the direct route.
+     */
+    static void logCostBreakdown(List<Long> states, SearchState st, TerrainView sampler, TerrainMoveCost moveCost,
+                                 RoadType roadType, int step, int sx, int sz, int gx, int gz) {
+        if (!UltreiaConfig.DEBUG.logPathfinding || states.size() < 2) return;
+
+        CostTally path = new CostTally();
+        for (int i = 1; i < states.size(); i++) {
+            long k = states.get(i);
+            long pk = states.get(i - 1);
+            double dg = st.gScore.get(k) - st.gScore.get(pk);
+            if (st.cameFollow.containsKey(k)) { path.followed += dg; continue; }
+            if (st.cameBridge.containsKey(k)) { path.bridges += dg; continue; }
+            path.addMove(sampler, moveCost, roadType, step, stateX(pk), stateZ(pk), stateDir(pk),
+                    stateX(k), stateZ(k), stateDir(k));
+        }
+
+        CostTally direct = new CostTally();
+        int x = sx, z = sz, dir = DIR_NONE;
+        double stepSq = (double) step * step;
+        while (Pos2D.distSq(x, z, gx, gz) > stepSq) {
+            int best = 0;
+            double bestD = Double.POSITIVE_INFINITY;
+            for (int d = 0; d < NEIGHBOR_DIRS.length; d++) {
+                double dd = Pos2D.distSq(x + NEIGHBOR_DIRS[d][0] * step, z + NEIGHBOR_DIRS[d][1] * step, gx, gz);
+                if (dd < bestD) { bestD = dd; best = d; }
+            }
+            int nx = x + NEIGHBOR_DIRS[best][0] * step, nz = z + NEIGHBOR_DIRS[best][1] * step;
+            direct.addMove(sampler, moveCost, roadType, step, x, z, dir, nx, nz, best);
+            x = nx;
+            z = nz;
+            dir = best;
+        }
+
+        Ultreia.LOGGER.info("[Ultreia A*] cost of found path ({},{}) -> ({},{}) closed={}: {}",
+                sx, sz, gx, gz, st.closed.size(), path.describe());
+        Ultreia.LOGGER.info("[Ultreia A*] cost of the straight line (refused moves not counted): {}", direct.describe());
+    }
+
+    private static final class CostTally {
+        double length, base, slope, rough, cut, ahead, extra, turn, bridges, followed;
+        int water, tooSteep, forbidden;
+
+        void addMove(TerrainView sampler, TerrainMoveCost moveCost, RoadType roadType, int step,
+                     int x, int z, int fromDir, int nx, int nz, int dir) {
+            double len = Math.sqrt(Pos2D.distSq(x, z, nx, nz));
+            length += len;
+            TerrainSampler.Sample cs = sampler.sample(x, z);
+            TerrainSampler.Sample ns = sampler.sample(nx, nz);
+            if (sampler.forbidden(ns, TerrainSampler.Mode.PATHFINDING)) { forbidden++; return; }
+            TerrainMoveCost.MoveCost mc = moveCost.evaluate(x, z, cs, dir, nx, nz, ns, roadType);
+            if (mc.verdict == TerrainMoveCost.Verdict.WATER) { water++; return; }
+            if (mc.verdict == TerrainMoveCost.Verdict.TOO_STEEP) { tooSteep++; return; }
+            base += len;
+            slope += mc.slope;
+            rough += mc.roughness;
+            cut += mc.cut;
+            ahead += mc.ahead;
+            extra += sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
+            turn += turnCost(fromDir, dir, step, UltreiaConfig.PATHFINDING.turnPenalty);
+        }
+
+        String describe() {
+            double total = base + slope + rough + cut + ahead + extra + turn + bridges + followed;
+            return String.format(java.util.Locale.ROOT,
+                    "length=%.0f total=%.0f distance=%.0f slope=%.0f roughness=%.0f cut=%.0f cutAhead=%.0f extra=%.0f"
+                            + " turns=%.0f bridges=%.0f followedRoads=%.0f refused{water=%d, tooSteep=%d, forbidden=%d}",
+                    length, total, base, slope, rough, cut, ahead, extra, turn, bridges, followed,
+                    water, tooSteep, forbidden);
+        }
     }
 }

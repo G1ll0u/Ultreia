@@ -122,6 +122,10 @@ final class SearchState {
         return pz - STATE_COORD_BIAS;
     }
 
+    static int stateDir(long key) {
+        return (int) (key & 0x1fL);
+    }
+
     private static int packCoord26(int v) {
         int p = v + STATE_COORD_BIAS;
         if (p < 0 || p > STATE_COORD_MASK) {

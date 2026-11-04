@@ -357,6 +357,8 @@ public final class AStarSearch {
 
         result = rr;
         AStarDiagnostics.logHairpins(rr.getPath(), roadType);
+        AStarDiagnostics.logCostBreakdown(rec.states(), st, sampler, moveCost, roadType, step, sx, sz,
+                stateX(rec.endState), stateZ(rec.endState));
         reuseTrace.logFoundPath(st, rec.states(), sampler, roadType, roadNetwork, step);
         flushBridgeLog();
         return partialResult ? StepResult.PARTIAL : StepResult.FOUND;
@@ -464,6 +466,12 @@ public final class AStarSearch {
         return heuristic(x, z, gx, gz);
     }
 
+    // Open-set order: the weighted remaining distance makes the search head for the goal instead of
+    // exploring the whole corridor, at the price of a slightly costlier road.
+    private double priority(double g, int x, int z) {
+        return g + UltreiaConfig.PATHFINDING.searchSpeedFactor * heuristicToGoal(x, z);
+    }
+
     private void expandNormalMoves(SearchState.Node cur, long ck, TerrainSampler.Sample cs) {
         collectRecentPath(ck, cur, cs);
 
@@ -517,7 +525,7 @@ public final class AStarSearch {
             tentative += turnCost(cur.dir, dirIdx, step, UltreiaConfig.PATHFINDING.turnPenalty);
 
             if (tentative < st.gScore.get(nk)) {
-                st.relaxRoad(ck, nk, nx, nz, dirIdx, tentative, tentative + heuristicToGoal(nx, nz), base);
+                st.relaxRoad(ck, nk, nx, nz, dirIdx, tentative, priority(tentative, nx, nz), base);
             }
         }
     }
@@ -616,7 +624,7 @@ public final class AStarSearch {
             double tentative = st.gScore.get(ck) + mv.cost * bridgeMult + mv.turnCost
                     + sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
             if (tentative < st.gScore.get(nk)) {
-                st.relaxNewBridge(ck, nk, mv.nx, mv.nz, mv.ndir, tentative, tentative + heuristicToGoal(mv.nx, mv.nz), mv.span);
+                st.relaxNewBridge(ck, nk, mv.nx, mv.nz, mv.ndir, tentative, priority(tentative, mv.nx, mv.nz), mv.span);
             }
         }
     }
@@ -631,7 +639,7 @@ public final class AStarSearch {
             double tentative = g + mv.hop + mv.follow + mv.turn;
             boolean better = tentative < st.gScore.get(nk);
             reuseTrace.offer(mv, cur.x, cur.z, g, tentative, nk, better);
-            if (better) st.relaxFollow(ck, nk, tentative, tentative + heuristicToGoal(mv.nx, mv.nz), mv);
+            if (better) st.relaxFollow(ck, nk, tentative, priority(tentative, mv.nx, mv.nz), mv);
         }
     }
 
