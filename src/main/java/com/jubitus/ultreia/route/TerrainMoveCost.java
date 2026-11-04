@@ -223,7 +223,7 @@ public final class TerrainMoveCost {
                 ? Math.min(1.0, (double) enclosedAhead / (double) lookahead)
                 : 0.0;
         double openHillsideFactor = OPEN_HILLSIDE_CUT_FACTOR + (1.0 - OPEN_HILLSIDE_CUT_FACTOR) * enclosedFraction;
-        penalty += (double) sumPredictedCut * PREDICTED_CUT_PENALTY_PER_BLOCK * LOOKAHEAD_CUT_WEIGHT * hardnessMult * openHillsideFactor;
+        penalty += (double) sumPredictedCut * PREDICTED_CUT_PENALTY_PER_BLOCK * UltreiaConfig.PATHFINDING.cutPenalty * LOOKAHEAD_CUT_WEIGHT * hardnessMult * openHillsideFactor;
 
         if (maxPredictedCut > PREDICTED_MAX_CUT_DEPTH) {
             double extra = (double) (maxPredictedCut - PREDICTED_MAX_CUT_DEPTH);
@@ -400,7 +400,7 @@ public final class TerrainMoveCost {
                 }
 
                 if (predictedCut > 0) {
-                    terrainPenalty += (double) predictedCut * PREDICTED_CUT_PENALTY_PER_BLOCK;
+                    terrainPenalty += (double) predictedCut * PREDICTED_CUT_PENALTY_PER_BLOCK * UltreiaConfig.PATHFINDING.cutPenalty;
 
                     // Only probe lateral walls when terrain actually needs cutting.
                     int[] walls = lateralWallHeights(p.getX(), p.getZ(), roadY, x1 - x0, z1 - z0);

@@ -13,3 +13,5 @@
   (`TerrainMoveCost.isSteepHairpinGap`).
 - **Road reuse goes only through `NetworkMoves`** (join, follow stored waypoints, exit; built bridges included):
   no road-cell bonus, attraction or parallel-road penalty, no special bridge jump.
+- **Two passes.** With `searchSpeedFactor` > 1 the search runs twice (fast weighted, then exact inside a band around
+  that path); the result and the per-path logs come from the last pass.

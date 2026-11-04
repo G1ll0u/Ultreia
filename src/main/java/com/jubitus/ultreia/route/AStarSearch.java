@@ -26,6 +26,7 @@ import java.util.Collections;
 import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import java.util.List;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 
 import static com.jubitus.ultreia.route.GridMoves.DIR_NONE;
 import static com.jubitus.ultreia.route.GridMoves.GRID_STEP;
@@ -79,13 +80,26 @@ public final class AStarSearch {
     private static final double SCORE_EPSILON = 0.001;
     // How far back along the path (blocks) a move is checked for closing a steep hairpin.
     private static final int HAIRPIN_LOOKBACK_BLOCKS = 32;
+    // Half-width (blocks) of the band around the fast path where the exact second pass searches.
+    private static final int REFINE_BAND_HALF_WIDTH = 12;
     public enum StepResult { RUNNING, FOUND, PARTIAL, FAILED }
 
     private int sx, sz;
 
     private final TerrainView sampler;
     private final int step;
-    private final SearchState st = new SearchState();
+    private SearchState st = new SearchState();
+
+    // Two passes when searchSpeedFactor > 1: a fast weighted search finds the corridor, then an exact one
+    // (weight 1) restricted to a band around that path removes the wiggles the weighting leaves.
+    private double heuristicWeight = Math.max(1.0, UltreiaConfig.PATHFINDING.searchSpeedFactor);
+    @javax.annotation.Nullable private LongOpenHashSet refineBand;
+    private List<Long> foundStates = Collections.emptyList();
+    private double foundCost;
+    private PathResult fastResult;
+    @javax.annotation.Nullable private BlockPos fastGate;
+    private double fastCost;
+    private int fastClosed;
     private SearchBounds bounds;
     private BridgeMoveGenerator bridgeMoves;
     private TerrainMoveCost moveCost;
@@ -249,6 +263,72 @@ public final class AStarSearch {
     }
 
     public StepResult advance(long deadlineNs) {
+        StepResult r = advanceSearch(deadlineNs);
+        if (r == StepResult.RUNNING) return r;
+        if (refineBand != null) return endRefinement(r);
+        if (r == StepResult.FOUND && heuristicWeight > 1.0) {
+            beginRefinement();
+            return StepResult.RUNNING;
+        }
+        return r;
+    }
+
+    private boolean refinementFollows() {
+        return !partialResult && refineBand == null && heuristicWeight > 1.0;
+    }
+
+    /** Restarts the search, exact this time, inside a band around the path the fast pass found. */
+    private void beginRefinement() {
+        fastResult = result;
+        fastGate = reachedGate;
+        fastCost = foundCost;
+        fastClosed = st.closed.size();
+
+        LongOpenHashSet band = new LongOpenHashSet();
+        int r = REFINE_BAND_HALF_WIDTH;
+        for (long k : foundStates) {
+            int cx = stateX(k), cz = stateZ(k);
+            for (int x = cx - r; x <= cx + r; x++) {
+                for (int z = cz - r; z <= cz + r; z++) {
+                    if (Pos2D.distSq(x, z, cx, cz) <= (double) r * r) band.add(Pos2D.xzKey(x, z));
+                }
+            }
+        }
+        refineBand = band;
+        heuristicWeight = 1.0;
+
+        st = new SearchState();
+        reachedGate = null;
+        profileRejectionCount = 0;
+        stagnationSteps = 0;
+        bestApproxState = stateKey(sx, sz, DIR_NONE);
+        bestApproxHeuristic = startHeuristic;
+        bestApproxScore = startHeuristic;
+        lastProgressHeuristic = startHeuristic;
+        st.addStart(sx, sz, startHeuristic);
+    }
+
+    /** Keeps the exact path, or the fast one when the exact pass could not finish. */
+    private StepResult endRefinement(StepResult r) {
+        refineBand = null;
+        if (r != StepResult.FOUND) {
+            if (UltreiaConfig.DEBUG.logPathfinding) {
+                Ultreia.LOGGER.info("[Ultreia A*] exact pass gave up ({}), keeping the fast path", failReason);
+            }
+            failed = false;
+            partialResult = false;
+            result = fastResult;
+            reachedGate = fastGate;
+            return StepResult.FOUND;
+        }
+        if (UltreiaConfig.DEBUG.logPathfinding) {
+            Ultreia.LOGGER.info("[Ultreia A*] fast pass cost={} closed={}; exact pass in a {}-block band cost={} closed={}",
+                    Math.round(fastCost), fastClosed, REFINE_BAND_HALF_WIDTH, Math.round(foundCost), st.closed.size());
+        }
+        return StepResult.FOUND;
+    }
+
+    private StepResult advanceSearch(long deadlineNs) {
         if (failed) return StepResult.FAILED;
 
         if (reconstructor == null) {
@@ -356,10 +436,14 @@ public final class AStarSearch {
         }
 
         result = rr;
-        AStarDiagnostics.logHairpins(rr.getPath(), roadType);
-        AStarDiagnostics.logCostBreakdown(rec.states(), st, sampler, moveCost, roadType, step, sx, sz,
-                stateX(rec.endState), stateZ(rec.endState));
-        reuseTrace.logFoundPath(st, rec.states(), sampler, roadType, roadNetwork, step);
+        foundStates = rec.states();
+        foundCost = st.gScore.get(rec.endState);
+        if (!refinementFollows()) {
+            AStarDiagnostics.logHairpins(rr.getPath(), roadType);
+            AStarDiagnostics.logCostBreakdown(foundStates, st, sampler, moveCost, roadType, step, sx, sz,
+                    stateX(rec.endState), stateZ(rec.endState));
+            reuseTrace.logFoundPath(st, foundStates, sampler, roadType, roadNetwork, step);
+        }
         flushBridgeLog();
         return partialResult ? StepResult.PARTIAL : StepResult.FOUND;
     }
@@ -466,10 +550,14 @@ public final class AStarSearch {
         return heuristic(x, z, gx, gz);
     }
 
-    // Open-set order: the weighted remaining distance makes the search head for the goal instead of
-    // exploring the whole corridor, at the price of a slightly costlier road.
+    // Open-set order: the weighted remaining distance makes the fast pass head for the goal instead of
+    // exploring the whole corridor.
     private double priority(double g, int x, int z) {
-        return g + UltreiaConfig.PATHFINDING.searchSpeedFactor * heuristicToGoal(x, z);
+        return g + heuristicWeight * heuristicToGoal(x, z);
+    }
+
+    private boolean inSearch(int x, int z) {
+        return bounds.contains(x, z) && (refineBand == null || refineBand.contains(Pos2D.xzKey(x, z)));
     }
 
     private void expandNormalMoves(SearchState.Node cur, long ck, TerrainSampler.Sample cs) {
@@ -483,7 +571,7 @@ public final class AStarSearch {
             int nx = cur.x + dx;
             int nz = cur.z + dz;
 
-            if (!bounds.contains(nx, nz)) continue;
+            if (!inSearch(nx, nz)) continue;
 
             TerrainSampler.Sample ns = sampler.sample(nx, nz);
             if (sampler.forbidden(ns, TerrainSampler.Mode.PATHFINDING)) {
@@ -610,7 +698,7 @@ public final class AStarSearch {
         }
 
         for (BridgeMove mv : moves) {
-            if (!bounds.contains(mv.nx, mv.nz)) continue;
+            if (!inSearch(mv.nx, mv.nz)) continue;
 
             long nk = stateKey(mv.nx, mv.nz, mv.ndir);
             if (st.closed.contains(nk)) continue;
@@ -632,6 +720,7 @@ public final class AStarSearch {
     /** Joins an existing road beside the node and follows it to an exit point; no terrain cost at the landing. */
     private void expandNetworkMoves(SearchState.Node cur, long ck, TerrainSampler.Sample cs) {
         for (NetworkMoves.Move mv : networkMoves.from(roadNetwork, cur.x, cur.z, cur.dir, cs.surfaceY, roadType)) {
+            if (refineBand != null && !refineBand.contains(Pos2D.xzKey(mv.nx, mv.nz))) continue;
             long nk = stateKey(mv.nx, mv.nz, mv.ndir);
             if (st.closed.contains(nk)) continue;
 
