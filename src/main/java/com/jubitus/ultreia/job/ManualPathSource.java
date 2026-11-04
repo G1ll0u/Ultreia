@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.job;
 
 import com.jubitus.ultreia.geom.Pos2D;
-import com.jubitus.ultreia.route.AStarPathfinder;
+import com.jubitus.ultreia.route.AStarSearch;
 import com.jubitus.ultreia.route.EndpointResolver;
 import com.jubitus.ultreia.route.RoadType;
 import net.minecraft.util.math.BlockPos;
@@ -56,7 +56,7 @@ final class ManualPathSource implements EdgeSource {
     }
 
     @Override
-    public void onPathFound(AStarPathfinder.Session session) {
+    public void onPathFound(AStarSearch session) {
     }
 
     @Override

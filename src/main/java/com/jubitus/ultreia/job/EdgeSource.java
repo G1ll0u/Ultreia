@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.job;
 
-import com.jubitus.ultreia.route.AStarPathfinder;
+import com.jubitus.ultreia.route.AStarSearch;
 import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.route.VillageGateField;
 import net.minecraft.util.math.BlockPos;
@@ -43,7 +43,7 @@ interface EdgeSource {
     EdgeRequest next();
 
     /** A* found a path (full or partial) for the current edge. */
-    void onPathFound(AStarPathfinder.Session session);
+    void onPathFound(AStarSearch session);
 
     /** The current edge is finished; reason is null on success. */
     void onEdgeDone(@Nullable String failureReason);

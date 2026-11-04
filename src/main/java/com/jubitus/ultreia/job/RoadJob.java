@@ -2,7 +2,8 @@ package com.jubitus.ultreia.job;
 
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.paint.RoadPainter;
-import com.jubitus.ultreia.route.AStarPathfinder;
+import com.jubitus.ultreia.route.AStarDiagnostics;
+import com.jubitus.ultreia.route.AStarSearch;
 import com.jubitus.ultreia.route.PathResult;
 import com.jubitus.ultreia.route.RoadType;
 import net.minecraft.command.ICommandSender;
@@ -19,10 +20,9 @@ public final class RoadJob {
 
     private final JobContext ctx;
     private final EdgeSource source;
-    private final AStarPathfinder astar = new AStarPathfinder();
 
     @Nullable private EdgeSource.EdgeRequest cur;
-    @Nullable private AStarPathfinder.Session session;
+    @Nullable private AStarSearch session;
     @Nullable private RoadPainter.Session painter;
     private boolean done = false;
 
@@ -92,11 +92,11 @@ public final class RoadJob {
             }
 
             if (session != null) {
-                AStarPathfinder.StepResult sr = session.advance(end);
-                if (sr == AStarPathfinder.StepResult.RUNNING) return;
+                AStarSearch.StepResult sr = session.advance(end);
+                if (sr == AStarSearch.StepResult.RUNNING) return;
 
-                if (sr == AStarPathfinder.StepResult.FOUND || sr == AStarPathfinder.StepResult.PARTIAL) {
-                    if (sr == AStarPathfinder.StepResult.PARTIAL) ctx.msg("  PARTIAL: " + session.partialSummary());
+                if (sr == AStarSearch.StepResult.FOUND || sr == AStarSearch.StepResult.PARTIAL) {
+                    if (sr == AStarSearch.StepResult.PARTIAL) ctx.msg("  PARTIAL: " + session.partialSummary());
                     source.onPathFound(session);
                     PathResult result = session.getResult();
                     session = null;
@@ -115,8 +115,8 @@ public final class RoadJob {
 
                 String reason = "pathfinding: " + session.failureSummary(UltreiaConfig.DEBUG.logPathfinding);
                 if (UltreiaConfig.DEBUG.logPathfinding) {
-                    ctx.msg("  start " + session.debugStartArea());
-                    ctx.msg("  goal  " + session.debugGoalArea());
+                    ctx.msg("  start " + session.debugStartArea(ctx.protectedAreas));
+                    ctx.msg("  goal  " + session.debugGoalArea(ctx.protectedAreas));
                 }
                 session = null;
                 finishEdge(reason);
@@ -133,10 +133,10 @@ public final class RoadJob {
 
     private void startPathfinding(EdgeSource.EdgeRequest req) {
         if (UltreiaConfig.DEBUG.logPathfinding) {
-            ctx.msg("  start " + AStarPathfinder.debugEndpoint(ctx.sampler, ctx.protectedAreas, ctx.roadIndex, req.start));
-            ctx.msg("  goal  " + AStarPathfinder.debugEndpoint(ctx.sampler, ctx.protectedAreas, ctx.roadIndex, req.goal));
+            ctx.msg("  " + AStarDiagnostics.describeEndpoint("start", ctx.sampler, ctx.protectedAreas, req.start));
+            ctx.msg("  " + AStarDiagnostics.describeEndpoint("goal", ctx.sampler, ctx.protectedAreas, req.goal));
         }
-        session = astar.startSession(req.start, req.goal, ctx.sampler);
+        session = new AStarSearch(req.start, req.goal, ctx.sampler);
         session.setRoadNetwork(ctx.roadNetwork);
         session.setRoadType(req.roadType);
         if (req.destinationGates != null) session.setDestinationGates(req.destinationGates);

@@ -157,7 +157,7 @@ public final class RoadNetwork extends WorldSavedData {
                     : c.getY();
 
             // Bridges are stored at full resolution (every centerline block), unlike regular road
-            // segments: reused-bridge stitching (AStarPathfinder) needs the exact per-block deck
+            // segments: reused-bridge stitching (PathReconstructor) needs the exact per-block deck
             // profile so it can splice this segment back into a reconstructed path without drifting
             // off the deck centerline via straight-line rasterization between sparse waypoints.
             waypoints.add(new RoadWaypoint(c.getX(), deckY, c.getZ(), true));

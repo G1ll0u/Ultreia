@@ -75,13 +75,13 @@ class AStarGoldenTest {
     private static String run(SyntheticTerrain t, int sx, int sz, int gx, int gz, RoadType type) {
         BlockPos start = new BlockPos(sx, t.sample(sx, sz).surfaceY, sz);
         BlockPos goal = new BlockPos(gx, t.sample(gx, gz).surfaceY, gz);
-        AStarPathfinder.Session s = new AStarPathfinder().startSession(start, goal, t);
+        AStarSearch s = new AStarSearch(start, goal, t);
         s.setRoadType(type);
 
-        AStarPathfinder.StepResult r;
+        AStarSearch.StepResult r;
         do {
             r = s.advance(System.nanoTime() + 1_000_000_000L);
-        } while (r == AStarPathfinder.StepResult.RUNNING);
+        } while (r == AStarSearch.StepResult.RUNNING);
 
         StringBuilder out = new StringBuilder();
         out.append("result ").append(r).append('\n');

@@ -7,7 +7,7 @@ import com.jubitus.ultreia.mill.MillWorldDataRegistry;
 import com.jubitus.ultreia.planner.NetworkPlanData;
 import com.jubitus.ultreia.planner.NetworkPlanner;
 import com.jubitus.ultreia.roads.RoadJoins;
-import com.jubitus.ultreia.route.AStarPathfinder;
+import com.jubitus.ultreia.route.AStarSearch;
 import com.jubitus.ultreia.route.EndpointResolver;
 import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.route.VillageGateField;
@@ -182,7 +182,7 @@ final class VillageNetworkSource implements EdgeSource {
     }
 
     @Override
-    public void onPathFound(AStarPathfinder.Session session) {
+    public void onPathFound(AStarSearch session) {
         // Record the gates actually used (A* may reach a different destination gate than planned).
         if (curAIsVillage && curGateA != null) gateTracker.markUsed(curGateA);
         if (curBIsVillage) {
