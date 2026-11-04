@@ -453,32 +453,11 @@ final class RoadFootprintPlanner {
         return keep;
     }
 
-    private int neigh4Count(LongOpenHashSet set, int x, int z) {
-        int hits = 0;
-        if (set.contains(Pos2D.xzKey(x + 1, z))) hits++;
-        if (set.contains(Pos2D.xzKey(x - 1, z))) hits++;
-        if (set.contains(Pos2D.xzKey(x, z + 1))) hits++;
-        if (set.contains(Pos2D.xzKey(x, z - 1))) hits++;
-        return hits;
-    }
-
     private void junctionReinforcement(int baseR) {
         int reinR = baseR + 1;
 
-        long[] coreArr = core.toLongArray();
-        for (long k : coreArr) {
-            int x = Pos2D.xFromKey(k);
-            int z = Pos2D.zFromKey(k);
-
-            boolean existing = (roadIndex != null && roadIndex.isRoadXZ(x, z));
-            int n4 = neigh4Count(planned, x, z);
-
-            boolean junction = existing || n4 >= 3;
-            if (!junction) continue;
-
-            fillDiskForced(x, z, reinR);
-        }
-
+        // INVARIANT: a disk is forced only where the plan meets another road (any planned neighbour count would
+        // fire on every centerline cell of a road wider than 1 and widen the whole road with unsmoothed cells).
         long[] planArr = planned.toLongArray();
         for (long k : planArr) {
             int x = Pos2D.xFromKey(k);

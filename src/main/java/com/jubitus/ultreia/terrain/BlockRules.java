@@ -3,6 +3,7 @@ package com.jubitus.ultreia.terrain;
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.mill.MillPathBlocks;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockHugeMushroom;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.BlockStairs;
 import net.minecraft.block.BlockWall;
@@ -125,7 +126,7 @@ public final class BlockRules {
 
     // ----- Trees and plants -----
 
-    /** A tree trunk: logs and DynamicTrees branches. Planks, fences and doors share the wood material but are built. */
+    /** A tree trunk: logs, huge mushrooms and DynamicTrees branches. Planks, fences and doors share the wood material but are built. */
     public static boolean isTreeWood(World world, BlockPos pos, IBlockState st) {
         if (st == null) return false;
 
@@ -133,6 +134,7 @@ public final class BlockRules {
 
         Block b = st.getBlock();
         if (b.isWood(world, pos)) return true;
+        if (b instanceof BlockHugeMushroom) return true;
         // Modded logs that do not extend BlockLog.
         if (st.getMaterial() == Material.WOOD) {
             ResourceLocation id = b.getRegistryName();
