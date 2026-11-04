@@ -1,4 +1,4 @@
-# Road reuse — status: step 3 coded and tested, awaiting the in-game check
+# Road reuse — status: step 4 coded, awaiting the in-game check
 
 ## Goal
 
@@ -37,7 +37,12 @@ aligned, no doubled road).
   so registering only the painted pieces keeps routes navigable.
 - `TerrainSampler.nearestRoadDistManhattan` caches by cell regardless of radius (wrong when magnetism and parallel
   avoidance were both on); goes away with them.
-- Separate issue, not this plan: the server lags 2–5 s around the end of each generated edge.
+- In game after step 3: a road stepped off the network for 4 blocks between two followed stretches of the same road
+  (the painter repainted them); the "alongside" stretches of the trace were only the approach to the followed road's
+  first point and the way from its last point to the gate.
+- Separate issue, not this plan: the server lags 2–10 s at the end of each edge and of each job. Suspects in
+  `ChunkManager`: `saveChunks(true)` (every loaded chunk) at each `releaseEdge`, and `flushToDisk` +
+  `waitForFinish` on the server thread in `close`.
 
 ## Steps
 
@@ -49,10 +54,10 @@ aligned, no doubled road).
    `existingRoadCost` × length, no terrain extra at the landing; replaces the built-bridge jump and its +700 trap.
    Reconstruction splices the stored waypoints and reports followed stretches; whole-path check over them.
    New golden test with a synthetic road; `ReuseTrace` updated — done (existing goldens unchanged, new golden
-   `astar_follows_main_road` approved); in-game check pending.
-4. **Painter:** followed stretches are gaps with forced, walkable connectors at join and leave; the parallel-gap
-   skip and the main-road early merge go; only painted pieces are registered in the network. In-game checks — not
-   started.
+   `astar_follows_main_road` approved); in game: the second road followed the first one 144 blocks over its bridge.
+4. **Painter:** followed stretches (plus holes of up to 8 blocks between two of them) are gaps with forced
+   connectors at join and leave; the parallel-gap skip and the main-road early merge go (the lone-trail merge stays);
+   only painted pieces are registered in the network; no elbow fill inside a gap — coded, in-game check pending.
 5. **Travellers:** check routes across a join and a leave (code + in game) — not started.
 6. **Close:** invariants into `route/` and `paint/` notes, remove the frozen-settings rule, archive this plan — not
    started.

@@ -113,6 +113,7 @@ final class RoadFootprintPlanner {
             int dz = z1 - z0;
 
             if (Math.abs(dx) != 1 || Math.abs(dz) != 1) continue;
+            if (merge.isGap(idx) || merge.isGap(idx - 1)) continue;
 
             // prevDz==0 means the previous step was horizontal (X-run) → X-first fill
             // otherwise (previous step had Z component) → Z-first fill

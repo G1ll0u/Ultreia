@@ -130,7 +130,7 @@ public final class RoadPaintSession {
                 indexForcedBridges();
                 bridges.buildFootprint();
 
-                merge.detect(roadType, baseR, roadNetwork, toVillage, followedXZ, forcedByStartKey.values());
+                merge.detect(roadType, baseR, followedXZ, forcedByStartKey.values());
                 continue;
             }
 
@@ -313,9 +313,29 @@ public final class RoadPaintSession {
         }
     }
 
+    /**
+     * Registers each painted piece as its own segment, ending on the followed road's first cell so navigation links
+     * them; followed stretches stay the old road's, and nothing past a lone trail's merge point is registered.
+     */
     private void registerRoadSegment() {
         if (roadNetwork == null || path.isEmpty()) return;
-        roadNetwork.addRoadSegment(path, roadIndex, fromVillage, toVillage, roadType, paintedWidthBlocks());
+        int last = merge.active ? Math.min(path.size() - 1, merge.hitIndex) : path.size() - 1;
+        int idx = 0;
+        while (idx <= last) {
+            if (merge.isGap(idx)) {
+                idx++;
+                continue;
+            }
+            int runEnd = idx;
+            while (runEnd + 1 <= last && !merge.isGap(runEnd + 1)) runEnd++;
+            int from = Math.max(0, idx - 1);
+            int to = Math.min(last, runEnd + 1);
+            if (to > from) {
+                roadNetwork.addRoadSegment(path.subList(from, to + 1), roadIndex, fromVillage, toVillage, roadType,
+                        paintedWidthBlocks());
+            }
+            idx = runEnd + 1;
+        }
     }
 
     /** Builds the bridge waiting in {@code pendingBridge}; past its exit, forces the first road cells when asked. */

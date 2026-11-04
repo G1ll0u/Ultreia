@@ -17,16 +17,19 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
 
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
 /**
- * How a new road meets the roads already built: where it stops on an existing road that leads to its destination
- * (lone trails: on the first road), and which stretches it skips because they run along an existing road or are
- * followed on the network (gaps, with their entry and exit points for the connectors).
+ * How a new road meets the roads already built: the stretches A* followed on the network are not painted (gaps,
+ * with their entry and exit points for the connectors), and a lone trail stops on the first road it meets.
  */
 final class RoadMergePlanner {
+
+    // Longest off-network piece (path blocks) between two followed stretches that is left unpainted too.
+    private static final int MAX_REJOIN_HOLE_BLOCKS = 8;
 
     private final WorldServer world;
     private final TerrainSampler sampler;
@@ -35,8 +38,6 @@ final class RoadMergePlanner {
     private final List<BlockPos> path;
     private final LongSet newlyPlaced;
 
-    @Nullable private RoadNetwork roadNetwork;
-    @Nullable private BlockPos toVillage;
     private LongSet followedXZ = LongSets.EMPTY_SET;
     private Collection<RoadPaintSession.ForcedBridgeRef> forced = Collections.emptyList();
 
@@ -69,56 +70,41 @@ final class RoadMergePlanner {
         return gapByIdx != null && idx < gapByIdx.length && gapByIdx[idx];
     }
 
-    /** Decides, once the centerline is known, where the road stops on an existing road and which stretches it skips. */
-    void detect(RoadType roadType, int baseR, @Nullable RoadNetwork roadNetwork, @Nullable BlockPos toVillage,
-                LongSet followedXZ, Collection<RoadPaintSession.ForcedBridgeRef> forced) {
-        this.roadNetwork = roadNetwork;
-        this.toVillage = toVillage;
+    /**
+     * Decides, once the centerline is known, which stretches the road follows on the network (gaps) and, for a lone
+     * trail, where it stops on the first road it meets.
+     */
+    void detect(RoadType roadType, int baseR, LongSet followedXZ, Collection<RoadPaintSession.ForcedBridgeRef> forced) {
         this.followedXZ = followedXZ;
         this.forced = forced;
+        if (roadType == RoadType.LONE_TRAIL) detectLoneTrailMerge(baseR);
+        detectFollowedGaps(active ? hitIndex : path.size() - 1);
+    }
 
-        if (roadIndex == null) return;
-
-        boolean isLoneTrail = roadType == RoadType.LONE_TRAIL;
-
-        // LONE_TRAIL may have very short paths (lonebuilding right next to a road).
-        if (!isLoneTrail && path.size() < 8) return;
-        if (path.size() < 3) return;
+    /** A lone trail grafts onto the first existing road it reaches (after leaving its own building's paths). */
+    private void detectLoneTrailMerge(int baseR) {
+        if (roadIndex == null || path.size() < 3) return;
 
         int exitBlocks = Math.max(0, RoadPaintSession.FORCE_PAINT_EXIT_BLOCKS);
 
         // Hard minimum: never merge before own forced bridges are fully painted.
-        int absoluteMin = Math.max(isLoneTrail ? 3 : 6, baseR + 3);
+        int absoluteMin = Math.max(3, baseR + 3);
         for (RoadPaintSession.ForcedBridgeRef ref : forced) {
             int past = ref.endIdx + exitBlocks + 1;
             if (past > absoluteMin) absoluteMin = past;
         }
 
-        // LONE_TRAIL scans to the very end of the path so it can merge even when the road
-        // is reached late (e.g. after A* road-snap, or when the road runs at the destination).
-        int scanTo = isLoneTrail
-                ? path.size() - 2
-                : path.size() - 1 - Math.max(6, baseR + 3);
+        // Scans to the very end of the path: the road may be reached late (A* road-snap, or at the destination).
+        int scanTo = path.size() - 2;
         if (scanTo < absoluteMin) return;
 
-        int maxJoinDeltaHalf = Math.max(0, HalfY.MAX_ROAD_JOIN_DELTA_HALF_BLOCKS);
-        if (isLoneTrail) {
-            // LONE_TRAIL uses a more lenient height tolerance so terrain roughness doesn't
-            // prevent a valid graft onto the network.
-            maxJoinDeltaHalf = Math.max(maxJoinDeltaHalf, 3);
-        }
+        // A more lenient height tolerance than roads, so terrain roughness doesn't prevent a valid graft.
+        int maxJoinDeltaHalf = Math.max(Math.max(0, HalfY.MAX_ROAD_JOIN_DELTA_HALF_BLOCKS), 3);
+        int mergeRadius = Math.max(2, RoadType.LONE_TRAIL_MERGE_SEARCH_RADIUS);
 
-        int mergeRadius = isLoneTrail
-                ? Math.max(2, RoadType.LONE_TRAIL_MERGE_SEARCH_RADIUS)
-                : 2;
-
-        // Minimum world-distance (squared) the merge target must be from the path origin.
-        // Prevents merging into road blocks belonging to the same village or lonebuilding
-        // from which the path departs (e.g. Millénaire internal paths).
+        // The merge target must be this far from the path origin: never the internal paths of the departure building.
         BlockPos origin = path.get(0);
-        int startMinBlocks = isLoneTrail
-                ? Math.max(20, RoadType.LONE_TRAIL_MERGE_SEARCH_RADIUS + 10)
-                : 12;
+        int startMinBlocks = Math.max(20, RoadType.LONE_TRAIL_MERGE_SEARCH_RADIUS + 10);
         int startMinDistSq = startMinBlocks * startMinBlocks;
 
         for (int idx = absoluteMin; idx <= scanTo; idx++) {
@@ -134,7 +120,6 @@ final class RoadMergePlanner {
             // that belong to the departure or arrival structure, not the inter-village network.
             if (protectedAreas != null && protectedAreas.contains(near.getX(), near.getZ())) continue;
 
-            // Skip road blocks that are too close to our own starting position (same-building paths).
             int odx = near.getX() - origin.getX();
             int odz = near.getZ() - origin.getZ();
             if (odx * odx + odz * odz < startMinDistSq) continue;
@@ -148,9 +133,6 @@ final class RoadMergePlanner {
                 odz = near.getZ() - origin.getZ();
                 if (odx * odx + odz * odz < startMinDistSq) continue;
             }
-
-            // LONE_TRAIL grafts onto any existing road; other types stop only on a road that leads to the destination.
-            if (!isLoneTrail && !isRoadConnectedToDestination(near.getX(), near.getZ())) continue;
 
             // The connector climbs at most one half-block per cell, so the height gap is capped by its length.
             int connectorCells = Math.max(Math.abs(p.getX() - near.getX()), Math.abs(p.getZ() - near.getZ()));
@@ -170,162 +152,89 @@ final class RoadMergePlanner {
 
             if (UltreiaConfig.DEBUG.logPainting) {
                 Ultreia.LOGGER.info(
-                        "[Ultreia] Early merge: path index {}/{} -> road ({}, {}), stopping paint here",
+                        "[Ultreia] Lone trail merge: path index {}/{} -> road ({}, {}), stopping paint here",
                         idx, path.size() - 1, near.getX(), near.getZ());
             }
             return;
         }
-
-        // After the end-merge scan: detect mid-path sections that run parallel to existing roads.
-        detectParallelGaps(baseR, absoluteMin, exitBlocks);
     }
 
     /**
-     * Scans the full (non-merged) path for sections running within road-width of an existing road.
-     * Marks those sections in {@code gapByIdx} so the painter skips them. Records gap boundary
-     * path indices in {@code gapBoundary*} arrays so the junction reinforcement can
-     * force-paint physical connectors at each entry/exit.
+     * The stretches A* followed on the network (up to {@code lastIdx}) are gaps: nothing is painted there. A short
+     * off-network piece between two followed stretches is a gap too (the road would only be repainted). Each gap
+     * records its entry and exit so the footprint planner forces a connector to the followed road.
      */
-    private void detectParallelGaps(int baseR, int absoluteMin, int exitBlocks) {
-        if (roadIndex == null) return;
+    private void detectFollowedGaps(int lastIdx) {
+        if (followedXZ.isEmpty() || lastIdx < 0) return;
+        int n = Math.min(path.size(), lastIdx + 1);
 
-        // Proximity radius: fire when any existing road block is this close to our path center.
-        int overlapRadius = Math.max(2, baseR + 2);
-        // Suppress only runs longer than this to avoid spurious single-block skips.
-        int minGapLen = Math.max(3, baseR * 2 + 2);
-
-        // Stop before the end-merge region (if armed) and leave a clean tail.
-        int scanEnd = active
-                ? hitIndex - 1
-                : (path.size() - 1 - Math.max(6, baseR + 3));
-        if (scanEnd < absoluteMin + minGapLen) return;
-
-        // Bridge-protection buffer: don't gap into or out of any forced bridge span.
-        int bridgeBuffer = Math.max(0, exitBlocks + 2);
-
-        BlockPos origin = path.get(0);
-        int startMinDistSq = 16 * 16;
-
-        // Per-index overlap state.
-        boolean[] inOverlap = new boolean[path.size()];
-        int[] nearX = new int[path.size()];
-        int[] nearZ = new int[path.size()];
-
-        for (int idx = absoluteMin; idx <= scanEnd; idx++) {
-            BlockPos p = path.get(idx);
-            // A followed road (bridges included): the road stops at the join and resumes at the leave.
-            if (followedXZ.contains(Pos2D.xzKey(p.getX(), p.getZ()))) {
-                inOverlap[idx] = true;
-                nearX[idx] = p.getX();
-                nearZ[idx] = p.getZ();
-                continue;
-            }
-
-            // Skip bridge-protected indices.
-            boolean inBridge = false;
-            for (RoadPaintSession.ForcedBridgeRef ref : forced) {
-                if (idx >= ref.startIdx - bridgeBuffer && idx <= ref.endIdx + bridgeBuffer) {
-                    inBridge = true;
-                    break;
-                }
-            }
-            if (inBridge) continue;
-
-            BlockPos near = roadIndex.findNearestRoad(p.getX(), p.getZ(), overlapRadius);
-            if (near == null) continue;
-
-            long nk = Pos2D.xzKey(near.getX(), near.getZ());
-            if (newlyPlaced.contains(nk)) continue;
-            if (roadIndex.isBridgeXZ(near.getX(), near.getZ())) continue;
-            if (protectedAreas != null && protectedAreas.contains(near.getX(), near.getZ())) continue;
-
-            int odx = near.getX() - origin.getX();
-            int odz = near.getZ() - origin.getZ();
-            if (odx * odx + odz * odz < startMinDistSq) continue;
-
-            inOverlap[idx] = true;
-            nearX[idx] = near.getX();
-            nearZ[idx] = near.getZ();
-        }
-
-        // Collect gap runs and mark gapByIdx.
         boolean[] gaps = new boolean[path.size()];
-        // Temporary boundary storage: up to (runs * 2) entries; 64 should be more than enough.
+        boolean any = false;
+        for (int idx = 0; idx < n; idx++) {
+            BlockPos p = path.get(idx);
+            gaps[idx] = followedXZ.contains(Pos2D.xzKey(p.getX(), p.getZ()));
+            any |= gaps[idx];
+        }
+        if (!any) return;
+        fillShortHoles(gaps, n);
+
         int maxBoundaries = 64;
         int[] bPathIdx = new int[maxBoundaries];
-        int[] bRoadX   = new int[maxBoundaries];
-        int[] bRoadZ   = new int[maxBoundaries];
+        int[] bRoadX = new int[maxBoundaries];
+        int[] bRoadZ = new int[maxBoundaries];
         int bCount = 0;
 
-        boolean anyGap = false;
-        int runStart = -1;
+        for (int idx = 0; idx < n; idx++) {
+            if (!gaps[idx] || (idx > 0 && gaps[idx - 1])) continue;
+            int runEnd = idx;
+            while (runEnd + 1 < n && gaps[runEnd + 1]) runEnd++;
 
-        for (int idx = absoluteMin; idx <= scanEnd + 1; idx++) {
-            boolean overlapping = idx <= scanEnd && inOverlap[idx];
-
-            if (overlapping && runStart < 0) {
-                runStart = idx;
-            } else if (!overlapping && runStart >= 0) {
-                int runEnd = idx - 1;
-                int runLen = runEnd - runStart + 1;
-
-                if (runLen >= minGapLen) {
-                    for (int gi = runStart; gi <= runEnd; gi++) {
-                        gaps[gi] = true;
-                        anyGap = true;
-                    }
-
-                    // Entry boundary: last painted waypoint before gap → road.
-                    if (runStart > absoluteMin && bCount < maxBoundaries - 1) {
-                        bPathIdx[bCount] = runStart - 1;
-                        bRoadX[bCount]   = nearX[runStart];
-                        bRoadZ[bCount]   = nearZ[runStart];
-                        bCount++;
-                    }
-
-                    // Exit boundary: road → first painted waypoint after gap.
-                    if (runEnd + 1 < path.size() && bCount < maxBoundaries - 1) {
-                        bPathIdx[bCount] = runEnd + 1;
-                        bRoadX[bCount]   = nearX[runEnd];
-                        bRoadZ[bCount]   = nearZ[runEnd];
-                        bCount++;
-                    }
-
-                    if (UltreiaConfig.DEBUG.logPainting) {
-                        Ultreia.LOGGER.info(
-                                "[Ultreia] Parallel gap suppressed: path[{}..{}] len={} near=({},{})",
-                                runStart, runEnd, runLen, nearX[runStart], nearZ[runStart]);
-                    }
-                }
-                runStart = -1;
+            // Entry: last painted cell before the gap -> first followed cell.
+            if (idx > 0 && bCount < maxBoundaries) {
+                bPathIdx[bCount] = idx - 1;
+                bRoadX[bCount] = path.get(idx).getX();
+                bRoadZ[bCount] = path.get(idx).getZ();
+                bCount++;
+            }
+            // Exit: last followed cell -> first painted cell after the gap.
+            if (runEnd + 1 < n && bCount < maxBoundaries) {
+                bPathIdx[bCount] = runEnd + 1;
+                bRoadX[bCount] = path.get(runEnd).getX();
+                bRoadZ[bCount] = path.get(runEnd).getZ();
+                bCount++;
+            }
+            if (UltreiaConfig.DEBUG.logPainting) {
+                Ultreia.LOGGER.info("[Ultreia] Followed road: path[{}..{}] not painted", idx, runEnd);
             }
         }
-
-        if (!anyGap) return;
 
         gapByIdx = gaps;
         if (bCount > 0) {
-            gapBoundaryPathIdx = java.util.Arrays.copyOf(bPathIdx, bCount);
-            gapBoundaryRoadX   = java.util.Arrays.copyOf(bRoadX, bCount);
-            gapBoundaryRoadZ   = java.util.Arrays.copyOf(bRoadZ, bCount);
-            gapBoundaryCount   = bCount;
+            gapBoundaryPathIdx = Arrays.copyOf(bPathIdx, bCount);
+            gapBoundaryRoadX = Arrays.copyOf(bRoadX, bCount);
+            gapBoundaryRoadZ = Arrays.copyOf(bRoadZ, bCount);
+            gapBoundaryCount = bCount;
         }
     }
 
-    private boolean isRoadConnectedToDestination(int x, int z) {
-        if (roadNetwork == null || toVillage == null) return false;
-        int tvx = toVillage.getX(), tvz = toVillage.getZ();
-        for (RoadSegment seg : roadNetwork.getSegmentsNear(x, z, 20)) {
-            if (villageMatches(seg.toVillage, tvx, tvz) || villageMatches(seg.fromVillage, tvx, tvz))
-                return true;
+    /** Marks as gap every non-gap run of at most {@code MAX_REJOIN_HOLE_BLOCKS} between two gaps, unless it holds a new bridge. */
+    private void fillShortHoles(boolean[] gaps, int n) {
+        int lastGap = -1;
+        for (int idx = 0; idx < n; idx++) {
+            if (!gaps[idx]) continue;
+            int holeLen = idx - lastGap - 1;
+            if (lastGap >= 0 && holeLen > 0 && holeLen <= MAX_REJOIN_HOLE_BLOCKS && !touchesNewBridge(lastGap + 1, idx - 1)) {
+                for (int h = lastGap + 1; h < idx; h++) gaps[h] = true;
+            }
+            lastGap = idx;
+        }
+    }
+
+    private boolean touchesNewBridge(int from, int to) {
+        for (RoadPaintSession.ForcedBridgeRef ref : forced) {
+            if (ref.startIdx <= to && ref.endIdx >= from) return true;
         }
         return false;
-    }
-
-    private static boolean villageMatches(@Nullable BlockPos v, int x, int z) {
-        if (v == null) return false;
-        int dx = v.getX() - x, dz = v.getZ() - z;
-        return dx * dx + dz * dz <= 256; // 16-block tolerance
     }
 
     private BlockPos findNearestNonBridgeRoad(int x, int z, int maxRadius) {
