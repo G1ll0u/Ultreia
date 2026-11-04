@@ -101,6 +101,32 @@ public final class EndpointResolver {
         return walkOutUntilFree(world, bypass, otherNodeCenter, sampler, protectedAreas);
     }
 
+    /**
+     * Adds the chunks (chunk xz keys) the gate search of {@link #resolveEndpointAnchor} may read for this node,
+     * so the job can load them over several ticks first. Nothing for a lone building or a village without gates.
+     */
+    public static void addGateSearchChunks(WorldServer world, BlockPos nodeCenter, BlockPos otherNodeCenter,
+                                           it.unimi.dsi.fastutil.longs.LongSet out) {
+        Villages.Settlement vi = Villages.at(world, nodeCenter);
+        if (vi == null || !vi.isVillage) return;
+        double ddx = otherNodeCenter.getX() - nodeCenter.getX();
+        double ddz = otherNodeCenter.getZ() - nodeCenter.getZ();
+        double dlen = Math.sqrt(ddx * ddx + ddz * ddz);
+        if (dlen < 1.0) return;
+        double ux = ddx / dlen, uz = ddz / dlen;
+        int r = GATE_MILL_PATH_SEARCH_RADIUS;
+        for (BlockPos gate : Villages.gates(world, nodeCenter)) {
+            for (int cx = (gate.getX() - r) >> 4; cx <= (gate.getX() + r) >> 4; cx++) {
+                for (int cz = (gate.getZ() - r) >> 4; cz <= (gate.getZ() + r) >> 4; cz++) {
+                    // The search skips columns behind the village centre; a chunk is needed when one corner is ahead.
+                    double x0 = (cx << 4) - nodeCenter.getX(), z0 = (cz << 4) - nodeCenter.getZ();
+                    double ahead = Math.max(x0 * ux, (x0 + 15) * ux) + Math.max(z0 * uz, (z0 + 15) * uz);
+                    if (ahead > 0.0) out.add(com.jubitus.ultreia.geom.Pos2D.xzKey(cx, cz));
+                }
+            }
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Gate candidate collection
     // -------------------------------------------------------------------------

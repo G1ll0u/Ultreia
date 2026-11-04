@@ -38,7 +38,7 @@ final class ManualPathSource implements EdgeSource {
 
     @Nullable
     @Override
-    public EdgeRequest next() {
+    public EdgeRequest next(long deadlineNs) {
         issued = true;
         start = EndpointResolver.findAnchor(ctx.world, requestedStart, ctx.sampler, ANCHOR_RADIUS);
         goal = EndpointResolver.findAnchor(ctx.world, requestedGoal, ctx.sampler, ANCHOR_RADIUS);

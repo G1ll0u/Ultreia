@@ -26,6 +26,8 @@ public final class RoadJob {
     @Nullable private RoadPaintSession painter;
     private boolean done = false;
     private final EdgePerf perf = new EdgePerf();
+    // The source is still preparing the next edge (it returned NOT_READY): same edge, same perf record.
+    private boolean preparing = false;
 
     private RoadJob(JobContext ctx, EdgeSource source) {
         this.ctx = ctx;
@@ -94,10 +96,13 @@ public final class RoadJob {
                     done = true;
                     return;
                 }
-                perf.startEdge();
+                if (!preparing) perf.startEdge();
                 long t = System.nanoTime();
-                cur = source.next();
+                EdgeSource.EdgeRequest req = source.next(end);
                 perf.add(EdgePerf.Step.PREP, t);
+                preparing = req == EdgeSource.NOT_READY;
+                if (preparing) return;
+                cur = req;
                 if (cur != null) startPathfinding(cur);
                 continue;
             }

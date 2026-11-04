@@ -36,11 +36,17 @@ interface EdgeSource {
         }
     }
 
+    /** Returned by {@link #next} when the edge needs more ticks before it can be pathed (chunks still loading). */
+    EdgeRequest NOT_READY = new EdgeRequest(null, null, null, null, null, null, false);
+
     boolean hasMore();
 
-    /** The next edge to path, or null when the source settled the edge itself (skipped, already connected). */
+    /**
+     * The next edge to path, null when the source settled the edge itself (skipped, already connected),
+     * or {@link #NOT_READY} when the deadline came first: the same edge resumes on the next call.
+     */
     @Nullable
-    EdgeRequest next();
+    EdgeRequest next(long deadlineNs);
 
     /** A* found a path (full or partial) for the current edge. */
     void onPathFound(AStarSearch session);

@@ -4,6 +4,7 @@ import com.jubitus.ultreia.mill.Villages;
 
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.UltreiaConfig;
+import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.planner.NetworkPlanData;
 import com.jubitus.ultreia.planner.NetworkPlanner;
 import com.jubitus.ultreia.roads.RoadJoins;
@@ -13,6 +14,8 @@ import com.jubitus.ultreia.route.RoadType;
 import com.jubitus.ultreia.route.VillageGateField;
 import com.jubitus.ultreia.route.VillageGateTracker;
 import net.minecraft.util.math.BlockPos;
+
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -42,6 +45,11 @@ final class VillageNetworkSource implements EdgeSource {
     @Nullable private BlockPos curGateB;
     private boolean curAIsVillage = false;
     private boolean curBIsVillage = false;
+
+    // Chunks the gate search of edge prepEdgeIndex will read, loaded a few per tick before it runs.
+    private int prepEdgeIndex = -1;
+    private long[] prepChunks = new long[0];
+    private int prepNext = 0;
 
     /** Fresh start: plans the network over every known village and lone building. */
     VillageNetworkSource(JobContext ctx) {
@@ -99,7 +107,7 @@ final class VillageNetworkSource implements EdgeSource {
 
     @Nullable
     @Override
-    public EdgeRequest next() {
+    public EdgeRequest next(long deadlineNs) {
         NetworkPlanner.Edge e = edges.get(edgeIndex);
         String key = e.key();
 
@@ -108,6 +116,8 @@ final class VillageNetworkSource implements EdgeSource {
             settleEdge();
             return null;
         }
+
+        if (!loadGateSearchChunks(e, deadlineNs)) return NOT_READY;
 
         Villages.Settlement viA = Villages.at(ctx.world, e.a);
         Villages.Settlement viB = Villages.at(ctx.world, e.b);
@@ -179,6 +189,24 @@ final class VillageNetworkSource implements EdgeSource {
         // LONE_TRAIL: A* ends at the nearest existing road instead of the destination.
         boolean endAtRoad = roadType == RoadType.LONE_TRAIL;
         return new EdgeRequest(a0, b0, roadType, e.a, e.b, gateFieldB[0], endAtRoad);
+    }
+
+    /** Loads the chunks the gate search will read, until the deadline; true once all are loaded (or refused). */
+    private boolean loadGateSearchChunks(NetworkPlanner.Edge e, long deadlineNs) {
+        if (prepEdgeIndex != edgeIndex) {
+            LongOpenHashSet chunks = new LongOpenHashSet();
+            EndpointResolver.addGateSearchChunks(ctx.world, e.a, e.b, chunks);
+            EndpointResolver.addGateSearchChunks(ctx.world, e.b, e.a, chunks);
+            prepEdgeIndex = edgeIndex;
+            prepChunks = chunks.toLongArray();
+            prepNext = 0;
+        }
+        while (prepNext < prepChunks.length) {
+            if (System.nanoTime() >= deadlineNs) return false;
+            long k = prepChunks[prepNext++];
+            ctx.chunkManager.ensureLoaded(ctx.world, Pos2D.xFromKey(k) << 4, Pos2D.zFromKey(k) << 4);
+        }
+        return true;
     }
 
     @Override
