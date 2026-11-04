@@ -288,6 +288,11 @@ heights, a gap the painter cannot make walkable. Trace (`logPathfinding`): one s
 Decided (user, option A): A* refuses a move that comes back within a road width of its own last 32 blocks of path
 (at least 3 widths further along) with more than half a block of height per block of gap. Golden
 `astar_steep_slope_no_hairpin` (0.8-per-block slope) added; the four existing goldens are unchanged.
+Built-bridge reuse (in-game test): A* takes the built bridge, but the painter stopped at the first road met after
+20 % of the path. Decided (user): a village main road stops on an existing road only if it leads to the destination
+(otherwise the parallel-gap skip applies); lone trails still graft onto the first road.
+Then the painter painted beside the built deck: it now gets the reused deck cells (`PathResult`) and skips them as a
+gap (road stops at the bridge start, resumes at its end, connectors at both ends).
 
 ### Phase 10 — Painter split — status: not started
 

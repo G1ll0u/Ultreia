@@ -148,6 +148,7 @@ public final class RoadJob {
                 ctx.roadIndex, false, true);
         painter.setRoadNetwork(ctx.roadNetwork, cur.fromVillage, cur.toVillage);
         painter.setRoadType(cur.roadType);
+        painter.setReusedBridges(result.getReusedBridgeXZ());
     }
 
     private void finishEdge(@Nullable String failureReason) {

@@ -153,6 +153,7 @@ public final class RoadPainter {
         private boolean mergeConnectorPainted = false;
 
         private boolean[] gapByIdx = null;
+        private it.unimi.dsi.fastutil.longs.LongSet reusedBridgeXZ = it.unimi.dsi.fastutil.longs.LongSets.EMPTY_SET;
 
         // Gap boundary info: (pathIdx, roadX, roadZ) tuples used in junctionReinforcement
         // to force-paint connectors between the new path and the existing road at each gap edge.
@@ -327,6 +328,11 @@ public final class RoadPainter {
 
         public String failureReason() {
             return failReason;
+        }
+
+        /** Must be called before advance(): deck centerline xz keys of built bridges the path crosses. */
+        public void setReusedBridges(it.unimi.dsi.fastutil.longs.LongSet deckXZ) {
+            this.reusedBridgeXZ = deckXZ;
         }
 
         public void setRoadNetwork(@javax.annotation.Nullable RoadNetwork network,
@@ -514,6 +520,15 @@ public final class RoadPainter {
             int[] nearZ = new int[path.size()];
 
             for (int idx = absoluteMin; idx <= scanEnd; idx++) {
+                BlockPos p = path.get(idx);
+                // A built bridge the path crosses: the road stops at its start and resumes at its end.
+                if (reusedBridgeXZ.contains(Pos2D.xzKey(p.getX(), p.getZ()))) {
+                    inOverlap[idx] = true;
+                    nearX[idx] = p.getX();
+                    nearZ[idx] = p.getZ();
+                    continue;
+                }
+
                 // Skip bridge-protected indices.
                 boolean inBridge = false;
                 for (ForcedBridgeRef ref : forcedByStartKey.values()) {
@@ -524,7 +539,6 @@ public final class RoadPainter {
                 }
                 if (inBridge) continue;
 
-                BlockPos p = path.get(idx);
                 BlockPos near = roadIndex.findNearestRoad(p.getX(), p.getZ(), overlapRadius);
                 if (near == null) continue;
 
@@ -586,7 +600,7 @@ public final class RoadPainter {
                         }
 
                         if (UltreiaConfig.DEBUG.logPainting) {
-                            Ultreia.LOGGER.debug(
+                            Ultreia.LOGGER.info(
                                     "[Ultreia] Parallel gap suppressed: path[{}..{}] len={} near=({},{})",
                                     runStart, runEnd, runLen, nearX[runStart], nearZ[runStart]);
                         }

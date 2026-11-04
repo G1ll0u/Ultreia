@@ -3,11 +3,13 @@ package com.jubitus.ultreia.route;
 import com.jubitus.ultreia.bridge.BridgeDeckProfile;
 import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.geom.HalfY;
+import com.jubitus.ultreia.geom.Pos2D;
 import com.jubitus.ultreia.roads.RoadNetwork;
 import com.jubitus.ultreia.roads.RoadSegment;
 import com.jubitus.ultreia.roads.RoadWaypoint;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.terrain.TerrainView;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.util.math.BlockPos;
 
 import javax.annotation.Nullable;
@@ -43,6 +45,7 @@ final class PathReconstructor {
     private final ArrayList<Integer> bridgeStartIndices = new ArrayList<>();
     private String failReason = null;
     private int reusedBridgeCount = 0;
+    private final LongOpenHashSet reusedBridgeXZ = new LongOpenHashSet();
 
     PathReconstructor(SearchState st, TerrainView sampler, @Nullable RoadNetwork roadNetwork, long endState) {
         this.st = st;
@@ -142,7 +145,7 @@ final class PathReconstructor {
             }
         }
 
-        result = new PathResult(out, spans);
+        result = new PathResult(out, spans, reusedBridgeXZ);
         return true;
     }
 
@@ -164,15 +167,10 @@ final class PathReconstructor {
         // so we walk the stored centerline in the matching direction.
         boolean forward = (seg.startX() == crossing.startX && seg.startZ() == crossing.startZ);
 
-        if (forward) {
-            for (RoadWaypoint wp : wps) {
-                appendIfNewXZ(out, wp.x, wp.y, wp.z);
-            }
-        } else {
-            for (int i = wps.size() - 1; i >= 0; i--) {
-                RoadWaypoint wp = wps.get(i);
-                appendIfNewXZ(out, wp.x, wp.y, wp.z);
-            }
+        for (int n = 0; n < wps.size(); n++) {
+            RoadWaypoint wp = wps.get(forward ? n : wps.size() - 1 - n);
+            appendIfNewXZ(out, wp.x, wp.y, wp.z);
+            reusedBridgeXZ.add(Pos2D.xzKey(wp.x, wp.z));
         }
     }
 
