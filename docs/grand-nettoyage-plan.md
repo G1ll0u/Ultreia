@@ -196,8 +196,8 @@ Kept apart: the two `(lateral, relY)` keys in `BridgeTemplateBridgeBuilder` (not
   removed); `VALLEY_BRIDGING.enabled` stays. Debug: 6 switches in `DEBUG` (`logNetwork`, `logPathfinding`, `logBridges`,
   `logPainting`, `logChunks`, `logSpeedBoost`); the failure detail is off by default.
 - Visible (approved): reusing an existing bridge no longer pays the lone-trail bridge multiplier.
-- Open (user: later): road reuse mechanisms are all off by default (reuse bonus, parallel-road avoidance, partial path
-  fallback, magnetism; magnetism made twisted or too-wide roads). Their fields are kept unchanged until decided.
+- Road reuse mechanisms (reuse bonus, parallel-road avoidance, partial path fallback, magnetism) stay unchanged here:
+  they are redecided in `docs/road-reuse-plan.md` (user: general road reuse replaces bridge reuse).
 - Constant booleans (`ROAD_HIERARCHY_ENABLED`, `BUILDINGS_ENABLED`…) leave dead branches, removed in the splits (6–10).
 
 ### Phase 6 — Terrain authorities — status: done (in-game check pending)
