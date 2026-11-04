@@ -3,7 +3,7 @@ package com.jubitus.ultreia.bridge;
 import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.paint.RoadHeightSolver;
-import com.jubitus.ultreia.route.AStarPathfinder;
+import com.jubitus.ultreia.route.TerrainMoveCost;
 import com.jubitus.ultreia.route.RoadType;
 
 import com.jubitus.ultreia.config.UltreiaConfig;
@@ -110,7 +110,7 @@ public final class BridgeApproachCheck {
 
         if (dx == 0 && dz == 0) return false;
 
-        int maxDy = Math.max(1, AStarPathfinder.MAX_YDELTA_PER_STEP);
+        int maxDy = Math.max(1, TerrainMoveCost.MAX_YDELTA_PER_STEP);
 
         TerrainSampler.Sample prev = sampler.sample(end.getX(), end.getZ());
         if (prev == null) return false;
