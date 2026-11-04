@@ -71,6 +71,10 @@ public class UltreiaConfig {
         @Config.Comment("When a village cannot be reached, build the road as far as possible instead of giving up.")
         public boolean allowPartialPathFallback = false;
 
+        @Config.Comment("Cost of walking along an existing road compared with building a new one; lower makes roads share the network more, even with detours.")
+        @Config.RangeDouble(min = 0.1, max = 1.0)
+        public double existingRoadCost = 0.5;
+
     }
 
     public static class Painting {

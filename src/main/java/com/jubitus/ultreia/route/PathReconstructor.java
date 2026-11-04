@@ -3,9 +3,8 @@ package com.jubitus.ultreia.route;
 import com.jubitus.ultreia.bridge.BridgeDeckProfile;
 import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.geom.HalfY;
+import com.jubitus.ultreia.geom.LineRaster;
 import com.jubitus.ultreia.geom.Pos2D;
-import com.jubitus.ultreia.roads.RoadNetwork;
-import com.jubitus.ultreia.roads.RoadSegment;
 import com.jubitus.ultreia.roads.RoadWaypoint;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.terrain.TerrainView;
@@ -22,7 +21,7 @@ import static com.jubitus.ultreia.route.SearchState.stateZ;
 
 /**
  * Walks the A* back-links from an end node to the start, within the tick budget, and builds the coarse path:
- * road nodes at ground level, new bridge decks at deck height, reused bridges with their stored geometry.
+ * road nodes at ground level, new bridge decks at deck height, followed roads with their stored waypoints.
  */
 final class PathReconstructor {
 
@@ -33,7 +32,6 @@ final class PathReconstructor {
 
     private final SearchState st;
     private final TerrainView sampler;
-    @Nullable private final RoadNetwork roadNetwork;
     final long endState;
 
     private final ArrayList<Long> revStates = new ArrayList<>();
@@ -44,13 +42,12 @@ final class PathReconstructor {
     // Index in the path at which each new bridge span begins (the prior road points end there).
     private final ArrayList<Integer> bridgeStartIndices = new ArrayList<>();
     private String failReason = null;
-    private int reusedBridgeCount = 0;
-    private final LongOpenHashSet reusedBridgeXZ = new LongOpenHashSet();
+    private int followedCount = 0;
+    private final LongOpenHashSet followedXZ = new LongOpenHashSet();
 
-    PathReconstructor(SearchState st, TerrainView sampler, @Nullable RoadNetwork roadNetwork, long endState) {
+    PathReconstructor(SearchState st, TerrainView sampler, long endState) {
         this.st = st;
         this.sampler = sampler;
-        this.roadNetwork = roadNetwork;
         this.endState = endState;
         this.cur = endState;
     }
@@ -87,8 +84,8 @@ final class PathReconstructor {
         return revStates;
     }
 
-    int reusedBridgeCount() {
-        return reusedBridgeCount;
+    int followedCount() {
+        return followedCount;
     }
 
     String failReason() {
@@ -110,10 +107,10 @@ final class PathReconstructor {
             int cx = stateX(curK);
             int cz = stateZ(curK);
 
-            RoadNetwork.BridgeCrossing reused = st.cameReusedBridge.get(curK);
-            if (reused != null) {
-                reusedBridgeCount++;
-                appendReusedBridgeWaypoints(out, reused);
+            NetworkMoves.Move followed = st.cameFollow.get(curK);
+            if (followed != null) {
+                followedCount++;
+                appendFollowedWaypoints(out, followed);
                 continue;
             }
 
@@ -150,30 +147,30 @@ final class PathReconstructor {
             }
         }
 
-        result = new PathResult(out, spans, reusedBridgeXZ);
+        result = new PathResult(out, spans, followedXZ);
         return true;
     }
 
     /**
-     * Splices the exact persisted geometry of a reused bridge into the reconstructed coarse path,
-     * instead of the single ground-level point the naive "no span" branch would otherwise emit.
-     * Not added to {@code spans}: the painter must never rebuild this bridge. Its deck cells go to
-     * {@code reusedBridgeXZ}, which the painter skips as a gap (road stops at the bridge start, resumes at its end).
+     * Splices the followed waypoints (join to exit, at their stored heights) into the path, and marks every cell
+     * the painter will rasterise between them as followed: nothing is painted there.
      */
-    private void appendReusedBridgeWaypoints(ArrayList<BlockPos> out, RoadNetwork.BridgeCrossing crossing) {
-        if (roadNetwork == null) return;
-        RoadSegment seg = roadNetwork.getSegment(crossing.segmentId);
-        if (seg == null || seg.waypoints.isEmpty()) return;
-
-        List<RoadWaypoint> wps = seg.waypoints;
-        // The crossing tells us which physical end of the persisted segment we are entering from,
-        // so we walk the stored centerline in the matching direction.
-        boolean forward = (seg.startX() == crossing.startX && seg.startZ() == crossing.startZ);
-
-        for (int n = 0; n < wps.size(); n++) {
-            RoadWaypoint wp = wps.get(forward ? n : wps.size() - 1 - n);
+    private void appendFollowedWaypoints(ArrayList<BlockPos> out, NetworkMoves.Move mv) {
+        List<RoadWaypoint> wps = mv.segment.waypoints;
+        int d = mv.toIdx >= mv.fromIdx ? 1 : -1;
+        RoadWaypoint prev = null;
+        for (int n = mv.fromIdx; n != mv.toIdx + d; n += d) {
+            RoadWaypoint wp = wps.get(n);
             appendIfNewXZ(out, wp.x, wp.y, wp.z);
-            reusedBridgeXZ.add(Pos2D.xzKey(wp.x, wp.z));
+            if (prev == null) {
+                followedXZ.add(Pos2D.xzKey(wp.x, wp.z));
+            } else {
+                // Same rasterisation as the painter's densify and the whole-path check.
+                for (BlockPos c : LineRaster.forBridges(prev.x, prev.z, wp.x, wp.z, 0)) {
+                    followedXZ.add(Pos2D.xzKey(c.getX(), c.getZ()));
+                }
+            }
+            prev = wp;
         }
     }
 

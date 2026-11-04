@@ -7,7 +7,7 @@ import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.terrain.TerrainView;
 import net.minecraft.util.math.BlockPos;
 
-/** A* cost of a bridge move: building a new span, or reusing a built one. */
+/** A* cost of building a new bridge span. */
 public final class BridgeMoveCost {
 
     // Flat overhead penalty applied to all water-dominant bridge moves.
@@ -22,8 +22,6 @@ public final class BridgeMoveCost {
     private static final double BRIDGE_VALLEY_PREFERENCE_BONUS_PER_BLOCK = 1.23;
     // Minimum number of land blocks on each bridge side that must be connectable with strict 0.5-block road steps.
     private static final int BRIDGE_APPROACH_RAMP_BLOCKS = 3;
-    // Cost bonus applied when reusing an existing bridge (higher = stronger preference for reuse).
-    private static final double BRIDGE_REUSE_BONUS = 120.0;
     // Bridge cost multiplier for LONE_TRAIL routes (connections to lone buildings).
     private static final double LONE_TRAIL_BRIDGE_COST_MULTIPLIER = 5.0;
 
@@ -35,12 +33,6 @@ public final class BridgeMoveCost {
             return Math.max(1.0, LONE_TRAIL_BRIDGE_COST_MULTIPLIER);
         }
         return 1.0;
-    }
-
-    /** Crossing a built bridge: its length, discounted by the reuse bonus. */
-    static double reuse(int lengthBlocks) {
-        double bridgeCost = lengthBlocks * 1.0;
-        return Math.max(0.1, bridgeCost - Math.max(0.0, BRIDGE_REUSE_BONUS));
     }
 
     /** Building a new span; the ray scan's water/valley flags add a last nudge. */

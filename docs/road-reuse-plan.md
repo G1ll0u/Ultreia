@@ -1,4 +1,4 @@
-# Road reuse — status: steps 1–2 done, step 3 next
+# Road reuse — status: step 3 coded and tested, awaiting the in-game check
 
 ## Goal
 
@@ -17,6 +17,9 @@ aligned, no doubled road).
   no explicit "turns away from the goal" rule.
 - **Config:** `existingRoadCost` in Pathfinding, default 0.5, range 0.1–1.0. Comment: "Cost of walking along an
   existing road compared with building a new one; lower makes roads share the network more, even with detours."
+- **Join radius 8 blocks.** A* estimates the remaining cost as straight-line distance, so it never detours toward a
+  cheaper road; instead a node joins any road point within 8 blocks by a straight connector (cells checked: no water,
+  nothing forbidden; terrain cost paid as normal moves). Roads farther away are used only if the path passes near.
 - **Road types:** a village main road follows only main roads (and their bridges); a lone trail follows any road.
   Nothing is ever widened or repainted.
 - Painter (kept): a path over a followed stretch paints nothing there (stops at the join, resumes at the leave).
@@ -41,11 +44,12 @@ aligned, no doubled road).
 1. **Debug trace** (`ReuseTrace`: roads alongside, bridges offered vs built) — done.
 2. **Remove the old reuse settings and logic** (config keys, `TerrainCost` bonus/parallel penalty, road magnetism,
    the radius-blind distance cache). All were off by default: no behaviour change; goldens unchanged — done.
-3. **Network move in A\*** (also removes the built-bridge jump and its always-on bridge-endpoint magnetism): join (within a grid step of a waypoint of an allowed segment, walkable height; a bridge
+3. **Network move in A\*** (also removes the built-bridge jump and its always-on bridge-endpoint magnetism): join (within 8 blocks of a waypoint of an allowed segment, walkable height; a bridge
    only at its ends), follow along the segment to its ends and periodic exit points, leave by normal moves; cost
    `existingRoadCost` × length, no terrain extra at the landing; replaces the built-bridge jump and its +700 trap.
    Reconstruction splices the stored waypoints and reports followed stretches; whole-path check over them.
-   New golden test with a synthetic road; `ReuseTrace` updated — not started.
+   New golden test with a synthetic road; `ReuseTrace` updated — done (existing goldens unchanged, new golden
+   `astar_follows_main_road` approved); in-game check pending.
 4. **Painter:** followed stretches are gaps with forced, walkable connectors at join and leave; the parallel-gap
    skip and the main-road early merge go; only painted pieces are registered in the network. In-game checks — not
    started.

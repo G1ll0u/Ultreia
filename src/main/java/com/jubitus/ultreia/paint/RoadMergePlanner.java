@@ -23,8 +23,8 @@ import java.util.List;
 
 /**
  * How a new road meets the roads already built: where it stops on an existing road that leads to its destination
- * (lone trails: on the first road), and which stretches it skips because they run along an existing road or cross a
- * built bridge (gaps, with their entry and exit points for the connectors).
+ * (lone trails: on the first road), and which stretches it skips because they run along an existing road or are
+ * followed on the network (gaps, with their entry and exit points for the connectors).
  */
 final class RoadMergePlanner {
 
@@ -37,7 +37,7 @@ final class RoadMergePlanner {
 
     @Nullable private RoadNetwork roadNetwork;
     @Nullable private BlockPos toVillage;
-    private LongSet reusedBridgeXZ = LongSets.EMPTY_SET;
+    private LongSet followedXZ = LongSets.EMPTY_SET;
     private Collection<RoadPaintSession.ForcedBridgeRef> forced = Collections.emptyList();
 
     /** The road stops at path index {@code hitIndex} and joins the existing road at (targetX, targetZ). */
@@ -71,10 +71,10 @@ final class RoadMergePlanner {
 
     /** Decides, once the centerline is known, where the road stops on an existing road and which stretches it skips. */
     void detect(RoadType roadType, int baseR, @Nullable RoadNetwork roadNetwork, @Nullable BlockPos toVillage,
-                LongSet reusedBridgeXZ, Collection<RoadPaintSession.ForcedBridgeRef> forced) {
+                LongSet followedXZ, Collection<RoadPaintSession.ForcedBridgeRef> forced) {
         this.roadNetwork = roadNetwork;
         this.toVillage = toVillage;
-        this.reusedBridgeXZ = reusedBridgeXZ;
+        this.followedXZ = followedXZ;
         this.forced = forced;
 
         if (roadIndex == null) return;
@@ -213,8 +213,8 @@ final class RoadMergePlanner {
 
         for (int idx = absoluteMin; idx <= scanEnd; idx++) {
             BlockPos p = path.get(idx);
-            // A built bridge the path crosses: the road stops at its start and resumes at its end.
-            if (reusedBridgeXZ.contains(Pos2D.xzKey(p.getX(), p.getZ()))) {
+            // A followed road (bridges included): the road stops at the join and resumes at the leave.
+            if (followedXZ.contains(Pos2D.xzKey(p.getX(), p.getZ()))) {
                 inOverlap[idx] = true;
                 nearX[idx] = p.getX();
                 nearZ[idx] = p.getZ();

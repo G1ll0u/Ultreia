@@ -66,7 +66,7 @@ public final class RoadPaintSession {
     @Nullable private RoadNetwork roadNetwork;
     @Nullable private BlockPos fromVillage;
     @Nullable private BlockPos toVillage;
-    private LongSet reusedBridgeXZ = LongSets.EMPTY_SET;
+    private LongSet followedXZ = LongSets.EMPTY_SET;
 
     private boolean densifyDone;
     private boolean profilesReady = false;
@@ -130,7 +130,7 @@ public final class RoadPaintSession {
                 indexForcedBridges();
                 bridges.buildFootprint();
 
-                merge.detect(roadType, baseR, roadNetwork, toVillage, reusedBridgeXZ, forcedByStartKey.values());
+                merge.detect(roadType, baseR, roadNetwork, toVillage, followedXZ, forcedByStartKey.values());
                 continue;
             }
 
@@ -231,9 +231,9 @@ public final class RoadPaintSession {
         return failReason;
     }
 
-    /** Must be called before advance(): deck centerline xz keys of built bridges the path crosses. */
-    public void setReusedBridges(LongSet deckXZ) {
-        this.reusedBridgeXZ = deckXZ;
+    /** Must be called before advance(): centerline xz keys the path follows on existing roads (nothing painted). */
+    public void setFollowedRoads(LongSet followedXZ) {
+        this.followedXZ = followedXZ;
     }
 
     public void setRoadNetwork(@Nullable RoadNetwork network, @Nullable BlockPos from, @Nullable BlockPos to) {

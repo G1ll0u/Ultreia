@@ -2,6 +2,7 @@ package com.jubitus.ultreia.route;
 
 import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.config.UltreiaConfig;
+import com.jubitus.ultreia.roads.RoadNetwork;
 import com.jubitus.ultreia.testutil.Golden;
 import com.jubitus.ultreia.testutil.SyntheticTerrain;
 import net.minecraft.util.math.BlockPos;
@@ -10,6 +11,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Golden paths on synthetic terrain, default config; bridges off except in the gorge test.
@@ -81,11 +87,47 @@ class AStarGoldenTest {
         Golden.check("astar_steep_slope_no_hairpin", run(t, 0, 0, 120, 0, RoadType.VILLAGE_MAIN));
     }
 
+    @Test
+    void followsExistingMainRoad() throws IOException {
+        // A main road 6 blocks beside the direct line: joining it and following it at half price beats a new road.
+        SyntheticTerrain t = flat();
+        String out = run(t, 0, 0, 200, 0, RoadType.VILLAGE_MAIN, straightRoad(10, 190, 6, RoadType.VILLAGE_MAIN));
+        assertTrue(out.contains("follows a road true"), "the path must follow the existing road");
+        Golden.check("astar_follows_main_road", out);
+    }
+
+    @Test
+    void mainRoadIgnoresLoneTrail() {
+        // A village main road never follows a lone trail: same path as with no network at all.
+        SyntheticTerrain t = flat();
+        String withTrail = run(t, 0, 0, 200, 0, RoadType.VILLAGE_MAIN, straightRoad(10, 190, 6, RoadType.LONE_TRAIL));
+        assertEquals(run(flat(), 0, 0, 200, 0, RoadType.VILLAGE_MAIN, new RoadNetwork("empty")), withTrail);
+    }
+
+    private static SyntheticTerrain flat() {
+        return new SyntheticTerrain() {
+            @Override protected int height(int x, int z) { return 64; }
+        };
+    }
+
+    private static RoadNetwork straightRoad(int x0, int x1, int z, RoadType type) {
+        List<BlockPos> path = new ArrayList<>();
+        for (int x = x0; x <= x1; x++) path.add(new BlockPos(x, 64, z));
+        RoadNetwork net = new RoadNetwork("test");
+        net.addRoadSegment(path, null, null, null, type, type.roadWidthBlocks());
+        return net;
+    }
+
     private static String run(SyntheticTerrain t, int sx, int sz, int gx, int gz, RoadType type) {
+        return run(t, sx, sz, gx, gz, type, null);
+    }
+
+    private static String run(SyntheticTerrain t, int sx, int sz, int gx, int gz, RoadType type, RoadNetwork network) {
         BlockPos start = new BlockPos(sx, t.sample(sx, sz).surfaceY, sz);
         BlockPos goal = new BlockPos(gx, t.sample(gx, gz).surfaceY, gz);
         AStarSearch s = new AStarSearch(start, goal, t);
         s.setRoadType(type);
+        s.setRoadNetwork(network);
 
         AStarSearch.StepResult r;
         do {
@@ -95,6 +137,9 @@ class AStarGoldenTest {
         StringBuilder out = new StringBuilder();
         out.append("result ").append(r).append('\n');
         out.append("bridges ").append(s.getResult().getBridges().size()).append('\n');
+        if (network != null) {
+            out.append("follows a road ").append(!s.getResult().getFollowedXZ().isEmpty()).append('\n');
+        }
         for (BridgeSpan b : s.getResult().getBridges()) {
             out.append("bridge ").append(b.start.getX()).append(' ').append(b.start.getZ())
                     .append(" -> ").append(b.end.getX()).append(' ').append(b.end.getZ())

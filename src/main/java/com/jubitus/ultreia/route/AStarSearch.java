@@ -42,7 +42,7 @@ import static com.jubitus.ultreia.route.GridMoves.turnCost;
 
 /**
  * One A* search between two points, run in slices within the tick budget: grid moves with their terrain cost,
- * bridge moves, bridge-endpoint magnetism, partial fallback, then path reconstruction and the whole-path check.
+ * bridge moves, moves along the road network, partial fallback, then path reconstruction and the whole-path check.
  */
 public final class AStarSearch {
 
@@ -50,8 +50,6 @@ public final class AStarSearch {
     private static final int MAX_WALL_TIME_SECONDS = 320;
     // Maximum number of full-path profile rejections before A* gives up.
     private static final int PROFILE_REJECTION_LIMIT = 300;
-    // Cost discount applied to normal A* moves that step closer to a known existing bridge crossing's entrance,...
-    private static final double BRIDGE_ENDPOINT_MAGNETISM_BONUS = 12.0;
     // Road-snap only triggers this many grid steps away from the start.
     private static final double SNAP_MIN_DIST_STEPS = 6.0;
     // Weight of the remaining distance in the score that picks the partial-path end point.
@@ -91,6 +89,7 @@ public final class AStarSearch {
     private SearchBounds bounds;
     private BridgeMoveGenerator bridgeMoves;
     private TerrainMoveCost moveCost;
+    private NetworkMoves networkMoves;
     private int gx, gz;
 
     @javax.annotation.Nullable private RoadNetwork roadNetwork;
@@ -108,7 +107,6 @@ public final class AStarSearch {
 
     private long sessionStartNs = System.nanoTime();
     private int profileRejectionCount = 0;
-    private int reusedBridgePathsRejected = 0;
 
     private boolean failed = false;
     private String failReason = "unknown";
@@ -192,6 +190,7 @@ public final class AStarSearch {
         this.bounds = new SearchBounds(sx, sz, gx, gz, Math.abs(gs.surfaceY - ss.surfaceY), step);
         this.bridgeMoves = new BridgeMoveGenerator(sampler, step, bounds, diag::bridge);
         this.moveCost = new TerrainMoveCost(sampler, step, bounds);
+        this.networkMoves = new NetworkMoves(sampler, step, bounds);
 
         if (sampler.forbidden(ss, TerrainSampler.Mode.PATHFINDING)) {
             fail("start forbidden: " + sampler.describeForbidden(ss, TerrainSampler.Mode.PATHFINDING));
@@ -309,6 +308,7 @@ public final class AStarSearch {
 
                 expandNormalMoves(cur, ck, cs);
                 expandBridgeMoves(cur, ck, cs);
+                expandNetworkMoves(cur, ck, cs);
             }
 
             if (reconstructor == null) {
@@ -330,12 +330,9 @@ public final class AStarSearch {
         if (rr.isEmpty()) return fail("reconstruction produced empty path");
 
         if (!PathProfileCheck.isAcceptable(rr.getPath(), rr.getBridges(), rec.bridgeStartIndices(),
-                sampler, step)) {
+                rr.getFollowedXZ(), sampler, step)) {
             profileRejectionCount++;
-            if (rec.reusedBridgeCount() > 0) {
-                reusedBridgePathsRejected++;
-                diag.bridge("found path through " + rec.reusedBridgeCount() + " built bridge(s) rejected: not walkable end to end");
-            }
+            if (rec.followedCount() > 0) reuseTrace.countRejectedFollowing();
             st.closed.add(rec.endState);
 
             // If the partial fallback itself fails profile, bestApproxState hasn't
@@ -373,7 +370,7 @@ public final class AStarSearch {
     }
 
     private void flushBridgeLog() {
-        diag.flushBridge(bridgeMoves == null ? null : bridgeMoves.reuseSummary(), reusedBridgePathsRejected);
+        diag.flushBridge();
     }
 
     private StepResult failOrPartial(String reason) {
@@ -382,7 +379,7 @@ public final class AStarSearch {
     }
 
     private void beginReconstruction(long state) {
-        reconstructor = new PathReconstructor(st, sampler, roadNetwork, state);
+        reconstructor = new PathReconstructor(st, sampler, state);
         partialResult = false;
         partialReason = null;
     }
@@ -468,22 +465,6 @@ public final class AStarSearch {
     }
 
     private void expandNormalMoves(SearchState.Node cur, long ck, TerrainSampler.Sample cs) {
-        // Bridge-endpoint magnetism: pulls the search toward a known existing bridge crossing's
-        // entrance from a distance, so buildExistingBridgeMoves' validated single-cell snap
-        // (bug A fix) actually has a real adjacent node to trigger from instead of drifting past it.
-        final int bridgeReuseRadius = BridgeMoveGenerator.BRIDGE_REUSE_SEARCH_RADIUS;
-        boolean bridgeMagnetismActive = UltreiaConfig.BRIDGES.enabled && roadNetwork != null;
-        List<RoadNetwork.BridgeCrossing> nearbyCrossings = null;
-        double curDistToCrossingStart = Double.POSITIVE_INFINITY;
-        if (bridgeMagnetismActive) {
-            nearbyCrossings = roadNetwork.getBridgeCrossingsNear(cur.x, cur.z, bridgeReuseRadius);
-            if (nearbyCrossings.isEmpty()) {
-                bridgeMagnetismActive = false;
-            } else {
-                curDistToCrossingStart = nearestCrossingStartDist(cur.x, cur.z, nearbyCrossings);
-            }
-        }
-
         collectRecentPath(ck, cur, cs);
 
         for (int dirIdx = 0; dirIdx < NEIGHBOR_DIRS.length; dirIdx++) {
@@ -535,15 +516,6 @@ public final class AStarSearch {
             // every kind of move, so a bridge never gets to attach at an angle a road turn wouldn't.
             tentative += turnCost(cur.dir, dirIdx, step, UltreiaConfig.PATHFINDING.turnPenalty);
 
-            // Bridge-endpoint magnetism: discount moving closer to a known crossing's entrance.
-            if (bridgeMagnetismActive) {
-                double distNeighborBridge = nearestCrossingStartDist(nx, nz, nearbyCrossings);
-                if (distNeighborBridge < bridgeReuseRadius && distNeighborBridge < curDistToCrossingStart) {
-                    double frac = 1.0 - distNeighborBridge / (double) bridgeReuseRadius;
-                    tentative -= BRIDGE_ENDPOINT_MAGNETISM_BONUS * frac;
-                }
-            }
-
             if (tentative < st.gScore.get(nk)) {
                 st.relaxRoad(ck, nk, nx, nz, dirIdx, tentative, tentative + heuristicToGoal(nx, nz), base);
             }
@@ -565,7 +537,7 @@ public final class AStarSearch {
         int x = cur.x, z = cur.z;
         double along = 0.0;
         while (along < HAIRPIN_LOOKBACK_BLOCKS
-                && !st.cameBridge.containsKey(k) && !st.cameReusedBridge.containsKey(k)) {
+                && !st.cameBridge.containsKey(k) && !st.cameFollow.containsKey(k)) {
             long pk = st.cameFrom.get(k);
             if (pk == Long.MIN_VALUE) break;
             int px = stateX(pk), pz = stateZ(pk);
@@ -609,11 +581,7 @@ public final class AStarSearch {
 
         final double bridgeMult = BridgeMoveCost.newBridgeMultiplier(roadType);
 
-        // Offer existing bridge crossings as cheap moves before probing new ones.
-        // This prevents building parallel bridges when one already exists nearby.
-        List<BridgeMove> moves = new ArrayList<>(
-                bridgeMoves.existingBridgeMoves(roadNetwork, cur.x, cur.z, cur.dir, cs, gx, gz));
-
+        List<BridgeMove> moves = Collections.emptyList();
         // Only probe new bridges near water or valley edges — avoids stadium chunk loading
         if (bridgeMoves.isNearWaterOrValleyEdge(cur.x, cur.z, cs)) {
             int inDx = 0;
@@ -630,7 +598,7 @@ public final class AStarSearch {
                 inDz = Integer.signum(cur.z - stateZ(parentK));
                 hasIncoming = (inDx != 0 || inDz != 0);
             }
-            moves.addAll(bridgeMoves.newBridgeMoves(cur.x, cur.z, cur.dir, inDx, inDz, hasIncoming, cs, roadType));
+            moves = bridgeMoves.newBridgeMoves(cur.x, cur.z, cur.dir, inDx, inDz, hasIncoming, cs, roadType);
         }
 
         for (BridgeMove mv : moves) {
@@ -645,23 +613,25 @@ public final class AStarSearch {
                 continue;
             }
 
-            // Reusing a built bridge builds nothing: the lone-trail multiplier only deters new bridges.
-            double moveMult = mv.reusedCrossing != null ? 1.0 : bridgeMult;
-            double extra = sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
-            double tentative = st.gScore.get(ck) + mv.cost * moveMult + mv.turnCost + extra;
+            double tentative = st.gScore.get(ck) + mv.cost * bridgeMult + mv.turnCost
+                    + sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
+            if (tentative < st.gScore.get(nk)) {
+                st.relaxNewBridge(ck, nk, mv.nx, mv.nz, mv.ndir, tentative, tentative + heuristicToGoal(mv.nx, mv.nz), mv.span);
+            }
+        }
+    }
+
+    /** Joins an existing road beside the node and follows it to an exit point; no terrain cost at the landing. */
+    private void expandNetworkMoves(SearchState.Node cur, long ck, TerrainSampler.Sample cs) {
+        for (NetworkMoves.Move mv : networkMoves.from(roadNetwork, cur.x, cur.z, cur.dir, cs.surfaceY, roadType)) {
+            long nk = stateKey(mv.nx, mv.nz, mv.ndir);
+            if (st.closed.contains(nk)) continue;
+
+            double g = st.gScore.get(ck);
+            double tentative = g + mv.hop + mv.follow + mv.turn;
             boolean better = tentative < st.gScore.get(nk);
-            if (mv.reusedCrossing != null) {
-                reuseTrace.offer(mv.reusedCrossing, cur.x, cur.z, st.gScore.get(ck), mv.cost, mv.turnCost, extra,
-                        tentative, nk, better);
-            }
-            if (better) {
-                double f = tentative + heuristicToGoal(mv.nx, mv.nz);
-                if (mv.reusedCrossing != null) {
-                    st.relaxReusedBridge(ck, nk, mv.nx, mv.nz, mv.ndir, tentative, f, mv.reusedCrossing);
-                } else {
-                    st.relaxNewBridge(ck, nk, mv.nx, mv.nz, mv.ndir, tentative, f, mv.span);
-                }
-            }
+            reuseTrace.offer(mv, cur.x, cur.z, g, tentative, nk, better);
+            if (better) st.relaxFollow(ck, nk, tentative, tentative + heuristicToGoal(mv.nx, mv.nz), mv);
         }
     }
 
@@ -745,15 +715,6 @@ public final class AStarSearch {
 
         int progressY = Math.abs(bs.surfaceY - startY);
         return (double) progressY / (double) totalDY >= ALTITUDE_PROGRESS_FRACTION;
-    }
-
-    private static double nearestCrossingStartDist(int x, int z, List<RoadNetwork.BridgeCrossing> crossings) {
-        double best = Double.POSITIVE_INFINITY;
-        for (RoadNetwork.BridgeCrossing c : crossings) {
-            double d = Math.sqrt(Pos2D.distSq(x, z, c.startX, c.startZ));
-            if (d < best) best = d;
-        }
-        return best;
     }
 
     private static double heuristic(int x, int z, int gx, int gz) {

@@ -5,6 +5,8 @@ import com.jubitus.ultreia.bridge.BridgeClearanceCheck;
 import com.jubitus.ultreia.bridge.BridgeDeckProfile;
 import com.jubitus.ultreia.geom.HalfY;
 import com.jubitus.ultreia.geom.LineRaster;
+import com.jubitus.ultreia.geom.Pos2D;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import com.jubitus.ultreia.terrain.TerrainView;
 import com.jubitus.ultreia.paint.RoadHeightProfile;
 
@@ -17,7 +19,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** The only whole-path check of a found A* path: walkable end to end, and no bridge deck too low over its own approach road. */
+/** The only whole-path check of a found A* path: walkable end to end (followed roads excepted), and no bridge deck too low over its own approach road. */
 public final class PathProfileCheck {
 
     // Tight XZ match between a bridge cell and an approach road point: avoids false matches with off-axis nodes.
@@ -28,16 +30,18 @@ public final class PathProfileCheck {
     /**
      * @param bridgeStartIndices index in {@code coarsePath} at which each bridge of {@code bridges} begins
      * @param step A* grid step: the first {@code step} deck cells are the launch ramp and are not checked for overlap
+     * @param followedXZ cells on followed existing roads: steps between two of them are that road's, not judged here
      */
     static boolean isAcceptable(List<BlockPos> coarsePath, List<BridgeSpan> bridges, List<Integer> bridgeStartIndices,
-                                TerrainView sampler, int step) {
-        boolean walkable = isFullPathFeasible(coarsePath, bridges, sampler);
+                                LongSet followedXZ, TerrainView sampler, int step) {
+        boolean walkable = isFullPathFeasible(coarsePath, bridges, followedXZ, sampler);
         boolean clear = bridgesClearOwnApproach(coarsePath, bridges, bridgeStartIndices, step);
         return walkable && clear;
     }
 
     private static boolean isFullPathFeasible(List<BlockPos> coarsePath,
                                              List<BridgeSpan> bridges,
+                                             LongSet followedXZ,
                                              TerrainView sampler) {
         if (coarsePath == null || coarsePath.isEmpty() || sampler == null) {
             return false;
@@ -56,6 +60,7 @@ public final class PathProfileCheck {
 
             int maxStepHalf = Math.max(1, HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK);
             for (int i = 1; i < half.length; i++) {
+                if (isFollowed(followedXZ, dense.get(i)) && isFollowed(followedXZ, dense.get(i - 1))) continue;
                 if (Math.abs(half[i] - half[i - 1]) > maxStepHalf) {
                     return false;
                 }
@@ -65,6 +70,10 @@ public final class PathProfileCheck {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    private static boolean isFollowed(LongSet followedXZ, BlockPos p) {
+        return followedXZ.contains(Pos2D.xzKey(p.getX(), p.getZ()));
     }
 
     private static List<BlockPos> densify(List<BlockPos> coarse, TerrainView sampler) {

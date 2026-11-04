@@ -41,24 +41,6 @@ public final class RoadNetwork extends WorldSavedData {
     /** Waypoint subsampling: one waypoint every N blocks along the centerline. */
     private static final int SAMPLE_STEP = 4;
 
-    /** Exposed for entity navigation and map rendering. */
-    public static final class BridgeCrossing {
-        public final int startX, startZ;
-        public final int endX, endZ;
-        public final int segmentId;
-        public final int lengthBlocks;
-        /** Deck surface block Y at the entrance. */
-        public final int startY;
-
-        BridgeCrossing(int startX, int startZ, int startY, int endX, int endZ, int segmentId, int lengthBlocks) {
-            this.startX = startX; this.startZ = startZ;
-            this.startY = startY;
-            this.endX = endX; this.endZ = endZ;
-            this.segmentId = segmentId;
-            this.lengthBlocks = lengthBlocks;
-        }
-    }
-
     /** Global so a reloaded network never repeats a revision seen before. */
     private static final AtomicLong REVISION_SEQ = new AtomicLong();
 
@@ -191,34 +173,6 @@ public final class RoadNetwork extends WorldSavedData {
 
     // --- Bridge crossing queries (for A* reuse) ---
 
-    /**
-     * Returns all bridge crossings that start within {@code radius} blocks of (x, z).
-     * Both start→end and end→start directions are returned.
-     */
-    public List<BridgeCrossing> getBridgeCrossingsNear(int x, int z, int radius) {
-        int radiusSq = radius * radius;
-        List<BridgeCrossing> result = new ArrayList<>();
-
-        for (RoadSegment seg : getSegmentsNearFast(x, z, radius)) {
-            if (!seg.isBridge || seg.waypoints.size() < 2) continue;
-
-            int sx = seg.startX(), sz = seg.startZ();
-            int ex = seg.endX(), ez = seg.endZ();
-            int len = seg.lengthBlocks();
-
-            int dsx = sx - x, dsz = sz - z;
-            int dex = ex - x, dez = ez - z;
-
-            if (dsx * dsx + dsz * dsz <= radiusSq) {
-                result.add(new BridgeCrossing(sx, sz, seg.waypoints.get(0).y, ex, ez, seg.id, len));
-            }
-            if (dex * dex + dez * dez <= radiusSq) {
-                result.add(new BridgeCrossing(ex, ez, seg.waypoints.get(seg.waypoints.size() - 1).y, sx, sz, seg.id, len));
-            }
-        }
-        return result;
-    }
-
     // --- Spatial queries (for map rendering, entity nav) ---
 
     public List<RoadSegment> getSegmentsNear(int x, int z, int radius) {
@@ -262,7 +216,7 @@ public final class RoadNetwork extends WorldSavedData {
         return Collections.unmodifiableList(segments);
     }
 
-    /** Fetch a segment by id, e.g. from a {@link BridgeCrossing#segmentId}. Null if not found. */
+    /** Fetch a segment by id. Null if not found. */
     @Nullable
     public RoadSegment getSegment(int id) {
         if (id < 0 || id >= segments.size()) return null;

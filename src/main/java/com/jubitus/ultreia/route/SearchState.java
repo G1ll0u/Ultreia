@@ -13,7 +13,7 @@ import java.util.PriorityQueue;
 
 import static com.jubitus.ultreia.route.GridMoves.DIR_NONE;
 
-/** State shared by one A* search: open and closed sets, scores, back-links (road step, new bridge, reused bridge). */
+/** State shared by one A* search: open and closed sets, scores, back-links (road step, new bridge, followed road). */
 final class SearchState {
 
     // distSinceBridge value meaning "no bridge yet on this path"; real distances stay capped far below it.
@@ -36,9 +36,7 @@ final class SearchState {
     final Long2DoubleOpenHashMap gScore = new Long2DoubleOpenHashMap();
     final Long2LongOpenHashMap cameFrom = new Long2LongOpenHashMap();
     final Long2ObjectOpenHashMap<BridgeSpan> cameBridge = new Long2ObjectOpenHashMap<>();
-    // Separate from cameBridge because a reused-bridge move stores span=null (nothing new to build),
-    // which is indistinguishable from "no bridge at all" in a Long2ObjectOpenHashMap lookup.
-    final Long2ObjectOpenHashMap<RoadNetwork.BridgeCrossing> cameReusedBridge = new Long2ObjectOpenHashMap<>();
+    final Long2ObjectOpenHashMap<NetworkMoves.Move> cameFollow = new Long2ObjectOpenHashMap<>();
     final Long2IntOpenHashMap distSinceBridge = new Long2IntOpenHashMap();
 
     final PriorityQueue<Node> open = new PriorityQueue<>(new Comparator<Node>() {
@@ -67,25 +65,29 @@ final class SearchState {
     /** Records a plain road step from {@code from} to the node (x, z, dir) of key {@code to}. */
     void relaxRoad(long from, long to, int x, int z, int dir, double g, double f, double stepLength) {
         cameBridge.remove(to);
-        cameReusedBridge.remove(to);
-        int prevDist = distSinceBridge.get(from);
-        int nextDist = (prevDist >= NO_BRIDGE_YET)
-                ? prevDist
-                : Math.min(DIST_SINCE_BRIDGE_CAP, prevDist + (int) Math.round(stepLength));
-        link(from, to, x, z, dir, g, f, nextDist);
+        cameFollow.remove(to);
+        link(from, to, x, z, dir, g, f, distAfter(from, stepLength));
     }
 
     void relaxNewBridge(long from, long to, int x, int z, int dir, double g, double f, BridgeSpan span) {
         cameBridge.put(to, span);
-        cameReusedBridge.remove(to);
+        cameFollow.remove(to);
         link(from, to, x, z, dir, g, f, 0);
     }
 
-    void relaxReusedBridge(long from, long to, int x, int z, int dir, double g, double f,
-                           RoadNetwork.BridgeCrossing crossing) {
+    /** Followed road: a followed bridge counts as a bridge for the spacing of new ones. */
+    void relaxFollow(long from, long to, double g, double f, NetworkMoves.Move mv) {
         cameBridge.remove(to);
-        cameReusedBridge.put(to, crossing);
-        link(from, to, x, z, dir, g, f, 0);
+        cameFollow.put(to, mv);
+        int dist = mv.segment.isBridge ? 0 : distAfter(from, mv.hop + mv.lengthBlocks);
+        link(from, to, mv.nx, mv.nz, mv.ndir, g, f, dist);
+    }
+
+    private int distAfter(long from, double length) {
+        int prevDist = distSinceBridge.get(from);
+        return prevDist >= NO_BRIDGE_YET
+                ? prevDist
+                : Math.min(DIST_SINCE_BRIDGE_CAP, prevDist + (int) Math.round(length));
     }
 
     private void link(long from, long to, int x, int z, int dir, double g, double f, int distSince) {

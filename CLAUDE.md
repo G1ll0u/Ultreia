@@ -20,7 +20,7 @@ General rules are in `~/.claude/CLAUDE.md`, rules shared by all mods in `/home/u
 - **For procedural bugs** whose cause is not certain from the code, build the diagnostic (debug trace) before the fix.
 - **`// INVARIANT:` comments** must stay true: fix or delete one whenever you change the code it guards.
 - **Travellers** (`/home/user/IdeaProjects/Travellers`) reads `api/MPBRoadAPI` by reflection: never rename a public method there or change its signature (Travellers would break with no compile error).
-- **Code style**: split tangled classes, but before adding a class check whether an existing one already owns the concern. Refactor freely, but saved worlds must still load: add new save keys, keep reading the old ones. Comment tunable constants only. Ignore unused imports. Prefer FastUtil (`it.unimi.dsi.fastutil`) collections in generation hot paths.
+- **Code style**: split tangled classes, but before adding a class check whether an existing one already owns the concern. Refactor freely, but saved worlds must still load: add new save keys, keep reading the old ones. Comment tunable constants only. Ignore unused imports. Prefer FastUtil (`it.unimi.dsi.fastutil`) collections in generation hot paths, and always pass them primitive keys (`long`, `int`), never boxed ones: Minecraft 1.12 ships an older FastUtil without the boxed overloads, so the call compiles and then fails at runtime with `NoSuchMethodError`.
 - **Config fields** are for what a player or server admin would plausibly tune; purely internal tuning stays a named constant in code. A bugfix never gets an on/off toggle. Debug logging (see invariants) is the only exception.
 - **README** is for players: no class names, update only for player-visible changes.
 
