@@ -46,12 +46,12 @@ roads and bridges, completing an existing network, new villages.
 | `planner/` | `NetworkPlanner`, `VillageClassifier`, `LogicalEdge`, `NetworkPlanData` |
 | `route/` | `AStarPathfinder` split (phase 9), `EndpointResolver`, `VillageGateField`, `VillageGateTracker`, `RoadType`, `PathProfileCheck`, `PathResult` |
 | `terrain/` | `TerrainSampler` split (phase 6), `GroundRules`, `TreeCompat`, `ProtectedAreas`, new `TerrainView` interface |
-| `paint/` | `RoadPainter` split (phase 10), `Earthworks`, `HeadroomClearer`, `RoadHeightSolver` + `RoadHeightProfile`, palette choice from `mill/MillPathPalette` |
+| `paint/` | `RoadPainter` split (phase 10), `Earthworks`, `HeadroomClearer`, `RoadHeightSolver` + `RoadHeightProfile`, `PathPalette` (path kind and slab support) |
 | `bridge/` | `BridgeFeasibility`, `BridgeGeometry`, `BridgeSpan`, `BridgeApproachCheck`; bridge moves and costs taken out of A*, bridge painting taken out of `RoadPainter` |
 | `bridge/template/` | template classes (split in phase 8) |
 | `roads/` | `RoadNetwork`, `RoadIndex`, `RoadNavigator`, `RoadSegment`, `RoadWaypoint`, `RoadJoins` |
 | `chunk/` | `ChunkManager`, `ChunkLoadingCallback` |
-| `mill/` | `MillVillageIndex` (split in phase 11), `MillBuildingZones`, `MillPathPalette`, `MillPathStability`, `MillWorldDataRegistry`, `MillFileNodeLoader`; Millénaire part of `RoadIndex.kindFromState`; new Millénaire-free facade `Villages` |
+| `mill/` | `MillVillageIndex` (split in phase 11), `MillBuildingZones`, `MillPathBlocks`, `MillPathStability`, `MillWorldDataRegistry`, `MillFileNodeLoader`; Millénaire part of `RoadIndex.kindFromState`; new Millénaire-free facade `Villages` |
 | `geom/` | `Pos2D`, `RasterLine8` + `SupercoverLine` (→ `LineRaster`, phase 4), half-Y encoding from `BridgeGeometry` (→ `HalfY`) |
 | `map/` | `MapScreen` split (phase 11), `PacketOpenMapGui`, `PacketRequestPreview`, `PacketNetworkPreview` |
 | `net/` | `NetworkHandler` (channel only) |
@@ -298,7 +298,7 @@ gap (road stops at the bridge start, resumes at its end, connectors at both ends
 
 Steps: 10.1 in place (dead switches and parameters: dry run, early-merge flag, headroom and parallel-skip constants,
 always-on earthworks everywhere; profile built once; cursor index passed to the cell painter) (done) · 10.2 `PathPalette`
-/ `MillPathBlocks` · 10.3 `RibbonGeometry`, `RoadCenterline` · 10.4 `RoadMergePlanner` · 10.5 `RoadFootprintPlanner`
+/ `MillPathBlocks` (done) · 10.3 `RibbonGeometry`, `RoadCenterline` · 10.4 `RoadMergePlanner` · 10.5 `RoadFootprintPlanner`
 · 10.6 `RoadCellPainter`, `TalusPass`, `RoadPainter` → `RoadPaintSession`.
 Decided (user): `RoadType.allowsEarthworks()` and its two constants deleted (earthworks always on); no new debug
 switch, earthworks and clearing log under `logPainting`. No test covers the painter (needs a world): moves keep the

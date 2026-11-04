@@ -4,7 +4,7 @@ import com.jubitus.ultreia.paint.HeadroomClearer;
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.BlockRules;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
-import com.jubitus.ultreia.mill.MillPathPalette;
+import com.jubitus.ultreia.mill.MillPathBlocks;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.material.Material;

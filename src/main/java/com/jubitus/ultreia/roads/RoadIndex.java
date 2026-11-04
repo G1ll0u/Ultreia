@@ -6,7 +6,8 @@ import com.jubitus.ultreia.MillPresence;
 import com.jubitus.ultreia.block.UltreiaBlocks;
 import com.jubitus.ultreia.chunk.ChunkManager;
 import com.jubitus.ultreia.terrain.TerrainSampler;
-import com.jubitus.ultreia.mill.MillPathPalette;
+import com.jubitus.ultreia.mill.MillPathBlocks;
+import com.jubitus.ultreia.paint.PathPalette;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.block.Block;
@@ -246,12 +247,12 @@ public class RoadIndex extends WorldSavedData {
     // --- Kind lookup (unchanged) ---
 
     @Nullable
-    public MillPathPalette.Kind findExistingKindAt(WorldServer world, TerrainSampler sampler, int x, int z) {
+    public PathPalette.Kind findExistingKindAt(WorldServer world, TerrainSampler sampler, int x, int z) {
         TerrainSampler.Sample sm = sampler.sample(x, z);
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
         int y = ColumnSurface.findPathY(world, p, x, z, sm.surfaceY, false);
         if (y == ColumnSurface.NO_PATH) return null;
-        return MillPathPalette.kindFromState(world.getBlockState(p.setPos(x, y, z)));
+        return MillPathBlocks.kindFromState(world.getBlockState(p.setPos(x, y, z)));
     }
 
 

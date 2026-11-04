@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.terrain;
 
 import com.jubitus.ultreia.config.UltreiaConfig;
-import com.jubitus.ultreia.mill.MillPathPalette;
+import com.jubitus.ultreia.mill.MillPathBlocks;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.BlockStairs;
@@ -42,7 +42,7 @@ public final class BlockRules {
         // Never paint over farmland or tilled soil — would destroy crops.
         if (isFarmland(st)) return false;
 
-        if (MillPathPalette.isMillPath(b)) return true;
+        if (MillPathBlocks.isMillPath(b)) return true;
 
         Material m = st.getMaterial();
 
@@ -85,7 +85,7 @@ public final class BlockRules {
     /** Natural ground, path blocks excluded. */
     public static boolean isNaturalGroundOnly(IBlockState st) {
         if (st == null) return false;
-        if (MillPathPalette.isMillPath(st.getBlock())) return false;
+        if (MillPathBlocks.isMillPath(st.getBlock())) return false;
         return isRoadReplaceableGround(st);
     }
 
@@ -93,7 +93,7 @@ public final class BlockRules {
     public static boolean isNaturalSolid(IBlockState st) {
         if (st == null) return false;
 
-        if (MillPathPalette.isMillPath(st.getBlock())) return false;
+        if (MillPathBlocks.isMillPath(st.getBlock())) return false;
 
         if (TreeCompat.isDynamicTreesBlock(st)) return treesClearable();
 

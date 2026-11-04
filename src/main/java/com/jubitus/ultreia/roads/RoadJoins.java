@@ -7,7 +7,7 @@ import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
-import com.jubitus.ultreia.mill.MillPathPalette;
+import com.jubitus.ultreia.mill.MillPathBlocks;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.state.IBlockState;

@@ -1,6 +1,6 @@
 package com.jubitus.ultreia.terrain;
 
-import com.jubitus.ultreia.mill.MillPathPalette;
+import com.jubitus.ultreia.mill.MillPathBlocks;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
@@ -50,7 +50,7 @@ final class BuildingGuard {
         if (b.isWood(world, pos)) return false;
         if (b.isLeaves(st, world, pos)) return false;
         // Mill/Ultreia path blocks are road infrastructure, not obstacles to paint around.
-        if (MillPathPalette.isMillPath(b)) return false;
+        if (MillPathBlocks.isMillPath(b)) return false;
         return !BlockRules.isRoadReplaceableGround(st);
     }
 

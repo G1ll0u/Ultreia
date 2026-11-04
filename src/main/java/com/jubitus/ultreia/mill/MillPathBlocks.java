@@ -3,20 +3,17 @@ package com.jubitus.ultreia.mill;
 import com.jubitus.ultreia.MillPresence;
 import com.jubitus.ultreia.block.UltreiaBlocks;
 import com.jubitus.ultreia.block.PathSlabBlock;
+import com.jubitus.ultreia.paint.PathPalette.Kind;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockSlab;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.init.Blocks;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
 import org.millenaire.common.block.MillBlocks;
 
-public final class MillPathPalette {
+/** Path block states per kind: Millénaire's path blocks when it is present, else Ultreïa's own. */
+public final class MillPathBlocks {
 
-    private MillPathPalette() {}
-
-    public enum Kind { DIRT, GRAVEL, SANDSTONE, SLABS, OCHRE, SNOW }
+    private MillPathBlocks() {}
 
     public static IBlockState full(Kind k) {
         if (!MillPresence.isPresent()) {
@@ -76,18 +73,5 @@ public final class MillPathPalette {
         if (b == MillBlocks.PATHSLABS || b == MillBlocks.PATHSLABS_SLAB) return Kind.SLABS;
         if (b == MillBlocks.PATHOCHRESLABS || b == MillBlocks.PATHOCHRESLABS_SLAB) return Kind.OCHRE;
         return null;
-    }
-
-    public static Kind pickKind(World world, BlockPos pos, IBlockState ground) {
-        Block b = ground.getBlock();
-
-        if (b == Blocks.GRAVEL) return Kind.GRAVEL;
-        if (b == Blocks.SAND || b == Blocks.SANDSTONE || b == Blocks.RED_SANDSTONE) return Kind.DIRT;
-        if (b == Blocks.SNOW || b == Blocks.SNOW_LAYER) return Kind.SNOW;
-
-        Material m = ground.getMaterial();
-        if (m == Material.ROCK || b == Blocks.STONE || b == Blocks.HARDENED_CLAY) return Kind.GRAVEL;
-
-        return Kind.DIRT;
     }
 }

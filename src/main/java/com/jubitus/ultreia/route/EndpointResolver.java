@@ -6,7 +6,7 @@ import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.UltreiaConfig;
-import com.jubitus.ultreia.mill.MillPathPalette;
+import com.jubitus.ultreia.mill.MillPathBlocks;
 import com.jubitus.ultreia.mill.MillVillageIndex;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.math.BlockPos;

@@ -3,7 +3,7 @@ package com.jubitus.ultreia.paint;
 import com.jubitus.ultreia.terrain.BlockRules;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.UltreiaConfig;
-import com.jubitus.ultreia.mill.MillPathPalette;
+import com.jubitus.ultreia.mill.MillPathBlocks;
 import com.jubitus.ultreia.terrain.TreeCompat;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockDoublePlant;

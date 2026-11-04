@@ -2,7 +2,7 @@ package com.jubitus.ultreia.bridge.template;
 
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.terrain.BlockRules;
-import com.jubitus.ultreia.mill.MillPathPalette;
+import com.jubitus.ultreia.mill.MillPathBlocks;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockFence;
 import net.minecraft.block.BlockFenceGate;
@@ -291,7 +291,7 @@ public final class BridgeDebugExporter {
     private static boolean isBridgeLikeSeed(IBlockState st) {
         if (st == null) return false;
         Block b = st.getBlock();
-        if (MillPathPalette.isMillPath(b)) return false;
+        if (MillPathBlocks.isMillPath(b)) return false;
         if (b instanceof BlockSlab) return true;
         if (b instanceof BlockStairs) return true;
         if (b instanceof BlockFence) return true;

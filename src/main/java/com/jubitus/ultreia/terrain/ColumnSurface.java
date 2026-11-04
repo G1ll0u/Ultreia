@@ -1,7 +1,7 @@
 package com.jubitus.ultreia.terrain;
 
 import com.jubitus.ultreia.block.UltreiaBlocks;
-import com.jubitus.ultreia.mill.MillPathPalette;
+import com.jubitus.ultreia.mill.MillPathBlocks;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
@@ -83,7 +83,7 @@ public final class ColumnSurface {
             Block b = world.getBlockState(pos.setPos(x, y, z)).getBlock();
             boolean path = ultreiaOnly
                     ? b == UltreiaBlocks.PATH_BLOCK || b == UltreiaBlocks.PATH_SLAB
-                    : MillPathPalette.isMillPath(b);
+                    : MillPathBlocks.isMillPath(b);
             if (path) return y;
         }
         return NO_PATH;

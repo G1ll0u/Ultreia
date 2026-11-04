@@ -2,7 +2,7 @@ package com.jubitus.ultreia.paint;
 
 import com.jubitus.ultreia.terrain.BlockRules;
 import com.jubitus.ultreia.terrain.TerrainSampler;
-import com.jubitus.ultreia.mill.MillPathPalette;
+import com.jubitus.ultreia.mill.MillPathBlocks;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;

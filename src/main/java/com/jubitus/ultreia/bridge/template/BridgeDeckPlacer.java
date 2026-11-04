@@ -4,7 +4,7 @@ import com.jubitus.ultreia.bridge.BridgeClearanceCheck;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.bridge.BridgeSpan;
 import com.jubitus.ultreia.geom.HalfY;
-import com.jubitus.ultreia.mill.MillPathPalette;
+import com.jubitus.ultreia.mill.MillPathBlocks;
 import com.jubitus.ultreia.terrain.BlockRules;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
@@ -61,7 +61,7 @@ final class BridgeDeckPlacer {
             p.setPos(x, y, z);
             IBlockState st = world.getBlockState(p);
             if (st == null) continue;
-            if (!MillPathPalette.isMillPath(st.getBlock())) continue;
+            if (!MillPathBlocks.isMillPath(st.getBlock())) continue;
 
             int freeBlocks = deckBlockY - y - 1;
             return freeBlocks < need;
