@@ -796,7 +796,9 @@ public final class AStarSearch {
     }
 
     public String failureSummary(boolean detailed) {
-        return diag.failureSummary(failReason, st, profileRejectionCount, detailed);
+        String summary = diag.failureSummary(failReason, st, profileRejectionCount, detailed);
+        if (!detailed || bestApproxState == Long.MIN_VALUE) return summary;
+        return summary + " closestReached=(" + stateX(bestApproxState) + "," + stateZ(bestApproxState) + ")";
     }
 
     public String debugStartArea(@javax.annotation.Nullable ProtectedAreas protectedAreas) {

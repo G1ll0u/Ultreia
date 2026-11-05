@@ -28,11 +28,11 @@ public final class BridgeClearanceCheck {
     // Minimum max terrain clearance required somewhere along a long bridge.
     private static final int LONG_BRIDGE_REQUIRED_MAX_CLEARANCE = 6;
     // Minimum consecutive interior water cells required before a water crossing counts as a real bridge candidate.
-    public static final int MIN_WATER_RUN_BLOCKS = 7;
+    public static final int MIN_WATER_RUN_BLOCKS = 3;
     // For water bridges, max dry interior cells allowed before the first real water run.
-    private static final int MAX_WATER_BRIDGE_LEAD_IN_BLOCKS = 1;
+    private static final int MAX_WATER_BRIDGE_LEAD_IN_BLOCKS = 2;
     // For water bridges, max dry interior cells allowed after the last real water run.
-    public static final int MAX_WATER_BRIDGE_LEAD_OUT_BLOCKS = 1;
+    public static final int MAX_WATER_BRIDGE_LEAD_OUT_BLOCKS = 2;
     // Extra side clearance checked around bridge centerline during feasibility.
     private static final int SIDE_CLEARANCE_RADIUS = 1;
     static final int MEANINGFUL_GROUND_CLEARANCE_BLOCKS = 3;
@@ -238,7 +238,8 @@ public final class BridgeClearanceCheck {
             }
         }
 
-        if (validWaterBridge) {
+        // A valley bridge over a stream is not a water bridge: its banks are the valley sides.
+        if (waterDominant) {
             int maxLeadIn = Math.max(0, MAX_WATER_BRIDGE_LEAD_IN_BLOCKS);
             int maxLeadOut = Math.max(0, MAX_WATER_BRIDGE_LEAD_OUT_BLOCKS);
 

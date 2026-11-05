@@ -243,7 +243,7 @@ public final class BridgeMoveGenerator {
             if (!land) {
                 if (obstacleSeen) {
                     dryAfterObstacle++;
-                    if (dryAfterObstacle > maxLeadOut) break;
+                    if (dryAfterObstacle * step > maxLeadOut) break;
                 }
                 continue;
             }
@@ -251,7 +251,7 @@ public final class BridgeMoveGenerator {
             if (sampler.forbidden(s, TerrainSampler.Mode.PATHFINDING)) {
                 if (obstacleSeen) {
                     dryAfterObstacle++;
-                    if (dryAfterObstacle > maxLeadOut) break;
+                    if (dryAfterObstacle * step > maxLeadOut) break;
                 }
                 continue;
             }
@@ -263,8 +263,10 @@ public final class BridgeMoveGenerator {
                 continue;
             }
 
-            boolean goodWater = waterCrossing && waterRun >= minWaterRun;
-            boolean goodValley = valleyCrossing && gapRun >= minGapRun;
+            // Runs count samples, one every step blocks: n samples may span up to (n + 1) * step - 1 blocks.
+            // Optimistic on purpose, BridgeFeasibility measures the real run.
+            boolean goodWater = waterCrossing && (waterRun + 1) * step - 1 >= minWaterRun;
+            boolean goodValley = valleyCrossing && (gapRun + 1) * step - 1 >= minGapRun;
 
             if ((goodWater || goodValley) && len >= minLen) {
                 return new QuickBridgeRayInfo(
@@ -277,7 +279,7 @@ public final class BridgeMoveGenerator {
             }
 
             dryAfterObstacle++;
-            if (dryAfterObstacle > maxLeadOut) {
+            if (dryAfterObstacle * step > maxLeadOut) {
                 break;
             }
         }

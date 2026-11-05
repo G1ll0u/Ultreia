@@ -79,6 +79,23 @@ class AStarGoldenTest {
     }
 
     @Test
+    void narrowRiverGetsSmallBridge() {
+        // A 3-block river across the whole search area on flat ground: only a small bridge gets the road across.
+        SyntheticTerrain t = new SyntheticTerrain() {
+            @Override protected int height(int x, int z) { return 64; }
+            @Override protected boolean water(int x, int z) { return x >= 99 && x <= 101; }
+        };
+        UltreiaConfig.BRIDGES.enabled = true;
+        try {
+            String out = run(t, 0, 0, 200, 0, RoadType.VILLAGE_MAIN);
+            assertTrue(out.startsWith("result FOUND"), out);
+            assertTrue(!out.contains("bridges 0"), out);
+        } finally {
+            UltreiaConfig.BRIDGES.enabled = false;
+        }
+    }
+
+    @Test
     void steepSlopeNoHairpin() throws IOException {
         // A slope steeper than a road may climb straight: the road must zigzag without coming back beside itself too high.
         SyntheticTerrain t = new SyntheticTerrain() {
