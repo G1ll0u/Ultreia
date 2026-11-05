@@ -19,6 +19,9 @@ final class SearchState {
     // distSinceBridge value meaning "no bridge yet on this path"; real distances stay capped far below it.
     static final int NO_BRIDGE_YET = Integer.MAX_VALUE / 4;
     private static final int DIST_SINCE_BRIDGE_CAP = 1_000_000;
+    // A* keeps the road out from under its last bridge until it has walked twice the bridge's length plus this
+    // far past it; the whole-path check covers the rest.
+    private static final int LAST_BRIDGE_WATCH_EXTRA_BLOCKS = 32;
 
     static final class Node {
         final int x, z;
@@ -38,6 +41,8 @@ final class SearchState {
     final Long2ObjectOpenHashMap<BridgeSpan> cameBridge = new Long2ObjectOpenHashMap<>();
     final Long2ObjectOpenHashMap<NetworkMoves.Move> cameFollow = new Long2ObjectOpenHashMap<>();
     final Long2IntOpenHashMap distSinceBridge = new Long2IntOpenHashMap();
+    /** The last new bridge on the path to a node, while the road may still turn back under it. */
+    final Long2ObjectOpenHashMap<BridgeSpan> lastBridge = new Long2ObjectOpenHashMap<>();
 
     final PriorityQueue<Node> open = new PriorityQueue<>(new Comparator<Node>() {
         @Override
@@ -66,12 +71,20 @@ final class SearchState {
     void relaxRoad(long from, long to, int x, int z, int dir, double g, double f, double stepLength) {
         cameBridge.remove(to);
         cameFollow.remove(to);
-        link(from, to, x, z, dir, g, f, distAfter(from, stepLength));
+        int dist = distAfter(from, stepLength);
+        BridgeSpan last = lastBridge.get(from);
+        if (last != null && dist <= 2 * last.lengthBlocks() + LAST_BRIDGE_WATCH_EXTRA_BLOCKS) {
+            lastBridge.put(to, last);
+        } else {
+            lastBridge.remove(to);
+        }
+        link(from, to, x, z, dir, g, f, dist);
     }
 
     void relaxNewBridge(long from, long to, int x, int z, int dir, double g, double f, BridgeSpan span) {
         cameBridge.put(to, span);
         cameFollow.remove(to);
+        lastBridge.put(to, span);
         link(from, to, x, z, dir, g, f, 0);
     }
 
@@ -79,6 +92,7 @@ final class SearchState {
     void relaxFollow(long from, long to, double g, double f, NetworkMoves.Move mv) {
         cameBridge.remove(to);
         cameFollow.put(to, mv);
+        lastBridge.remove(to);
         int dist = mv.segment.isBridge ? 0 : distAfter(from, mv.hop + mv.lengthBlocks);
         link(from, to, mv.nx, mv.nz, mv.ndir, g, f, dist);
     }

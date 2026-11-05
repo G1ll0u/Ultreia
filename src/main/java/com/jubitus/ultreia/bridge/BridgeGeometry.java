@@ -1,7 +1,9 @@
 package com.jubitus.ultreia.bridge;
 
+import com.jubitus.ultreia.bridge.template.BridgeTemplate;
 import net.minecraft.util.math.BlockPos;
 
+import javax.annotation.Nullable;
 import java.util.List;
 
 public final class BridgeGeometry {
@@ -70,6 +72,31 @@ public final class BridgeGeometry {
         if (idx <= 0) return 1;
         if (idx >= size - 1) return size - 2;
         return idx;
+    }
+
+    /** Half width a bridge built with {@code template} occupies beside its centerline (deck plus walls). */
+    public static int lateralHalfWidth(@Nullable BridgeTemplate template) {
+        int half = 1;
+        if (template != null) {
+            half = Math.max(half, Math.max(Math.abs(template.minLateral), Math.abs(template.maxLateral)));
+        }
+        return half;
+    }
+
+    /**
+     * True when (x, z) lies under the span away from its two ends: within {@code lateral} blocks of its axis
+     * and more than {@code endMargin} blocks inside both ends along it.
+     */
+    public static boolean isUnderSpan(BridgeSpan span, double lateral, double endMargin, int x, int z) {
+        double ax = span.end.getX() - span.start.getX();
+        double az = span.end.getZ() - span.start.getZ();
+        double len = Math.sqrt(ax * ax + az * az);
+        if (len < 1.0) return false;
+        double px = x - span.start.getX();
+        double pz = z - span.start.getZ();
+        double along = (px * ax + pz * az) / len;
+        if (along <= endMargin || along >= len - endMargin) return false;
+        return Math.abs(px * az - pz * ax) / len <= lateral;
     }
 
     public interface FootprintSink {

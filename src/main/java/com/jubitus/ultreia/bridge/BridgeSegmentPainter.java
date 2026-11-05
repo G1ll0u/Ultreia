@@ -170,15 +170,7 @@ public final class BridgeSegmentPainter {
     }
 
     private static int lateralHalfWidth() {
-        int half = 1;
-
-        BridgeTemplate active = BridgeTemplateRegistry.getDefaultTemplate();
-        if (active != null) {
-            int tHalf = Math.max(Math.abs(active.minLateral), Math.abs(active.maxLateral));
-            if (tHalf > half) half = tHalf;
-        }
-
-        return half;
+        return BridgeGeometry.lateralHalfWidth(BridgeTemplateRegistry.getDefaultTemplate());
     }
 
     private static int[] exitStep(BridgeSpan span) {
