@@ -11,6 +11,7 @@ import com.jubitus.ultreia.roads.RoadJoins;
 import com.jubitus.ultreia.terrain.ProtectedAreas;
 import com.jubitus.ultreia.terrain.TerrainSampler;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.util.math.BlockPos;
@@ -338,6 +339,67 @@ final class RoadFootprintPlanner {
 
         // Runs after junctionReinforcement: it may also trim forced cells on the edge.
         applyEdgeNoisePrune(baseR);
+
+        smoothPlannedHeights();
+    }
+
+    /**
+     * The profile limits height steps along the centerline only: in a tight turn on a slope, two touching cells
+     * can hang from centerline points several blocks apart and differ by more than half a block. Each planned cell
+     * takes the midpoint of the highest and lowest heights that keep every step to its planned 4-neighbours within
+     * the limit (the floor of the average of two such fields keeps the limit); a walkable plan is left unchanged.
+     */
+    private void smoothPlannedHeights() {
+        Long2IntOpenHashMap heights = new Long2IntOpenHashMap();
+        for (long k : planned) {
+            int h = plannedHalfByXZ.get(k);
+            if (h != Integer.MIN_VALUE) heights.put(k, h);
+        }
+        int changed = levelHeights(heights, HalfY.MAX_ROAD_STEP_HALF_PER_BLOCK);
+        plannedHalfByXZ.putAll(heights);
+        if (changed > 0 && UltreiaConfig.DEBUG.logPainting) {
+            Ultreia.LOGGER.info("[Ultreia paint] tight turns: {} planned cells re-levelled to keep half-block steps", changed);
+        }
+    }
+
+    /** Re-levels {@code heights} (xz key to half Y) so no 4-neighbour step exceeds maxStep; returns the cells changed. */
+    static int levelHeights(Long2IntOpenHashMap heights, int maxStep) {
+        Long2IntOpenHashMap upper = new Long2IntOpenHashMap(heights);
+        Long2IntOpenHashMap lower = new Long2IntOpenHashMap(heights);
+        relaxEnvelope(upper, maxStep, true);
+        relaxEnvelope(lower, maxStep, false);
+
+        int changed = 0;
+        for (Long2IntOpenHashMap.Entry e : upper.long2IntEntrySet()) {
+            long k = e.getLongKey();
+            int mid = Math.floorDiv(e.getIntValue() + lower.get(k), 2);
+            if (mid != heights.get(k)) {
+                heights.put(k, mid);
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    /** Lowers (upper envelope) or raises (lower envelope) cells until no 4-neighbour step exceeds maxStep. */
+    private static void relaxEnvelope(Long2IntOpenHashMap h, int maxStep, boolean lowerCells) {
+        LongArrayList pending = new LongArrayList(h.keySet().toLongArray());
+        int[][] n4 = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        while (!pending.isEmpty()) {
+            long k = pending.removeLong(pending.size() - 1);
+            int hk = h.get(k);
+            int x = Pos2D.xFromKey(k), z = Pos2D.zFromKey(k);
+            for (int[] d : n4) {
+                long nk = Pos2D.xzKey(x + d[0], z + d[1]);
+                if (!h.containsKey(nk)) continue;
+                int hn = h.get(nk);
+                int bound = lowerCells ? hk + maxStep : hk - maxStep;
+                if (lowerCells ? hn > bound : hn < bound) {
+                    h.put(nk, bound);
+                    pending.add(nk);
+                }
+            }
+        }
     }
 
     // Removes planned edge cells that fall outside the edge noise boundary for their nearest

@@ -3,6 +3,8 @@ package com.jubitus.ultreia.paint;
 import com.jubitus.ultreia.bridge.BridgeDeckProfile;
 import com.jubitus.ultreia.bridge.BridgeGeometry;
 import com.jubitus.ultreia.geom.HalfY;
+import com.jubitus.ultreia.geom.Pos2D;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import com.jubitus.ultreia.testutil.Golden;
 import net.minecraft.util.math.BlockPos;
 import org.junit.jupiter.api.Test;
@@ -21,6 +23,34 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class HeightProfileTest {
 
     private static final int NONE = RoadHeightSolver.FIXED_NONE;
+
+    @Test
+    void tightTurnOnASlopeIsReLevelled() {
+        // A 3-wide road climbing east (+1 half per block), turning back west one row up: the inner rows touch
+        // although they are many blocks apart along the road.
+        Long2IntOpenHashMap h = new Long2IntOpenHashMap();
+        for (int x = 0; x <= 10; x++) {
+            for (int z = 0; z <= 2; z++) h.put(Pos2D.xzKey(x, z), 100 + x);
+            for (int z = 3; z <= 5; z++) h.put(Pos2D.xzKey(x, z), 100 + 11 + (10 - x) + 1);
+        }
+        assertTrue(RoadFootprintPlanner.levelHeights(h, 1) > 0);
+        for (Long2IntOpenHashMap.Entry e : h.long2IntEntrySet()) {
+            int x = Pos2D.xFromKey(e.getLongKey()), z = Pos2D.zFromKey(e.getLongKey());
+            for (int[] d : new int[][]{{1, 0}, {0, 1}}) {
+                long nk = Pos2D.xzKey(x + d[0], z + d[1]);
+                if (h.containsKey(nk)) {
+                    assertTrue(Math.abs(h.get(nk) - e.getIntValue()) <= 1, "step at " + x + "," + z);
+                }
+            }
+        }
+    }
+
+    @Test
+    void walkablePlanIsNotReLevelled() {
+        Long2IntOpenHashMap h = new Long2IntOpenHashMap();
+        for (int x = 0; x <= 10; x++) for (int z = 0; z <= 2; z++) h.put(Pos2D.xzKey(x, z), 100 + x);
+        assertEquals(0, RoadFootprintPlanner.levelHeights(h, 1));
+    }
 
     @Test
     void solvedProfileRespectsStepCutFillAndFixedPoints() {

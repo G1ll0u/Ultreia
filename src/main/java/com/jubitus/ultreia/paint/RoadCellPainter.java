@@ -51,6 +51,10 @@ final class RoadCellPainter {
     final LongOpenHashSet newlyPlaced = new LongOpenHashSet();
     // Paint diagnostics (DEBUG.logPainting): one summary line per edge.
     private final Long2IntOpenHashMap placedHalf = new Long2IntOpenHashMap();
+    // Who painted each cell (centerline index, step, planned height or terrain): explains steps in the summary.
+    private final Long2IntOpenHashMap placedSource = new Long2IntOpenHashMap();
+    private static final int SRC_SWEEP = 0, SRC_ELBOW = 1, SRC_CONNECTOR = 2, SRC_FORCED = 3, SRC_DT_ROOT = 4;
+    private static final String[] SRC_NAMES = {"sweep", "elbow", "connector", "forced", "dtRoot"};
     private int dbgForced, dbgForcedNoFit, dbgNoSupport, dbgDtRoot;
     private final StringBuilder dbgForcedNoFitAt = new StringBuilder(), dbgNoSupportAt = new StringBuilder(), dbgDtRootAt = new StringBuilder();
 
@@ -96,7 +100,7 @@ final class RoadCellPainter {
             return;
         }
 
-        paintSingle(xx, zz, s.surfaceY, idx);
+        paintSingle(xx, zz, s.surfaceY, idx, SRC_SWEEP);
     }
 
     void paintElbowFills(int centerIdx) {
@@ -104,7 +108,7 @@ final class RoadCellPainter {
         for (int[] ef : footprint.elbowFillList) {
             long k = Pos2D.xzKey(ef[0], ef[1]);
             if (!painted.contains(k)) {
-                paintSingle(ef[0], ef[1], ef[2], centerIdx);
+                paintSingle(ef[0], ef[1], ef[2], centerIdx, SRC_ELBOW);
                 painted.add(k);
             }
         }
@@ -118,7 +122,7 @@ final class RoadCellPainter {
                 if (cell.length > 3) {
                     footprint.plannedHalfByXZ.put(k, cell[3]);
                 }
-                paintSingle(cell[0], cell[1], cell[2], centerIdx);
+                paintSingle(cell[0], cell[1], cell[2], centerIdx, SRC_CONNECTOR);
                 painted.add(k);
             }
         }
@@ -145,7 +149,7 @@ final class RoadCellPainter {
                 if (half == Integer.MIN_VALUE) continue;
                 dbgForced++;
                 footprint.plannedHalfByXZ.put(k, half);
-                paintSingle(x, z, sampler.sample(x, z).surfaceY, centerIdx);
+                paintSingle(x, z, sampler.sample(x, z).surfaceY, centerIdx, SRC_FORCED);
                 painted.add(k);
                 pending.removeLong(pi);
                 progress = true;
@@ -196,7 +200,10 @@ final class RoadCellPainter {
                 if (!placedHalf.containsKey(nk)) continue;
                 if (Math.abs(placedHalf.get(nk) - h) > 1) {
                     steps++;
-                    dbgSample(stepAt, steps, x, Math.max(h, placedHalf.get(nk)), z);
+                    if (steps <= 5) {
+                        stepAt.append(" [").append(describePlaced(x, z, h)).append(" | ")
+                                .append(describePlaced(x + d[0], z + d[1], placedHalf.get(nk))).append(']');
+                    }
                 }
             }
         }
@@ -206,8 +213,17 @@ final class RoadCellPainter {
                 dbgNoSupport, dbgNoSupportAt, dbgDtRoot, dbgDtRootAt);
     }
 
+    private String describePlaced(int x, int z, int half) {
+        int info = placedSource.get(Pos2D.xzKey(x, z));
+        String y = String.valueOf(half / 2.0);
+        if (!placedSource.containsKey(Pos2D.xzKey(x, z))) return "(" + x + "," + y + "," + z + ")";
+        return "(" + x + "," + y + "," + z + ") " + SRC_NAMES[(info >> 1) & 7] + " idx=" + (info >> 4)
+                + ((info & 1) != 0 ? " planned" : " terrain")
+                + " center=(" + (info >> 4 < path.size() && info >> 4 >= 0 ? path.get(info >> 4).getX() + "," + path.get(info >> 4).getZ() : "-") + ")";
+    }
+
     /** {@code centerIdx}: path index whose center the cell is graded around; outside the path, no earthworks. */
-    private void paintSingle(int x, int z, int surfaceY, int centerIdx) {
+    private void paintSingle(int x, int z, int surfaceY, int centerIdx, int src) {
         if (bridges.isBridgeCell(x, z)) return;
         // INVARIANT: no painting, clearing or earthworks inside protected areas or on Millénaire paths.
         if (protectedAreas != null && protectedAreas.contains(x, z)) return;
@@ -217,7 +233,8 @@ final class RoadCellPainter {
 
         long k = Pos2D.xzKey(x, z);
         int targetHalf = footprint.plannedHalfByXZ.get(k);
-        if (targetHalf == Integer.MIN_VALUE) {
+        boolean planned = targetHalf != Integer.MIN_VALUE;
+        if (!planned) {
             targetHalf = HalfY.ofBlockTop(surfaceY);
         }
 
@@ -273,6 +290,7 @@ final class RoadCellPainter {
         }
 
         PathPalette.Kind kind = PathPalette.pickKindAveraged(world, sampler, roadIndex, x, z);
+        if (UltreiaConfig.DEBUG.logPainting) placedSource.put(k, centerIdx * 16 + src * 2 + (planned ? 1 : 0));
         placeRoadBlockFromHalf(supportTop, kind, targetHalf, centerIdx);
     }
 
@@ -308,7 +326,7 @@ final class RoadCellPainter {
             if (dtRootPos != null) {
                 dbgDtRoot++;
                 dbgSample(dbgDtRootAt, dbgDtRoot, dtRootPos.getX(), dtRootPos.getY() * 2, dtRootPos.getZ());
-                paintSingle(dtRootPos.getX(), dtRootPos.getZ(), dtRootPos.getY(), centerIdx);
+                paintSingle(dtRootPos.getX(), dtRootPos.getZ(), dtRootPos.getY(), centerIdx, SRC_DT_ROOT);
                 sampler.invalidateAround(dtRootPos.getX(), dtRootPos.getZ(), 1);
             }
         }
