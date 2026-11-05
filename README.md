@@ -161,3 +161,6 @@ The default template is used when no other template matches the current biome co
 6. If you later modify the blocks in-world → `/ultreia bridge update my_bridge` to re-scan
 
 **Note** : Don't hesitate to use `/ultreia bridge import default` to see a valid template example.
+
+# Thanks
+Thank you to CleanroomMC team for making the mod template https://github.com/CleanroomMC/ForgeDevEnv available :D
