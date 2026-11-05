@@ -23,7 +23,7 @@ import java.util.List;
 public final class PathProfileCheck {
 
     // Tight XZ match between a bridge cell and an approach road point: avoids false matches with off-axis nodes.
-    private static final int SELF_OVERLAP_XZ_RADIUS = 1;
+    static final int SELF_OVERLAP_XZ_RADIUS = 1;
 
     private PathProfileCheck() {}
 
@@ -136,8 +136,6 @@ public final class PathProfileCheck {
                                                    List<Integer> bridgeStartIndices, int step) {
         if (spans.isEmpty() || bridgeStartIndices.size() != spans.size()) return true;
 
-        int minClearance = BridgeClearanceCheck.UNDER_BRIDGE_ROAD_MIN_CLEARANCE_BLOCKS;
-
         for (int b = 0; b < spans.size(); b++) {
             BridgeSpan span = spans.get(b);
             if (span.centerline == null || span.centerline.isEmpty()) continue;
@@ -147,29 +145,42 @@ public final class PathProfileCheck {
 
             int[] deckHalf = BridgeDeckProfile.of(span);
 
-            for (int ci = step; ci < span.centerline.size(); ci++) {
-                BlockPos bridgePoint = span.centerline.get(ci);
-                int deckSurfaceY = HalfY.surfaceBlockY(deckHalf[Math.min(ci, deckHalf.length - 1)]);
-
-                for (int k = 0; k <= priorEnd; k++) {
-                    BlockPos roadPoint = path.get(k);
-                    if (Math.abs(bridgePoint.getX() - roadPoint.getX()) > SELF_OVERLAP_XZ_RADIUS) continue;
-                    if (Math.abs(bridgePoint.getZ() - roadPoint.getZ()) > SELF_OVERLAP_XZ_RADIUS) continue;
-
-                    int freeBlocks = deckSurfaceY - roadPoint.getY() - 1;
-                    if (freeBlocks < minClearance) {
-                        if (UltreiaConfig.DEBUG.logBridges) {
-                            Ultreia.LOGGER.info(
-                                    "[Ultreia Bridge] self-overlap bridge[{}]: deck Y={} at ({},{}) over approach road Y={} at ({},{}), clearance={} < {}",
-                                    b, deckSurfaceY, bridgePoint.getX(), bridgePoint.getZ(),
-                                    roadPoint.getY(), roadPoint.getX(), roadPoint.getZ(),
-                                    freeBlocks, minClearance);
-                        }
-                        return false;
-                    }
+            for (int k = 0; k <= priorEnd; k++) {
+                BlockPos roadPoint = path.get(k);
+                int ci = lowDeckCell(span, deckHalf, step, roadPoint.getX(), roadPoint.getY(), roadPoint.getZ());
+                if (ci < 0) continue;
+                if (UltreiaConfig.DEBUG.logBridges) {
+                    BlockPos bridgePoint = span.centerline.get(ci);
+                    int deckSurfaceY = deckSurfaceY(deckHalf, ci);
+                    Ultreia.LOGGER.info(
+                            "[Ultreia Bridge] self-overlap bridge[{}] ({},{})->({},{}): deck Y={} at ({},{}) over approach road Y={} at ({},{}), clearance={} < {}",
+                            b, span.start.getX(), span.start.getZ(), span.end.getX(), span.end.getZ(),
+                            deckSurfaceY, bridgePoint.getX(), bridgePoint.getZ(),
+                            roadPoint.getY(), roadPoint.getX(), roadPoint.getZ(),
+                            deckSurfaceY - roadPoint.getY() - 1, BridgeClearanceCheck.UNDER_BRIDGE_ROAD_MIN_CLEARANCE_BLOCKS);
                 }
+                return false;
             }
         }
         return true;
+    }
+
+    /**
+     * The first deck cell of {@code span}, past its launch ramp of {@code step} cells, that passes over the road point
+     * (x, y, z) with too little room above it; -1 if none. A* applies the same rule to its bridge moves.
+     */
+    static int lowDeckCell(BridgeSpan span, int[] deckHalf, int step, int x, int y, int z) {
+        int minClearance = BridgeClearanceCheck.UNDER_BRIDGE_ROAD_MIN_CLEARANCE_BLOCKS;
+        for (int ci = step; ci < span.centerline.size(); ci++) {
+            BlockPos bridgePoint = span.centerline.get(ci);
+            if (Math.abs(bridgePoint.getX() - x) > SELF_OVERLAP_XZ_RADIUS) continue;
+            if (Math.abs(bridgePoint.getZ() - z) > SELF_OVERLAP_XZ_RADIUS) continue;
+            if (deckSurfaceY(deckHalf, ci) - y - 1 < minClearance) return ci;
+        }
+        return -1;
+    }
+
+    private static int deckSurfaceY(int[] deckHalf, int ci) {
+        return HalfY.surfaceBlockY(deckHalf[Math.min(ci, deckHalf.length - 1)]);
     }
 }

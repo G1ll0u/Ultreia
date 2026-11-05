@@ -714,9 +714,66 @@ public final class AStarSearch {
             double tentative = st.gScore.get(ck) + mv.cost * bridgeMult + mv.turnCost
                     + sampler.extraCost(ns, TerrainSampler.Mode.PATHFINDING);
             if (tentative < st.gScore.get(nk)) {
+                if (passesLowOverOwnPath(ck, mv.span)) {
+                    diag.countSelfOverlap();
+                    continue;
+                }
                 st.relaxNewBridge(ck, nk, mv.nx, mv.nz, mv.ndir, tentative, priority(tentative, mv.nx, mv.nz), mv.span);
             }
         }
+    }
+
+    /**
+     * True when the bridge's deck would pass too low over the path already walked to reach {@code ck}: the whole-path
+     * check would refuse every path through it, and the search would keep finding them.
+     */
+    private boolean passesLowOverOwnPath(long ck, BridgeSpan span) {
+        if (span.centerline == null || span.centerline.isEmpty()) return false;
+        int r = PathProfileCheck.SELF_OVERLAP_XZ_RADIUS;
+        int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
+        for (BlockPos p : span.centerline) {
+            minX = Math.min(minX, p.getX() - r);
+            maxX = Math.max(maxX, p.getX() + r);
+            minZ = Math.min(minZ, p.getZ() - r);
+            maxZ = Math.max(maxZ, p.getZ() + r);
+        }
+        int[] deckHalf = BridgeDeckProfile.of(span);
+
+        // Same points and heights as PathReconstructor: nodes at the surface, decks and followed roads at their own Y.
+        BlockPos priorStart = null;
+        int priorStartY = 0;
+        for (long k = ck; k != Long.MIN_VALUE; k = st.cameFrom.get(k)) {
+            int x = stateX(k), z = stateZ(k);
+            boolean onPriorStart = priorStart != null && priorStart.getX() == x && priorStart.getZ() == z;
+            priorStart = null;
+
+            BridgeSpan prior = st.cameBridge.get(k);
+            NetworkMoves.Move followed = st.cameFollow.get(k);
+            if (prior != null) {
+                int[] priorHalf = BridgeDeckProfile.of(prior);
+                for (int j = 1; j < prior.centerline.size(); j++) {
+                    BlockPos p = prior.centerline.get(j);
+                    if (lowDeckOver(span, deckHalf, minX, maxX, minZ, maxZ, p.getX(), HalfY.walkBlockYFloor(priorHalf[j]), p.getZ())) return true;
+                }
+                priorStart = prior.centerline.get(0);
+                priorStartY = HalfY.walkBlockYFloor(priorHalf[0]);
+            } else if (followed != null) {
+                int d = followed.toIdx >= followed.fromIdx ? 1 : -1;
+                for (int n = followed.fromIdx; n != followed.toIdx + d; n += d) {
+                    RoadWaypoint wp = followed.segment.waypoints.get(n);
+                    if (lowDeckOver(span, deckHalf, minX, maxX, minZ, maxZ, wp.x, wp.y, wp.z)) return true;
+                }
+            } else if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) {
+                int y = onPriorStart ? priorStartY : sampler.sample(x, z).surfaceY;
+                if (PathProfileCheck.lowDeckCell(span, deckHalf, step, x, y, z) >= 0) return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean lowDeckOver(BridgeSpan span, int[] deckHalf, int minX, int maxX, int minZ, int maxZ, int x, int y, int z) {
+        if (x < minX || x > maxX || z < minZ || z > maxZ) return false;
+        return PathProfileCheck.lowDeckCell(span, deckHalf, step, x, y, z) >= 0;
     }
 
     /** Joins an existing road beside the node and follows it to an exit point; no terrain cost at the landing. */

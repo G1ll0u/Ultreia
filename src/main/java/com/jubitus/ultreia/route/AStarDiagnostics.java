@@ -31,7 +31,7 @@ public final class AStarDiagnostics {
     private static final int DESCRIBED_RINGS = 3;
     private static final int HAIRPIN_LOG_LIMIT = 5;
 
-    private int skipOcean = 0, skipBlacklist = 0, skipBlocked = 0, skipSlope = 0, skipBridge = 0, skipHairpin = 0;
+    private int skipOcean = 0, skipBlacklist = 0, skipBlocked = 0, skipSlope = 0, skipBridge = 0, skipHairpin = 0, skipSelfOverlap = 0;
     private long lastProgressLogNs = 0;
     private int bridgeDebugPrinted = 0;
     private int bridgeDebugSuppressed = 0;
@@ -56,6 +56,10 @@ public final class AStarDiagnostics {
         skipHairpin++;
     }
 
+    void countSelfOverlap() {
+        skipSelfOverlap++;
+    }
+
     String failureSummary(String reason, SearchState st, int profileRejections, boolean detailed) {
         if (!detailed) return reason;
         return reason
@@ -67,7 +71,8 @@ public final class AStarDiagnostics {
                 + ", blocked=" + skipBlocked
                 + ", slope=" + skipSlope
                 + ", bridge=" + skipBridge
-                + ", hairpin=" + skipHairpin + "}"
+                + ", hairpin=" + skipHairpin
+                + ", bridgeOverOwnRoad=" + skipSelfOverlap + "}"
                 + " pathsRefusedByProfileCheck=" + profileRejections;
     }
 

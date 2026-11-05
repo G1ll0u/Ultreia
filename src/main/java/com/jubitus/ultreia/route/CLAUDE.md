@@ -7,7 +7,9 @@
 - **Bridge moves come from `bridge/BridgeMoveGenerator`.** A* only applies them (plus bridge spacing).
   The bridge cost's "mostly water" rule intentionally differs from `waterDominant` (user): do not unify them.
 - **One whole-path check.** `PathProfileCheck.isAcceptable`; a rejected path's end state is closed and the search
-  resumes (`PROFILE_REJECTION_LIMIT`, then the partial fallback).
+  resumes (`PROFILE_REJECTION_LIMIT`, then the partial fallback). Closing the end state never removes a bad bridge
+  deep in the path, so A* also refuses a bridge move whose deck passes low over its own walked path, with the same
+  rule (`PathProfileCheck.lowDeckCell`).
 - **Steep hairpins.** A move is refused when it comes back within a road width of its last 32 blocks of path with
   more than half a block of height per block of gap; the `logPathfinding` trace uses the same rule
   (`TerrainMoveCost.isSteepHairpinGap`).
