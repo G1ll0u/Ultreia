@@ -48,6 +48,10 @@ public final class BridgeClearanceCheck {
     private static final int EXIT_MIN_CLEARANCE_CHECK_CELLS = 3;
     // Minimum full air blocks required between an existing road below and the bridge deck underside.
     public static final int UNDER_BRIDGE_ROAD_MIN_CLEARANCE_BLOCKS = 2;
+    // Dry ground at least this far below the deck is a real gap; nearer, the road could rest on it.
+    private static final int DEEP_GAP_BLOCKS = 5;
+    // Longest stretch of near-deck dry ground a bridge may span between two water or deep-gap stretches (islet).
+    private static final int MAX_INTERIOR_LANDABLE_RUN_BLOCKS = 4;
 
     private BridgeClearanceCheck() {}
 
@@ -101,6 +105,9 @@ public final class BridgeClearanceCheck {
         int waterInteriorCells = 0;
         int groundGapInteriorCells = 0;
 
+        boolean usefulSeen = false;
+        int landableRun = 0;
+
         int sumGap = 0;
         int countGap = 0;
         int maxGapSeen = 0;
@@ -145,6 +152,19 @@ public final class BridgeClearanceCheck {
             boolean hasMeaningfulWaterGap = sample.isWater && !sample.isOcean && gap >= meaningfulWaterGap;
 
             if (!endpoint) {
+                // A real bridge lands on the first ground it can: no long low stretch between two crossings.
+                boolean waterCell = sample.isWater && !sample.isOcean;
+                if (hasWaterBridgeGap || (!waterCell && gap >= DEEP_GAP_BLOCKS)) {
+                    if (usefulSeen && landableRun > MAX_INTERIOR_LANDABLE_RUN_BLOCKS) {
+                        return fail("bridge spans landable ground: " + landableRun + " low dry cells before i=" + i
+                                + " max=" + MAX_INTERIOR_LANDABLE_RUN_BLOCKS);
+                    }
+                    usefulSeen = true;
+                    landableRun = 0;
+                } else if (!waterCell) {
+                    landableRun++;
+                }
+
                 sumGap += gap;
                 countGap++;
                 if (gap > maxGapSeen) maxGapSeen = gap;
