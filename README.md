@@ -1,6 +1,7 @@
 # Ultreïa
 
 **1.12.2 path generator** made for true pilgrims.
+<img width="1267" height="803" alt="image" src="https://github.com/user-attachments/assets/2bdea849-9c09-43c6-ab45-32ad42382a74" />
 
 Ultreïa is a Minecraft 1.12.2 Forge mod that procedurally generates road networks and bridges connecting Millénaire villages.
 The goal is to have "realistic" and useful roads connecting Millénaire villages.
