@@ -1,3 +1,22 @@
+Ultreïa
+Copyright (c) 2026 Jubitus. All rights reserved.
+
+This mod, its source code, assets and compiled files may not be copied,
+modified, redistributed or republished, in whole or in part, without the
+author's written permission.
+
+Exception: you may include the unmodified mod jar in a modpack, provided
+the modpack credits the mod and links to its official page.
+
+This does not mean I don't accept PRs or don't want to discuss about a fork or something else, please reach to me.
+
+-------------------------------------------------------------------------------
+
+The Gradle build files that come from CleanroomMC's TemplateDevEnv
+(build.gradle, settings.gradle, gradlew, gradlew.bat, gradle/wrapper/,
+gradle/scripts/helpers.gradle, gradle/scripts/publishing.gradle) remain
+under the following license:
+
 MIT License
 
 Copyright (c) 2022 CleanroomMC 
