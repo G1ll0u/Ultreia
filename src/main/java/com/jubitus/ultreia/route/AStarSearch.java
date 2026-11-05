@@ -38,6 +38,7 @@ import static com.jubitus.ultreia.route.SearchState.stateKey;
 import static com.jubitus.ultreia.route.SearchState.stateX;
 import static com.jubitus.ultreia.route.SearchState.stateZ;
 import static com.jubitus.ultreia.route.GridMoves.NEIGHBOR_DIRS;
+import static com.jubitus.ultreia.route.GridMoves.normalizedDot;
 import static com.jubitus.ultreia.route.GridMoves.snap;
 import static com.jubitus.ultreia.route.GridMoves.turnCost;
 
@@ -566,6 +567,7 @@ public final class AStarSearch {
         collectRecentPath(ck, cur, cs);
         BridgeSpan lastBridge = st.lastBridge.get(ck);
         int roadHalf = roadHalfWidth();
+        int[] bridgeDir = st.cameBridge.containsKey(ck) ? NEIGHBOR_DIRS[cur.dir] : null;
 
         for (int dirIdx = 0; dirIdx < NEIGHBOR_DIRS.length; dirIdx++) {
             int[] dir = NEIGHBOR_DIRS[dirIdx];
@@ -576,6 +578,13 @@ public final class AStarSearch {
             int nz = cur.z + dz;
 
             if (!inSearch(nx, nz)) continue;
+
+            // INVARIANT: the road leaves a new bridge in its axis (BridgeMoveGenerator.BRIDGE_END_MIN_DOT, both ends).
+            if (bridgeDir != null
+                    && normalizedDot(bridgeDir[0], bridgeDir[1], dir[0], dir[1]) < BridgeMoveGenerator.BRIDGE_END_MIN_DOT) {
+                diag.countBridgeExitTurn();
+                continue;
+            }
 
             if (lastBridge != null && PathProfileCheck.underOwnBridge(lastBridge, roadHalf, step, nx, nz)) {
                 diag.countSelfOverlap();

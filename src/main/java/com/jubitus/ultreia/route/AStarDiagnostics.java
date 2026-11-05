@@ -31,7 +31,7 @@ public final class AStarDiagnostics {
     private static final int DESCRIBED_RINGS = 3;
     private static final int HAIRPIN_LOG_LIMIT = 5;
 
-    private int skipOcean = 0, skipBlacklist = 0, skipBlocked = 0, skipSlope = 0, skipBridge = 0, skipHairpin = 0, skipSelfOverlap = 0;
+    private int skipOcean = 0, skipBlacklist = 0, skipBlocked = 0, skipSlope = 0, skipBridge = 0, skipHairpin = 0, skipSelfOverlap = 0, skipBridgeExitTurn = 0;
     private long lastProgressLogNs = 0;
     private int bridgeDebugPrinted = 0;
     private int bridgeDebugSuppressed = 0;
@@ -56,6 +56,10 @@ public final class AStarDiagnostics {
         skipHairpin++;
     }
 
+    void countBridgeExitTurn() {
+        skipBridgeExitTurn++;
+    }
+
     void countSelfOverlap() {
         skipSelfOverlap++;
     }
@@ -72,7 +76,7 @@ public final class AStarDiagnostics {
                 + ", slope=" + skipSlope
                 + ", bridge=" + skipBridge
                 + ", hairpin=" + skipHairpin
-                + ", bridgeOverOwnRoad=" + skipSelfOverlap + "}"
+                + ", bridgeOverOwnRoad=" + skipSelfOverlap + ", turnOffBridgeEnd=" + skipBridgeExitTurn + "}"
                 + " pathsRefusedByProfileCheck=" + profileRejections;
     }
 

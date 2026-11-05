@@ -96,6 +96,53 @@ class AStarGoldenTest {
     }
 
     @Test
+    void roadMeetsBridgeInItsAxis() {
+        // A river with a narrows, and a rock wall just past the straight crossing: the road must not land and turn
+        // off the deck's side; it enters and leaves every bridge in its axis.
+        SyntheticTerrain t = new SyntheticTerrain() {
+            @Override protected int height(int x, int z) { return 64; }
+            @Override protected boolean water(int x, int z) {
+                return (x >= 99 && x <= 103) || (x >= 75 && x <= 103 && Math.abs(z) > 8);
+            }
+            @Override protected boolean blocked(int x, int z) { return x >= 107 && x <= 111 && z >= -4 && z <= 20; }
+        };
+        UltreiaConfig.BRIDGES.enabled = true;
+        try {
+            BlockPos start = new BlockPos(0, 64, 60);
+            AStarSearch s = new AStarSearch(start, new BlockPos(200, 64, 60), t);
+            s.setRoadType(RoadType.VILLAGE_MAIN);
+            AStarSearch.StepResult r;
+            do {
+                r = s.advance(System.nanoTime() + 1_000_000_000L);
+            } while (r == AStarSearch.StepResult.RUNNING);
+            assertEquals(AStarSearch.StepResult.FOUND, r);
+
+            List<BlockPos> path = s.getResult().getPath();
+            assertTrue(!s.getResult().getBridges().isEmpty(), "no bridge");
+            for (BridgeSpan b : s.getResult().getBridges()) {
+                int si = indexOfXZ(path, b.start), ei = indexOfXZ(path, b.end);
+                if (si > 0) assertAligned(b, path.get(si - 1), b.start);
+                if (ei < path.size() - 1) assertAligned(b, b.end, path.get(ei + 1));
+            }
+        } finally {
+            UltreiaConfig.BRIDGES.enabled = false;
+        }
+    }
+
+    private static int indexOfXZ(List<BlockPos> path, BlockPos p) {
+        for (int i = 0; i < path.size(); i++) {
+            if (path.get(i).getX() == p.getX() && path.get(i).getZ() == p.getZ()) return i;
+        }
+        throw new AssertionError("bridge end not on path: " + p);
+    }
+
+    private static void assertAligned(BridgeSpan b, BlockPos from, BlockPos to) {
+        double dot = GridMoves.normalizedDot(b.end.getX() - b.start.getX(), b.end.getZ() - b.start.getZ(),
+                to.getX() - from.getX(), to.getZ() - from.getZ());
+        assertTrue(dot >= 0.8, "road meets bridge " + b.start + "->" + b.end + " at " + from + "->" + to + " dot=" + dot);
+    }
+
+    @Test
     void steepSlopeNoHairpin() throws IOException {
         // A slope steeper than a road may climb straight: the road must zigzag without coming back beside itself too high.
         SyntheticTerrain t = new SyntheticTerrain() {

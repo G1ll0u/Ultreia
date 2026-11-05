@@ -32,10 +32,9 @@ public final class BridgeMoveGenerator {
     private static final int MAX_BRIDGE_CANDIDATES_PER_NODE = 4;
     // Minimum number of normal path blocks between two bridges.
     public static final int MIN_DISTANCE_BETWEEN_BRIDGES_BLOCKS = 28;
-    // Safety rail only, not the main alignment mechanism: rejects bridge directions that would require a...
-    private static final boolean REQUIRE_ALIGNED_APPROACH = true;
-    // Minimum normalized dot product between incoming direction and bridge direction (safety rail, see...
-    private static final double MIN_APPROACH_DOT = -0.3;
+    // Road moves into and out of a bridge stay this close to its axis (normalized dot): the bridge direction or
+    // the neighbouring grid direction (~27 deg), so the road meets the deck at its end, never at its side.
+    public static final double BRIDGE_END_MIN_DOT = 0.85;
 
     /** The cells A* may visit (corridor, bounds, radius). */
     public interface SearchArea {
@@ -108,10 +107,7 @@ public final class BridgeMoveGenerator {
         ArrayList<BridgeDirScore> dirs = new ArrayList<BridgeDirScore>();
 
         for (int[] dir : NEIGHBOR_DIRS) {
-            if (REQUIRE_ALIGNED_APPROACH && hasIncoming) {
-                double dot = normalizedDot(inDx, inDz, dir[0], dir[1]);
-                if (dot < MIN_APPROACH_DOT) continue;
-            }
+            if (hasIncoming && normalizedDot(inDx, inDz, dir[0], dir[1]) < BRIDGE_END_MIN_DOT) continue;
 
             QuickBridgeRayInfo info = scanBridgeRayQuick(x, z, cur.surfaceY, dir[0], dir[1]);
             if (!info.canLaunch) continue;
