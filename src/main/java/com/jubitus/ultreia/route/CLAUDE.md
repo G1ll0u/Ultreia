@@ -8,8 +8,11 @@
   The bridge cost's "mostly water" rule intentionally differs from `waterDominant` (user): do not unify them.
 - **One whole-path check.** `PathProfileCheck.isAcceptable`; a rejected path's end state is closed and the search
   resumes (`PROFILE_REJECTION_LIMIT`, then the partial fallback). Closing the end state never removes a bad bridge
-  deep in the path, so A* also refuses a bridge move whose deck passes low over its own walked path, with the same
-  rule (`PathProfileCheck.lowDeckCell`).
+  deep in the path, so A* applies the same rules itself.
+- **Own bridges.** A road never runs under a bridge of its own path, whatever the deck height
+  (`PathProfileCheck.underOwnBridge`): A* refuses a bridge over the walked path and steps back under its last bridge;
+  the whole-path check covers every bridge. A road enters and leaves a new bridge in its axis
+  (`BridgeMoveGenerator.BRIDGE_END_MIN_DOT`, both ends).
 - **Steep hairpins.** A move is refused when it comes back within a road width of its last 32 blocks of path with
   more than half a block of height per block of gap; the `logPathfinding` trace uses the same rule
   (`TerrainMoveCost.isSteepHairpinGap`).
