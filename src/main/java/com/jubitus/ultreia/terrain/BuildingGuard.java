@@ -51,6 +51,8 @@ final class BuildingGuard {
         if (b.isLeaves(st, world, pos)) return false;
         // Mill/Ultreia path blocks are road infrastructure, not obstacles to paint around.
         if (MillPathBlocks.isMillPath(b)) return false;
+        // Cobblestone alone is no building sign (cliffs); the built blocks beside it are.
+        if (BlockRules.isCobble(b)) return false;
         return !BlockRules.isRoadReplaceableGround(st);
     }
 
@@ -76,7 +78,7 @@ final class BuildingGuard {
                     if (m == Material.PLANTS || m == Material.VINE) continue;
                     if (m == Material.WATER) continue;
 
-                    if (BlockRules.isRoadReplaceableGround(st)) continue;
+                    if (BlockRules.isRoadReplaceableGround(st) || BlockRules.isCobble(st.getBlock())) continue;
 
                     // Ignore tree trunks (we can clear them); planks and fences count as building.
                     if (BlockRules.treesClearable() && BlockRules.isTreeWood(world, p, st)) continue;

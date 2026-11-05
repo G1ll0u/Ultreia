@@ -23,12 +23,12 @@ public final class WorldBridgeSite implements BridgeSite {
 
     @Override
     public boolean isNaturalGroundOnly(int x, int y, int z) {
-        return BlockRules.isNaturalGroundOnly(world.getBlockState(p.setPos(x, y, z)));
+        return BlockRules.isNaturalGroundOnly(world, p.setPos(x, y, z), world.getBlockState(p));
     }
 
     @Override
     public boolean isRoadGround(int x, int y, int z) {
-        return BlockRules.isRoadReplaceableGround(world.getBlockState(p.setPos(x, y, z)));
+        return BlockRules.isRoadReplaceableGround(world, p.setPos(x, y, z), world.getBlockState(p));
     }
 
     @Override

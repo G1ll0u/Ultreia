@@ -62,3 +62,15 @@ tasks.named('shadowJar').configure {
     archiveClassifier = 'uberdev'
     configurations = [project.configurations.shade]
 }
+
+// Test server deploy after every build; ../devenv/deploy.conf says which mods and where.
+def deployScript = file('../devenv/deploy.sh')
+tasks.register('deployToServer', Exec) {
+    group = 'deployment'
+    description = 'Copies the release jar to <mod_id>-latest.jar and sends it to the test server if devenv/deploy.conf lists this mod'
+    onlyIf { deployScript.exists() }
+    doFirst {
+        commandLine 'bash', deployScript, propertyString('mod_id'), tasks.named('reobfJar').get().archiveFile.get().asFile
+    }
+}
+tasks.named('build').configure { finalizedBy 'deployToServer' }

@@ -235,7 +235,7 @@ public class TerrainSampler implements TerrainView {
                 IBlockState ground = world.getBlockState(pos2);
 
                 // Mill path blocks are valid painting surfaces (we paint onto/alongside them).
-                boolean paintable = BlockRules.isRoadReplaceableGround(ground);
+                boolean paintable = BlockRules.isRoadReplaceableGround(world, pos2, ground);
                 boolean walkable = ground.getMaterial().isSolid() && ground.getMaterial() != Material.LEAVES;
 
                 BlockPos.MutableBlockPos up1 = new BlockPos.MutableBlockPos(x, surfaceY + 1, z);
@@ -431,7 +431,7 @@ public class TerrainSampler implements TerrainView {
 
         BlockPos top = new BlockPos(x, s.surfaceY, z);
         IBlockState st = world.getBlockState(top);
-        return BlockRules.isRoadReplaceableGround(st);
+        return BlockRules.isRoadReplaceableGround(world, top, st);
     }
 
     private Sample cachePut(long k, Sample out) {

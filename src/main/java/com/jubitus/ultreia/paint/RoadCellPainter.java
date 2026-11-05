@@ -55,8 +55,9 @@ final class RoadCellPainter {
     private final Long2IntOpenHashMap placedSource = new Long2IntOpenHashMap();
     private static final int SRC_SWEEP = 0, SRC_ELBOW = 1, SRC_CONNECTOR = 2, SRC_FORCED = 3, SRC_DT_ROOT = 4;
     private static final String[] SRC_NAMES = {"sweep", "elbow", "connector", "forced", "dtRoot"};
-    private int dbgForced, dbgForcedNoFit, dbgNoSupport, dbgDtRoot;
-    private final StringBuilder dbgForcedNoFitAt = new StringBuilder(), dbgNoSupportAt = new StringBuilder(), dbgDtRootAt = new StringBuilder();
+    private int dbgForced, dbgForcedNoFit, dbgNoSupport, dbgDtRoot, dbgBlocked;
+    private final StringBuilder dbgForcedNoFitAt = new StringBuilder(), dbgNoSupportAt = new StringBuilder(),
+            dbgDtRootAt = new StringBuilder(), dbgBlockedAt = new StringBuilder();
 
     RoadCellPainter(WorldServer world, TerrainSampler sampler, @Nullable ProtectedAreas protectedAreas,
                     @Nullable RoadIndex roadIndex, BridgeSegmentPainter bridges, List<BlockPos> path, int roadHalfWidth) {
@@ -94,6 +95,11 @@ final class RoadCellPainter {
             return;
         }
         if (sampler.forbidden(s, TerrainSampler.Mode.PAINTING)) {
+            dbgBlocked++;
+            if (dbgBlocked <= 5) {
+                dbgBlockedAt.append(" (").append(xx).append(',').append(s.surfaceY).append(',').append(zz).append(") ")
+                        .append(sampler.describeForbidden(s, TerrainSampler.Mode.PAINTING));
+            }
             return;
         }
         if (protectedAreas != null && protectedAreas.contains(xx, zz)) {
@@ -208,9 +214,9 @@ final class RoadCellPainter {
             }
         }
         Ultreia.LOGGER.info("[Ultreia paint] edge done: placed={} stepsOverHalf={}{} forced={} forcedNoWalkableHeight={}{}"
-                        + " skippedNoSupport={}{} dtRootRepaints={}{}",
+                        + " skippedNoSupport={}{} skippedBlockedGround={}{} dtRootRepaints={}{}",
                 placedHalf.size(), steps, stepAt, dbgForced, dbgForcedNoFit, dbgForcedNoFitAt,
-                dbgNoSupport, dbgNoSupportAt, dbgDtRoot, dbgDtRootAt);
+                dbgNoSupport, dbgNoSupportAt, dbgBlocked, dbgBlockedAt, dbgDtRoot, dbgDtRootAt);
     }
 
     private String describePlaced(int x, int z, int half) {
@@ -342,7 +348,7 @@ final class RoadCellPainter {
     // INVARIANT: a road block never floats: at most one block is filled under it, else the cell is skipped.
     private boolean hasSupportWithinOneBlock(BlockPos supportTop) {
         IBlockState ground = world.getBlockState(supportTop);
-        if (BlockRules.isRoadReplaceableGround(ground)) return true;
+        if (BlockRules.isRoadReplaceableGround(world, supportTop, ground)) return true;
         Material m = ground.getMaterial();
         if (m == Material.WATER) return true; // small streams are paved over
         if (m == Material.LAVA || !m.isReplaceable()) return false;

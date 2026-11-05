@@ -83,15 +83,21 @@ public final class BlockRules {
         return false;
     }
 
-    /** Natural ground, path blocks excluded. */
-    public static boolean isNaturalGroundOnly(IBlockState st) {
-        if (st == null) return false;
-        if (MillPathBlocks.isMillPath(st.getBlock())) return false;
+    /** Like {@link #isRoadReplaceableGround(IBlockState)}, but cobblestone counts when it is {@link #isNaturalCobble}. */
+    public static boolean isRoadReplaceableGround(World world, BlockPos pos, IBlockState st) {
+        if (st != null && isCobble(st.getBlock())) return isNaturalCobble(world, pos);
         return isRoadReplaceableGround(st);
     }
 
+    /** Natural ground, path blocks excluded. */
+    public static boolean isNaturalGroundOnly(World world, BlockPos pos, IBlockState st) {
+        if (st == null) return false;
+        if (MillPathBlocks.isMillPath(st.getBlock())) return false;
+        return isRoadReplaceableGround(world, pos, st);
+    }
+
     /** Solid natural ground (or a clearable DT block) that may be dug out above a road. Path blocks never. */
-    public static boolean isNaturalSolid(IBlockState st) {
+    public static boolean isNaturalSolid(World world, BlockPos pos, IBlockState st) {
         if (st == null) return false;
 
         if (MillPathBlocks.isMillPath(st.getBlock())) return false;
@@ -103,12 +109,48 @@ public final class BlockRules {
         if (m == Material.LEAVES) return false;
         if (m == Material.WOOD) return false;
 
-        return isRoadReplaceableGround(st);
+        return isRoadReplaceableGround(world, pos, st);
     }
 
-    /** Stone blocks that only appear in structures: never treated as natural ground. */
+    /** Cobblestone and mossy cobblestone: terrain generators (RTG cliffs) use them, so do builders. */
+    public static boolean isCobble(Block b) {
+        return b == Blocks.COBBLESTONE || b == Blocks.MOSSY_COBBLESTONE;
+    }
+
+    // Box scanned around a cobblestone block for other built blocks (horizontal radius, below, above).
+    private static final int COBBLE_CONTEXT_RADIUS = 2;
+    private static final int COBBLE_CONTEXT_BELOW = 1;
+    private static final int COBBLE_CONTEXT_ABOVE = 3;
+
+    // INVARIANT: cobblestone is natural ground only with no other built block or tile entity close to it.
+    /** Cobblestone among natural ground only (a cliff), not part of a building. Unloaded blocks are not read. */
+    public static boolean isNaturalCobble(World world, BlockPos pos) {
+        BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
+        int r = COBBLE_CONTEXT_RADIUS;
+        for (int dy = -COBBLE_CONTEXT_BELOW; dy <= COBBLE_CONTEXT_ABOVE; dy++) {
+            int y = pos.getY() + dy;
+            if (y < 0 || y > 255) continue;
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    p.setPos(pos.getX() + dx, y, pos.getZ() + dz);
+                    if (!world.isBlockLoaded(p)) continue;
+                    IBlockState st = world.getBlockState(p);
+                    Material m = st.getMaterial();
+                    if (m == Material.AIR) continue;
+                    if (world.getTileEntity(p) != null) return false;
+                    if (isCobble(st.getBlock())) continue;
+                    if (m.isLiquid() || isWaterLike(st)) continue;
+                    if (isRoadReplaceableGround(st) || isSoftClearable(world, p, st) || isTreeWood(world, p, st)) continue;
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /** Stone blocks that only appear in structures (cobblestone unless {@link #isNaturalCobble}). */
     private static boolean isBuiltStone(Block b) {
-        if (b == Blocks.STONEBRICK || b == Blocks.COBBLESTONE || b == Blocks.MOSSY_COBBLESTONE) return true;
+        if (b == Blocks.STONEBRICK || isCobble(b)) return true;
         if (b == Blocks.BRICK_BLOCK || b == Blocks.NETHER_BRICK) return true;
         return b instanceof BlockStairs || b instanceof BlockWall || b instanceof BlockSlab;
     }
@@ -237,7 +279,7 @@ public final class BlockRules {
 
     /** A bridge may clear this block above its deck: anything clearable plus natural ground and path blocks. */
     public static boolean isBridgeWalkClearable(World world, BlockPos pos, IBlockState st) {
-        return isClearableOrAir(world, pos, st) || isRoadReplaceableGround(st);
+        return isClearableOrAir(world, pos, st) || isRoadReplaceableGround(world, pos, st);
     }
 
     /** A bridge structure (deck, supports, imported template) may replace this block. */

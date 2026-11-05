@@ -44,7 +44,7 @@ public final class HeadroomClearer {
                 continue;
             }
 
-            if (BlockRules.isNaturalSolid(st)) {
+            if (BlockRules.isNaturalSolid(world, p, st)) {
                 setAir(world, p);
             }
         }
@@ -69,7 +69,7 @@ public final class HeadroomClearer {
                 continue;
             }
 
-            if (BlockRules.isNaturalSolid(st)) {
+            if (BlockRules.isNaturalSolid(world, p, st)) {
                 setAir(world, p);
             }
         }
