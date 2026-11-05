@@ -83,12 +83,16 @@ Build a complete bridge in your world. Requirements:
 - Minimum segment length is 5 blocks; recommended: 7–12.
 - Side rails, pillars, arches — all of these can be part of the template.
 
+**You can import an existing template with `/ultreia bridge import [bridgename]` and edit it directly, it's the simplest way.**
+
 **2. Run the command**
 
 Stand near the bridge and type:
 ```
 /ultreia bridge create my_bridge
 ```
+Ensure your bridge is not surrounded by other blocks, build it high enough above ground.
+
 Ultreïa scans the nearest bridge, converts it into a template, and saves it to `config/ultreia/bridges/my_bridge.json`.
 
 ---
