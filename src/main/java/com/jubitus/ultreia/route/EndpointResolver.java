@@ -6,6 +6,7 @@ import com.jubitus.ultreia.terrain.TerrainSampler;
 import com.jubitus.ultreia.Ultreia;
 import com.jubitus.ultreia.config.UltreiaConfig;
 import com.jubitus.ultreia.mill.MillPathBlocks;
+import com.jubitus.ultreia.roads.RoadIndex;
 import com.jubitus.ultreia.mill.Villages;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.math.BlockPos;
@@ -34,6 +35,7 @@ public final class EndpointResolver {
      * 4. Walk outward until free of building obstacles.
      *
      * @param gateFieldOut if non-null, filled with all valid gate positions for A* multi-termination
+     * @param gateScan     the node's finished gate scan, or null to scan now (village nodes only)
      */
     public static BlockPos resolveEndpointAnchor(
             WorldServer world,
@@ -42,7 +44,8 @@ public final class EndpointResolver {
             TerrainSampler sampler,
             @Nullable ProtectedAreas protectedAreas,
             @Nullable VillageGateTracker gateTracker,
-            @Nullable VillageGateField[] gateFieldOut
+            @Nullable VillageGateField[] gateFieldOut,
+            @Nullable GateScan gateScan
     ) {
         Villages.Settlement vi = Villages.at(world, nodeCenter);
         boolean isVillage = (vi != null && vi.isVillage);
@@ -50,11 +53,12 @@ public final class EndpointResolver {
         int protectR = Math.max(0, Villages.CENTER_PROTECT_RADIUS);
 
         if (isVillage) {
-            // Collect all gate candidates with Mill-path entries.
-            List<GateCandidate> candidates = collectGateCandidates(
-                    world, sampler, nodeCenter, otherNodeCenter,
-                    GATE_MILL_PATH_SEARCH_RADIUS,
-                    gateTracker);
+            // Gate candidates with Mill-path entries: the job's finished scan, else one run now.
+            if (gateScan == null) {
+                gateScan = new GateScan(world, sampler, nodeCenter, otherNodeCenter, gateTracker);
+                gateScan.advance(Long.MAX_VALUE);
+            }
+            List<GateCandidate> candidates = gateScan.candidates;
 
             // Build VillageGateField from all candidates so A* can terminate at any gate.
             if (gateFieldOut != null && !candidates.isEmpty()) {
@@ -142,76 +146,93 @@ public final class EndpointResolver {
     }
 
     /**
-     * Collects all gate Mill-path entries, scored by alignment with the direction to the other
-     * village minus a usage penalty so less-used gates are preferred.
-     * Returns candidates sorted best-first.
+     * The gate search of one village toward another: for each gate, the Mill-path entry farthest toward the other
+     * village, scored by gate alignment minus a usage penalty so less-used gates are preferred. Resumable across
+     * ticks; {@link #resolveEndpointAnchor} takes the finished scan.
      */
-    private static List<GateCandidate> collectGateCandidates(
-            WorldServer world,
-            TerrainSampler sampler,
-            BlockPos villageCenter,
-            BlockPos otherNodeCenter,
-            int gateLocalRadius,
-            @Nullable VillageGateTracker tracker
-    ) {
-        List<BlockPos> gates = Villages.gates(world, villageCenter);
-        if (gates.isEmpty()) return java.util.Collections.emptyList();
+    public static final class GateScan {
+        // Columns read between two deadline checks.
+        private static final int DEADLINE_CHECK_EVERY = 256;
 
-        double ddx = otherNodeCenter.getX() - villageCenter.getX();
-        double ddz = otherNodeCenter.getZ() - villageCenter.getZ();
-        double dlen = Math.sqrt(ddx * ddx + ddz * ddz);
-        if (dlen < 1.0) return java.util.Collections.emptyList();
-        double ux = ddx / dlen, uz = ddz / dlen;
+        private final WorldServer world;
+        private final TerrainSampler sampler;
+        private final BlockPos villageCenter;
+        private final BlockPos otherNodeCenter;
+        @Nullable private final VillageGateTracker tracker;
+        private final List<BlockPos> gates;
+        private final double ux, uz, dlen;
+        private final List<GateCandidate> candidates = new ArrayList<>();
+        @Nullable private int[] offsets;
+        private int gateIdx = 0;
+        private int offsetIdx = 0;
+        private boolean done;
 
-        // Per-gate: score its outward direction alignment, then search Mill-path blocks nearby.
-        // Keep the best (highest scoring) Mill-path block per gate as its representative entry.
-        List<GateCandidate> result = new ArrayList<>();
-        int[] offsets = null;
-
-        for (BlockPos gate : gates) {
-            double gx = gate.getX() - villageCenter.getX();
-            double gz = gate.getZ() - villageCenter.getZ();
-            double gl = Math.sqrt(gx * gx + gz * gz);
-            double gateAlignment = (gl > 0.5) ? ((gx / gl) * ux + (gz / gl) * uz) : 0.0;
-
-            double usagePenalty = (tracker != null)
-                    ? tracker.usagePenalty(gate.getX(), gate.getZ())
-                    : 0.0;
-
-            BlockPos bestForGate = null;
-            double bestForGateScore = Double.NEGATIVE_INFINITY;
-
-            // Within one gate only proj varies in the score, so the first match in farthest-first
-            // order is the best one (same result as scoring every column, without reading them all).
-            if (offsets == null) offsets = farthestFirstOffsets(gateLocalRadius, ux, uz);
-            int cgx = gate.getX(), cgz = gate.getZ();
-            for (int packed : offsets) {
-                int tx = cgx + offsetX(packed), tz = cgz + offsetZ(packed);
-
-                double dxOurs = tx - villageCenter.getX(), dzOurs = tz - villageCenter.getZ();
-                double dxOther = tx - otherNodeCenter.getX(), dzOther = tz - otherNodeCenter.getZ();
-                double distOurs = Math.sqrt(dxOurs * dxOurs + dzOurs * dzOurs);
-                double distOther = Math.sqrt(dxOther * dxOther + dzOther * dzOther);
-                if (distOther < distOurs * 0.7) continue; // wrong-village guard
-
-                double proj = dxOurs * ux + dzOurs * uz;
-                if (proj <= 0.0) continue; // behind village center
-
-                Integer millY = millPathOnLand(world, sampler, tx, tz);
-                if (millY == null) continue;
-
-                bestForGateScore = gateAlignment * 0.4 * dlen + proj * 0.6 - usagePenalty;
-                bestForGate = new BlockPos(tx, millY, tz);
-                break;
-            }
-
-            if (bestForGate != null) {
-                result.add(new GateCandidate(bestForGate, bestForGateScore));
-            }
+        public GateScan(WorldServer world, TerrainSampler sampler, BlockPos villageCenter, BlockPos otherNodeCenter,
+                        @Nullable VillageGateTracker tracker) {
+            this.world = world;
+            this.sampler = sampler;
+            this.villageCenter = villageCenter;
+            this.otherNodeCenter = otherNodeCenter;
+            this.tracker = tracker;
+            this.gates = Villages.gates(world, villageCenter);
+            double ddx = otherNodeCenter.getX() - villageCenter.getX();
+            double ddz = otherNodeCenter.getZ() - villageCenter.getZ();
+            this.dlen = Math.sqrt(ddx * ddx + ddz * ddz);
+            this.ux = dlen < 1.0 ? 0.0 : ddx / dlen;
+            this.uz = dlen < 1.0 ? 0.0 : ddz / dlen;
+            this.done = gates.isEmpty() || dlen < 1.0;
         }
 
-        result.sort((a, b) -> Double.compare(b.score, a.score));
-        return result;
+        /** Scans until the deadline; true once every gate is scanned. */
+        public boolean advance(long deadlineNs) {
+            if (done) return true;
+            if (offsets == null) offsets = farthestFirstOffsets(GATE_MILL_PATH_SEARCH_RADIUS, ux, uz);
+
+            while (gateIdx < gates.size()) {
+                BlockPos gate = gates.get(gateIdx);
+                int cgx = gate.getX(), cgz = gate.getZ();
+                // Within one gate only proj varies in the score, so the first match in farthest-first
+                // order is the best one (same result as scoring every column, without reading them all).
+                BlockPos found = null;
+                double foundProj = 0.0;
+                while (offsetIdx < offsets.length) {
+                    if (offsetIdx % DEADLINE_CHECK_EVERY == 0 && System.nanoTime() >= deadlineNs) return false;
+                    int packed = offsets[offsetIdx++];
+                    int tx = cgx + offsetX(packed), tz = cgz + offsetZ(packed);
+
+                    double dxOurs = tx - villageCenter.getX(), dzOurs = tz - villageCenter.getZ();
+                    double dxOther = tx - otherNodeCenter.getX(), dzOther = tz - otherNodeCenter.getZ();
+                    double distOurs = Math.sqrt(dxOurs * dxOurs + dzOurs * dzOurs);
+                    double distOther = Math.sqrt(dxOther * dxOther + dzOther * dzOther);
+                    if (distOther < distOurs * 0.7) continue; // wrong-village guard
+
+                    double proj = dxOurs * ux + dzOurs * uz;
+                    if (proj <= 0.0) continue; // behind village center
+
+                    Integer millY = millPathOnLand(world, sampler, tx, tz);
+                    if (millY == null) continue;
+
+                    found = new BlockPos(tx, millY, tz);
+                    foundProj = proj;
+                    break;
+                }
+
+                if (found != null) {
+                    double gx = cgx - villageCenter.getX();
+                    double gz = cgz - villageCenter.getZ();
+                    double gl = Math.sqrt(gx * gx + gz * gz);
+                    double gateAlignment = (gl > 0.5) ? ((gx / gl) * ux + (gz / gl) * uz) : 0.0;
+                    double usagePenalty = (tracker != null) ? tracker.usagePenalty(cgx, cgz) : 0.0;
+                    candidates.add(new GateCandidate(found, gateAlignment * 0.4 * dlen + foundProj * 0.6 - usagePenalty));
+                }
+                gateIdx++;
+                offsetIdx = 0;
+            }
+
+            candidates.sort((a, b) -> Double.compare(b.score, a.score));
+            done = true;
+            return true;
+        }
     }
 
     /**
@@ -288,7 +309,7 @@ public final class EndpointResolver {
 
 
     /**
-     * Y of a path block at (x, z) when the column is land (not ocean, not water), or null.
+     * Y of a Millénaire path block at (x, z) when the column is land (not ocean, not water), or null.
      * The full sample (trees, buildings, water nearby) is read only where the surface scan finds a path block:
      * gate searches cover thousands of columns and almost none hold one.
      */
@@ -302,7 +323,10 @@ public final class EndpointResolver {
         }
         TerrainSampler.Sample sm = sampler.sample(x, z);
         if (sm == null || sm.isOcean || sm.isWater) return null;
-        return findMillPathY(world, x, z, sm.surfaceY);
+        Integer y = findMillPathY(world, x, z, sm.surfaceY);
+        // Ultreïa roads share the path blocks: a village entry is a Millénaire path, never one of our roads or trails.
+        if (y != null && RoadIndex.get(world).isRoadXZ(x, z)) return null;
+        return y;
     }
 
     /** Y of a Millénaire/Ultreïa path block near the ground at (x, z), or null. */

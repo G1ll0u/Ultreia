@@ -50,6 +50,8 @@ final class VillageNetworkSource implements EdgeSource {
     private int prepEdgeIndex = -1;
     private long[] prepChunks = new long[0];
     private int prepNext = 0;
+    @Nullable private EndpointResolver.GateScan gateScanA;
+    @Nullable private EndpointResolver.GateScan gateScanB;
 
     /** Fresh start: plans the network over every known village and lone building. */
     VillageNetworkSource(JobContext ctx) {
@@ -127,6 +129,11 @@ final class VillageNetworkSource implements EdgeSource {
         boolean aIsVillage = (viA != null && viA.isVillage);
         boolean bIsVillage = (viB != null && viB.isVillage);
 
+        long tScanGates = System.nanoTime();
+        boolean gatesScanned = scanGates(e, aIsVillage, bIsVillage, deadlineNs);
+        ctx.perf.addPart(EdgePerf.Step.PREP, EdgePerf.Step.GATES, tScanGates);
+        if (!gatesScanned) return NOT_READY;
+
         // At least one lone building endpoint → narrow terrain-following trail.
         RoadType roadType = (aIsLone || bIsLone) ? RoadType.LONE_TRAIL : RoadType.VILLAGE_MAIN;
         if (UltreiaConfig.DEBUG.logPathfinding) {
@@ -141,12 +148,14 @@ final class VillageNetworkSource implements EdgeSource {
         BlockPos a0 = EndpointResolver.resolveEndpointAnchor(
                 ctx.world, e.a, e.b, ctx.sampler, ctx.protectedAreas,
                 aIsVillage ? gateTracker : null,
-                aIsVillage ? gateFieldA : null);
+                aIsVillage ? gateFieldA : null,
+                gateScanA);
 
         BlockPos b0 = EndpointResolver.resolveEndpointAnchor(
                 ctx.world, e.b, e.a, ctx.sampler, ctx.protectedAreas,
                 bIsVillage ? gateTracker : null,
-                bIsVillage ? gateFieldB : null);
+                bIsVillage ? gateFieldB : null,
+                gateScanB);
         ctx.perf.addPart(EdgePerf.Step.PREP, EdgePerf.Step.GATES, tGates);
 
         if (UltreiaConfig.DEBUG.logPathfinding) {
@@ -204,6 +213,8 @@ final class VillageNetworkSource implements EdgeSource {
             prepEdgeIndex = edgeIndex;
             prepChunks = chunks.toLongArray();
             prepNext = 0;
+            gateScanA = null;
+            gateScanB = null;
         }
         while (prepNext < prepChunks.length) {
             if (System.nanoTime() >= deadlineNs) return false;
@@ -211,6 +222,18 @@ final class VillageNetworkSource implements EdgeSource {
             ctx.chunkManager.ensureLoaded(ctx.world, Pos2D.xFromKey(k) << 4, Pos2D.zFromKey(k) << 4);
         }
         return true;
+    }
+
+    /** Runs the gate search of each village endpoint until the deadline; true once both are finished. */
+    private boolean scanGates(NetworkPlanner.Edge e, boolean aIsVillage, boolean bIsVillage, long deadlineNs) {
+        if (aIsVillage && gateScanA == null) {
+            gateScanA = new EndpointResolver.GateScan(ctx.world, ctx.sampler, e.a, e.b, gateTracker);
+        }
+        if (bIsVillage && gateScanB == null) {
+            gateScanB = new EndpointResolver.GateScan(ctx.world, ctx.sampler, e.b, e.a, gateTracker);
+        }
+        if (gateScanA != null && !gateScanA.advance(deadlineNs)) return false;
+        return gateScanB == null || gateScanB.advance(deadlineNs);
     }
 
     @Override

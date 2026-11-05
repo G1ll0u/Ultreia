@@ -17,3 +17,5 @@
   no road-cell bonus, attraction or parallel-road penalty, no special bridge jump.
 - **Two passes.** With `searchSpeedFactor` > 1 the search runs twice (fast weighted, then exact inside a band around
   that path); the result and the per-path logs come from the last pass.
+- **Village entries are Millénaire paths only** (`EndpointResolver`): Ultreïa roads use the same blocks, so they are
+  told apart by `RoadIndex`; otherwise a village road starts in the middle of a lone trail.
