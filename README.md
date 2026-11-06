@@ -8,6 +8,8 @@ The goal is to have "realistic" and useful roads connecting Millénaire villages
 
 The roads give a speed boost.
 
+CURSEFORGE LINK : https://www.curseforge.com/minecraft/mc-mods/travellers
+
 ## This mod only works on already generated world
 I suggest using *Chunk Pregenerator* or my mod  *Jubitus Chunks* to pregenerate your worlds.
 **You can generate paths in an existing world without problems but I still recommend generating world.**
